@@ -1,0 +1,55 @@
+name: update
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: update-${{ github.ref_name }}
+
+permissions:
+  actions: write
+  contents: write
+  packages: read
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Login to ghcr.io
+        continue-on-error: true
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update meta.json
+        run: ./build.sh update
+
+      # Fails until the first image exists.
+      - name: Update packages.txt
+        continue-on-error: true
+        env:
+          BRANCH:     ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: ./build.sh packages "ghcr.io/${REPOSITORY,,}:${BRANCH}"
+
+      # A push with this token starts no workflow, so the build is dispatched explicitly.
+      - name: Commit Changes
+        env:
+          BRANCH:     ${{ github.ref_name }}
+          GH_TOKEN:   ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add meta.json packages.txt
+          if git commit -m "Modified: $(git diff --name-only --staged | paste -sd, - | sed 's/,/, /')"; then
+            git push origin "HEAD:${BRANCH}"
+            gh workflow run build.yml --repo "${REPOSITORY}" --ref "${BRANCH}"
+          fi

@@ -1,0 +1,18 @@
+{
+  "lidarr_branch": "develop",
+  "lidarr_repo": "Lidarr/Lidarr",
+  "lidarr_sha": "da7b4dfb1a9e7e1d6625c2dbc3fff96971ab26bd",
+  "lidarr_sha__command": "git ls-remote --exit-code \"https://github.com/$(jq -re '.lidarr_repo' < meta.json).git\" \"refs/heads/$(jq -re '.lidarr_branch' < meta.json)\" | cut -f1",
+  "pr_branch": "tagging-profiles",
+  "pr_repo": "chodeus/Lidarr",
+  "pr_sha": "35c1654c8189a1029a1b190149aabe99fa2dde79",
+  "pr_sha__command": "git ls-remote --exit-code \"https://github.com/$(jq -re '.pr_repo' < meta.json).git\" \"refs/heads/$(jq -re '.pr_branch' < meta.json)\" | cut -f1",
+  "test_url": "http://localhost:8686/system/status",
+  "upstream_image": "ghcr.io/hotio/base",
+  "upstream_tag": "alpinevpn",
+  "upstream_tag_sha": "alpinevpn-d75cbb9",
+  "upstream_tag_sha__command": "json=$(cat meta.json) && upstream_image=$(jq -re '.upstream_image' <<< \"${json}\") && upstream_image_base=$(basename \"${upstream_image}\") && upstream_tag=$(jq -re '.upstream_tag' <<< \"${json}\") && tags_json=$(curl -fsSL \"https://hotio.dev/containers/${upstream_image_base}-tags.json\") && commit_sha=$(jq -re --arg tag \"${upstream_tag}\" '.[$tag].commit_sha' <<< \"${tags_json}\") && upstream_tag_sha=${upstream_tag}-${commit_sha:0:7} && echo \"${upstream_tag_sha}\"",
+  "version": "3.1.6-da7b4df-35c1654",
+  "version__command": "lidarr_sha=$(jq -re '.lidarr_sha' < meta.json) && pr_sha=$(jq -re '.pr_sha' < meta.json) && major=$(curl -fsSL \"https://raw.githubusercontent.com/$(jq -re '.lidarr_repo' < meta.json)/${lidarr_sha}/azure-pipelines.yml\" | sed -n \"s/^ *majorVersion: '\\([0-9.]*\\)'.*/\\1/p\") && test -n \"${major}\" && echo \"${major}-${lidarr_sha:0:7}-${pr_sha:0:7}\"",
+  "version_branch": "nightly"
+}

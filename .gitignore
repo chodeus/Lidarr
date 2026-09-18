@@ -1,0 +1,5 @@
+cache-page*.json
+meta.json.bak
+_src/
+lidarr.tar.gz
+smoketest.log

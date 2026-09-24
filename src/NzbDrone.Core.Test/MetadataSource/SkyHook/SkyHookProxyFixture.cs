@@ -3,13 +3,16 @@ using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
 using Moq;
+using NLog;
 using NUnit.Framework;
+using NzbDrone.Common.Cache;
+using NzbDrone.Common.Http;
 using NzbDrone.Core.Exceptions;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.SkyHook;
 using NzbDrone.Core.MetadataSource.SkyHook.Resource;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Profiles.Metadata;
-using NzbDrone.Core.Profiles.Releases;
 using NzbDrone.Core.Test.Framework;
 
 namespace NzbDrone.Core.Test.MetadataSource.SkyHook
@@ -155,10 +158,24 @@ namespace NzbDrone.Core.Test.MetadataSource.SkyHook
         }
 
         [Test]
+        public void should_keep_the_constructor_that_plugins_call()
+        {
+            typeof(SkyHookProxy).GetConstructor(new[]
+                {
+                    typeof(IHttpClient),
+                    typeof(IMetadataRequestBuilder),
+                    typeof(IArtistService),
+                    typeof(IAlbumService),
+                    typeof(Logger),
+                    typeof(IMetadataProfileService),
+                    typeof(ICacheManager)
+                })
+                .Should().NotBeNull();
+        }
+
+        [Test]
         public void should_filter_albums_with_ignored_term_in_title()
         {
-            Mocker.SetConstant<ITermMatcherService>(Mocker.Resolve<TermMatcherService>());
-
             _metadataProfile.Ignored = new List<string> { "live" };
 
             var albums = new[] { "Live at Wembley", "Alive" }

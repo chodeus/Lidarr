@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Lidarr.Http.REST;
+using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Profiles.Metadata;
 
 namespace Lidarr.Api.V1.Profiles.Metadata
@@ -11,6 +12,7 @@ namespace Lidarr.Api.V1.Profiles.Metadata
         public List<ProfilePrimaryAlbumTypeItemResource> PrimaryAlbumTypes { get; set; }
         public List<ProfileSecondaryAlbumTypeItemResource> SecondaryAlbumTypes { get; set; }
         public List<ProfileReleaseStatusItemResource> ReleaseStatuses { get; set; }
+        public List<string> Ignored { get; set; }
     }
 
     public class ProfilePrimaryAlbumTypeItemResource : RestResource
@@ -46,7 +48,8 @@ namespace Lidarr.Api.V1.Profiles.Metadata
                 Name = model.Name,
                 PrimaryAlbumTypes = model.PrimaryAlbumTypes.ConvertAll(ToResource),
                 SecondaryAlbumTypes = model.SecondaryAlbumTypes.ConvertAll(ToResource),
-                ReleaseStatuses = model.ReleaseStatuses.ConvertAll(ToResource)
+                ReleaseStatuses = model.ReleaseStatuses.ConvertAll(ToResource),
+                Ignored = model.Ignored
             };
         }
 
@@ -105,7 +108,8 @@ namespace Lidarr.Api.V1.Profiles.Metadata
                 Name = resource.Name,
                 PrimaryAlbumTypes = resource.PrimaryAlbumTypes.ConvertAll(ToModel),
                 SecondaryAlbumTypes = resource.SecondaryAlbumTypes.ConvertAll(ToModel),
-                ReleaseStatuses = resource.ReleaseStatuses.ConvertAll(ToModel)
+                ReleaseStatuses = resource.ReleaseStatuses.ConvertAll(ToModel),
+                Ignored = resource.Ignored?.Where(t => t.IsNotNullOrWhiteSpace()).Select(t => t.Trim()).ToList() ?? new List<string>()
             };
         }
 

@@ -6,10 +6,26 @@ namespace NzbDrone.Core.Profiles.Releases
     public static class PerlRegexFactory
     {
         private static Regex _perlRegexFormat = new Regex(@"/(?<pattern>.*)/(?<modifiers>[a-z]*)", RegexOptions.Compiled);
+        private static Regex _perlRegexTermFormat = new Regex(@"^/(?<pattern>.+)/(?<modifiers>[a-z]*)$", RegexOptions.Compiled);
 
         public static bool TryCreateRegex(string pattern, out Regex regex)
         {
             var match = _perlRegexFormat.Match(pattern);
+
+            if (!match.Success)
+            {
+                regex = null;
+                return false;
+            }
+
+            regex = CreateRegex(match.Groups["pattern"].Value, match.Groups["modifiers"].Value);
+            return true;
+        }
+
+        // Anchored, unlike TryCreateRegex, so a plain term such as "Live // Unplugged" stays plain
+        public static bool TryCreateTermRegex(string term, out Regex regex)
+        {
+            var match = _perlRegexTermFormat.Match(term);
 
             if (!match.Success)
             {

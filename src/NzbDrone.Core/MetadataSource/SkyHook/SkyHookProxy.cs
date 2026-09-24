@@ -12,6 +12,7 @@ using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MetadataSource.SkyHook.Resource;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Profiles.Metadata;
+using NzbDrone.Core.Profiles.Releases;
 
 namespace NzbDrone.Core.MetadataSource.SkyHook
 {
@@ -23,6 +24,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
         private readonly IAlbumService _albumService;
         private readonly IMetadataRequestBuilder _requestBuilder;
         private readonly IMetadataProfileService _metadataProfileService;
+        private readonly ITermMatcherService _termMatcherService;
         private readonly ICached<HashSet<string>> _cache;
 
         private static readonly List<string> NonAudioMedia = new List<string> { "DVD", "DVD-Video", "Blu-ray", "HD-DVD", "VCD", "SVCD", "UMD", "VHS" };
@@ -34,10 +36,12 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
                             IAlbumService albumService,
                             Logger logger,
                             IMetadataProfileService metadataProfileService,
+                            ITermMatcherService termMatcherService,
                             ICacheManager cacheManager)
         {
             _httpClient = httpClient;
             _metadataProfileService = metadataProfileService;
+            _termMatcherService = termMatcherService;
             _requestBuilder = requestBuilder;
             _artistService = artistService;
             _albumService = albumService;
@@ -144,7 +148,8 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             return albums.Where(album => primaryTypes.Contains(album.Type) &&
                                 ((!album.SecondaryTypes.Any() && secondaryTypes.Contains("Studio")) ||
                                  album.SecondaryTypes.Any(x => secondaryTypes.Contains(x))) &&
-                                album.ReleaseStatuses.Any(x => releaseStatuses.Contains(x)));
+                                album.ReleaseStatuses.Any(x => releaseStatuses.Contains(x)) &&
+                                !metadataProfile.Ignored.Any(x => _termMatcherService.IsWholeWordMatch(x, album.Title)));
         }
 
         public Tuple<string, Album, List<ArtistMetadata>> GetAlbumInfo(string foreignAlbumId)

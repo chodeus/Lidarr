@@ -18,6 +18,8 @@ import ReleaseStatusItems from './ReleaseStatusItems';
 import SecondaryTypeItems from './SecondaryTypeItems';
 import styles from './EditMetadataProfileModalContent.css';
 
+const tagInputDelimiters = ['Tab', 'Enter'];
+
 function EditMetadataProfileModalContent(props) {
   const {
     isFetching,
@@ -40,7 +42,8 @@ function EditMetadataProfileModalContent(props) {
     name,
     primaryAlbumTypes: itemPrimaryAlbumTypes,
     secondaryAlbumTypes: itemSecondaryAlbumTypes,
-    releaseStatuses: itemReleaseStatuses
+    releaseStatuses: itemReleaseStatuses,
+    ignored
   } = item;
 
   return (
@@ -101,6 +104,24 @@ function EditMetadataProfileModalContent(props) {
                 formLabel={translate('ReleaseStatuses')}
                 {...otherProps}
               />
+
+              <FormGroup>
+                <FormLabel>
+                  {translate('MustNotContain')}
+                </FormLabel>
+
+                <FormInputGroup
+                  {...ignored}
+                  type={inputTypes.TEXT_TAG}
+                  name="ignored"
+                  helpText={translate('MetadataProfileIgnoredHelpText')}
+                  kind={kinds.DANGER}
+                  placeholder={translate('IgnoredPlaceHolder')}
+                  delimiters={tagInputDelimiters}
+                  canEdit={true}
+                  onChange={onInputChange}
+                />
+              </FormGroup>
 
             </Form>
         }

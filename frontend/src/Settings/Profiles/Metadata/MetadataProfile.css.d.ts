@@ -3,6 +3,7 @@
 interface CssExports {
   'albumTypes': string;
   'cloneButton': string;
+  'label': string;
   'metadataProfile': string;
   'name': string;
   'nameContainer': string;

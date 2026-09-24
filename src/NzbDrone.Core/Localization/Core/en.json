@@ -748,6 +748,7 @@
   "MetadataConsumers": "Metadata Consumers",
   "MetadataProfile": "Metadata Profile",
   "MetadataProfileIdHelpText": "Metadata Profile list items should be added with",
+  "MetadataProfileIgnoredHelpText": "Albums won't be added if their title contains one or more of these terms as whole words (case insensitive)",
   "MetadataProfiles": "Metadata Profiles",
   "MetadataSettings": "Metadata Settings",
   "MetadataSettingsArtistSummary": "Create metadata files when tracks are imported or artist are refreshed",

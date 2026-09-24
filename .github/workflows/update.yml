@@ -59,6 +59,16 @@ jobs:
             gh workflow run build.yml --repo "${REPOSITORY}" --ref "${BRANCH}"
           fi
 
+  sync-develop:
+    runs-on: ubuntu-24.04
+    steps:
+      # The image reads upstream directly, so nothing else keeps the fork's develop current.
+      - name: Fast-forward develop to upstream
+        env:
+          GH_TOKEN:   ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: gh repo sync "${REPOSITORY}" --branch develop --source Lidarr/Lidarr
+
   notify:
     needs: update
     if: failure()
@@ -68,6 +78,19 @@ jobs:
       status: failure
       title: "❌ Lidarr image updates stopped: ${{ github.ref_name }}"
       description: "The hourly update failed, so the image is no longer tracking upstream develop or the base image. Most likely `custom-build` stopped merging cleanly — rebase it onto develop."
+      commit_sha: ${{ github.sha }}
+    secrets:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+  notify-sync:
+    needs: sync-develop
+    if: failure()
+    uses: chodeus/chodeus-ops/.github/workflows/notify-discord.yml@579feb04e3219248963bd27843298a8c2ea6b2fd # main
+    with:
+      event_type: workflow
+      status: failure
+      title: "❌ Lidarr fork develop sync failed"
+      description: "develop could not be fast-forwarded to Lidarr/Lidarr. If upstream changed a workflow file, the built-in token cannot push it: run `gh repo sync chodeus/Lidarr --branch develop` or use Sync fork on GitHub."
       commit_sha: ${{ github.sha }}
     secrets:
       DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}

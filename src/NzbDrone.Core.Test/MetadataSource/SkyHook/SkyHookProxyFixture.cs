@@ -9,6 +9,7 @@ using NzbDrone.Core.MetadataSource.SkyHook;
 using NzbDrone.Core.MetadataSource.SkyHook.Resource;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Profiles.Metadata;
+using NzbDrone.Core.Profiles.Releases;
 using NzbDrone.Core.Test.Framework;
 
 namespace NzbDrone.Core.Test.MetadataSource.SkyHook
@@ -151,6 +152,27 @@ namespace NzbDrone.Core.Test.MetadataSource.SkyHook
             var albums = GivenExampleAlbums();
             Subject.FilterAlbums(albums, 1).SelectMany(x => x.ReleaseStatuses).Distinct()
                    .Should().BeEquivalentTo(new List<string> { type.Name });
+        }
+
+        [Test]
+        public void should_filter_albums_with_ignored_term_in_title()
+        {
+            Mocker.SetConstant<ITermMatcherService>(Mocker.Resolve<TermMatcherService>());
+
+            _metadataProfile.Ignored = new List<string> { "live" };
+
+            var albums = new[] { "Live at Wembley", "Alive" }
+                .Select(title => new AlbumResource
+                {
+                    Title = title,
+                    Type = PrimaryAlbumType.Album.Name,
+                    SecondaryTypes = new List<string>(),
+                    ReleaseStatuses = new List<string> { ReleaseStatus.Official.Name }
+                })
+                .ToList();
+
+            Subject.FilterAlbums(albums, 1).Select(x => x.Title)
+                   .Should().BeEquivalentTo(new List<string> { "Alive" });
         }
 
         [TestCase("12fa3845-7c62-36e5-a8da-8be137155a72", "Hysteria")]

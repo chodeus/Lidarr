@@ -24,7 +24,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
         private readonly IAlbumService _albumService;
         private readonly IMetadataRequestBuilder _requestBuilder;
         private readonly IMetadataProfileService _metadataProfileService;
-        private readonly ITermMatcherService _termMatcherService;
+        private readonly TermMatcherService _termMatcherService;
         private readonly ICached<HashSet<string>> _cache;
 
         private static readonly List<string> NonAudioMedia = new List<string> { "DVD", "DVD-Video", "Blu-ray", "HD-DVD", "VCD", "SVCD", "UMD", "VHS" };
@@ -36,17 +36,18 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
                             IAlbumService albumService,
                             Logger logger,
                             IMetadataProfileService metadataProfileService,
-                            ITermMatcherService termMatcherService,
                             ICacheManager cacheManager)
         {
             _httpClient = httpClient;
             _metadataProfileService = metadataProfileService;
-            _termMatcherService = termMatcherService;
             _requestBuilder = requestBuilder;
             _artistService = artistService;
             _albumService = albumService;
             _cache = cacheManager.GetCache<HashSet<string>>(GetType());
             _logger = logger;
+
+            // Built here rather than injected: plugins call this develop constructor directly
+            _termMatcherService = new TermMatcherService(cacheManager);
         }
 
         public HashSet<string> GetChangedArtists(DateTime startTime)

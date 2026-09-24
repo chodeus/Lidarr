@@ -8,7 +8,6 @@ namespace NzbDrone.Core.Profiles.Releases
     public interface ITermMatcherService
     {
         bool IsMatch(string term, string value);
-        bool IsWholeWordMatch(string term, string value);
         string MatchingTerm(string term, string value);
     }
 

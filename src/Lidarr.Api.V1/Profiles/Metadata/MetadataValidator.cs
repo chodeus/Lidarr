@@ -1,7 +1,9 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using FluentValidation;
 using FluentValidation.Validators;
+using NzbDrone.Core.Profiles.Releases;
 
 namespace Lidarr.Api.V1.Profiles.Metadata
 {
@@ -26,6 +28,11 @@ namespace Lidarr.Api.V1.Profiles.Metadata
             ruleBuilder.SetValidator(new NotEmptyValidator(null));
 
             return ruleBuilder.SetValidator(new ReleaseStatusValidator<T>());
+        }
+
+        public static IRuleBuilderOptions<T, string> MustBeValidTerm<T>(this IRuleBuilder<T, string> ruleBuilder)
+        {
+            return ruleBuilder.SetValidator(new TermValidator<T>());
         }
     }
 
@@ -59,6 +66,26 @@ namespace Lidarr.Api.V1.Profiles.Metadata
         {
             return context.PropertyValue is IList<ProfileReleaseStatusItemResource> list &&
                    list.Any(c => c.Allowed);
+        }
+    }
+
+    public class TermValidator<T> : PropertyValidator
+    {
+        protected override string GetDefaultMessageTemplate() => "Regular expression is invalid or matches an empty title";
+
+        protected override bool IsValid(PropertyValidatorContext context)
+        {
+            // Trimmed like MetadataProfileResourceMapper.ToModel, so this checks the term that gets saved
+            var term = (context.PropertyValue as string)?.Trim() ?? string.Empty;
+
+            try
+            {
+                return !PerlRegexFactory.TryCreateTermRegex(term, out var regex) || !regex.IsMatch(string.Empty);
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
         }
     }
 }

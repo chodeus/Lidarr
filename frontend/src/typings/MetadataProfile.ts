@@ -33,6 +33,7 @@ interface MetadataProfile {
   primaryAlbumTypes: ProfilePrimaryAlbumTypeItem[];
   secondaryAlbumTypes: ProfileSecondaryAlbumTypeItem[];
   ReleaseStatuses: ProfileReleaseStatusItem[];
+  ignored: string[];
   id: number;
 }
 

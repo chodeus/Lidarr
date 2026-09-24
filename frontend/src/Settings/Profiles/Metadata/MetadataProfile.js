@@ -1,5 +1,6 @@
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
+import MiddleTruncate from 'react-middle-truncate';
 import Card from 'Components/Card';
 import Label from 'Components/Label';
 import IconButton from 'Components/Link/IconButton';
@@ -67,6 +68,7 @@ class MetadataProfile extends Component {
       name,
       primaryAlbumTypes,
       secondaryAlbumTypes,
+      ignored,
       isDeleting
     } = this.props;
 
@@ -129,6 +131,30 @@ class MetadataProfile extends Component {
           }
         </div>
 
+        <div className={styles.albumTypes}>
+          {
+            ignored.map((item) => {
+              if (!item) {
+                return null;
+              }
+
+              return (
+                <Label
+                  className={styles.label}
+                  key={item}
+                  kind={kinds.DANGER}
+                >
+                  <MiddleTruncate
+                    text={item}
+                    start={10}
+                    end={10}
+                  />
+                </Label>
+              );
+            })
+          }
+        </div>
+
         <EditMetadataProfileModalConnector
           id={id}
           isOpen={this.state.isEditMetadataProfileModalOpen}
@@ -156,10 +182,15 @@ MetadataProfile.propTypes = {
   name: PropTypes.string.isRequired,
   primaryAlbumTypes: PropTypes.arrayOf(PropTypes.object).isRequired,
   secondaryAlbumTypes: PropTypes.arrayOf(PropTypes.object).isRequired,
+  ignored: PropTypes.arrayOf(PropTypes.string).isRequired,
   isDeleting: PropTypes.bool.isRequired,
   onConfirmDeleteMetadataProfile: PropTypes.func.isRequired,
   onCloneMetadataProfilePress: PropTypes.func.isRequired
 
+};
+
+MetadataProfile.defaultProps = {
+  ignored: []
 };
 
 export default MetadataProfile;

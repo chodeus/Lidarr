@@ -1,12 +1,15 @@
 using System.Collections.Generic;
 using System.Linq;
 using NLog;
+using NzbDrone.Common.Extensions;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.DecisionEngine.Specifications;
 using NzbDrone.Core.Download;
+using NzbDrone.Core.History;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Profiles.Qualities;
 using NzbDrone.Core.Qualities;
 
 namespace NzbDrone.Core.MediaFiles.TrackImport.Specifications
@@ -15,12 +18,14 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Specifications
     {
         private readonly IUpgradableSpecification _upgradableSpecification;
         private readonly ICustomFormatCalculationService _formatService;
+        private readonly IHistoryService _historyService;
         private readonly Logger _logger;
 
-        public MoreTracksSpecification(IUpgradableSpecification upgradableSpecification, ICustomFormatCalculationService formatService, Logger logger)
+        public MoreTracksSpecification(IUpgradableSpecification upgradableSpecification, ICustomFormatCalculationService formatService, IHistoryService historyService, Logger logger)
         {
             _upgradableSpecification = upgradableSpecification;
             _formatService = formatService;
+            _historyService = historyService;
             _logger = logger;
         }
 
@@ -32,7 +37,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Specifications
             if (item.AlbumRelease.Id != existingRelease.Id &&
                 item.TrackCount < existingTrackCount)
             {
-                if (IsAllowedSmallerReleaseUpgrade(item, existingTracks))
+                if (IsAllowedSmallerReleaseUpgrade(item, existingTracks, downloadClientItem))
                 {
                     _logger.Debug($"This release has fewer tracks ({item.TrackCount}) than existing {existingRelease} ({existingTrackCount}) but is a quality upgrade. Accepting {item}");
                     return Decision.Accept();
@@ -47,7 +52,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Specifications
         }
 
         // Same upgrade test UpgradeDiskSpecification runs at grab, so a release grabbed as an upgrade can import.
-        private bool IsAllowedSmallerReleaseUpgrade(LocalAlbumRelease item, List<Track> existingTracks)
+        private bool IsAllowedSmallerReleaseUpgrade(LocalAlbumRelease item, List<Track> existingTracks, DownloadClientItem downloadClientItem)
         {
             // Library files joined in by a rescan are the existing files, not an upgrade to them.
             var existingPaths = item.ExistingTracks?.Select(x => x.Path).ToHashSet() ?? new HashSet<string>();
@@ -63,15 +68,30 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Specifications
 
             var comparer = new QualityModelComparer(profile);
             var worstQuality = incoming.Select(x => x.Quality).OrderBy(x => x, comparer).First();
-            var worstFormats = incoming.Select(x => _formatService.ParseCustomFormat(x))
-                                       .OrderBy(x => profile.CalculateCustomFormatScore(x))
-                                       .First();
+            var worstFormats = IncomingFormats(incoming, artist, profile, downloadClientItem);
 
             return _upgradableSpecification.IsUpgradable(profile,
                                                          existingFiles.Select(x => x.Quality).Distinct().ToList(),
                                                          _formatService.ParseCustomFormat(existingFiles[0], artist),
                                                          worstQuality,
                                                          worstFormats);
+        }
+
+        // An album download's files don't carry its release title, so score what was grabbed.
+        private List<CustomFormat> IncomingFormats(List<LocalTrack> incoming, Artist artist, QualityProfile profile, DownloadClientItem downloadClientItem)
+        {
+            var grab = downloadClientItem?.DownloadId.IsNotNullOrWhiteSpace() == true
+                ? _historyService.Find(downloadClientItem.DownloadId, EntityHistoryEventType.Grabbed).MaxBy(x => x.Date)
+                : null;
+
+            if (grab != null)
+            {
+                return _formatService.ParseCustomFormat(grab, artist);
+            }
+
+            return incoming.Select(x => _formatService.ParseCustomFormat(x))
+                           .OrderBy(x => profile.CalculateCustomFormatScore(x))
+                           .First();
         }
     }
 }

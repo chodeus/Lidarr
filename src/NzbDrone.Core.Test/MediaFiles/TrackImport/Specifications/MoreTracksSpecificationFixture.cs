@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
@@ -5,6 +6,8 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.DecisionEngine.Specifications;
+using NzbDrone.Core.Download;
+using NzbDrone.Core.History;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.TrackImport.Specifications;
 using NzbDrone.Core.Music;
@@ -60,6 +63,10 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Specifications
                   .Setup(s => s.ParseCustomFormat(It.IsAny<TrackFile>(), It.IsAny<Artist>()))
                   .Returns<TrackFile, Artist>((f, a) => FormatsNamed(f.SceneName));
 
+            Mocker.GetMock<ICustomFormatCalculationService>()
+                  .Setup(s => s.ParseCustomFormat(It.IsAny<EntityHistory>(), It.IsAny<Artist>()))
+                  .Returns<EntityHistory, Artist>((h, a) => FormatsNamed(h.SourceTitle));
+
             _album = new Album { Id = 1 };
             _existingRelease = new AlbumRelease { Id = 10, Monitored = true, Album = _album };
             _singleRelease = new AlbumRelease { Id = 11, Monitored = false, Album = _album };
@@ -71,6 +78,20 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Specifications
         private List<CustomFormat> FormatsNamed(string name)
         {
             return _formats.Where(x => x.Name == name).ToList();
+        }
+
+        private DownloadClientItem GivenGrabs(params (string Format, int HoursAgo)[] grabs)
+        {
+            Mocker.GetMock<IHistoryService>()
+                  .Setup(s => s.Find("download-1", EntityHistoryEventType.Grabbed))
+                  .Returns(grabs.Select(g => new EntityHistory
+                  {
+                      EventType = EntityHistoryEventType.Grabbed,
+                      SourceTitle = g.Format,
+                      Date = DateTime.UtcNow.AddHours(-g.HoursAgo)
+                  }).ToList());
+
+            return new DownloadClientItem { DownloadId = "download-1" };
         }
 
         private void GivenExistingFiles(params Quality[] qualities)
@@ -177,6 +198,30 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Specifications
             GivenExistingFiles("WEB", Quality.FLAC, Quality.FLAC, Quality.FLAC);
 
             Subject.IsSatisfiedBy(Incoming(_singleRelease, "Vinyl", Quality.FLAC_24), null).Accepted.Should().BeTrue();
+        }
+
+        [Test]
+        public void should_score_a_download_by_its_grab_rather_than_its_file_names()
+        {
+            GivenExistingFiles("CD", Quality.FLAC, Quality.FLAC, Quality.FLAC);
+
+            Subject.IsSatisfiedBy(Incoming(_singleRelease, Quality.FLAC), GivenGrabs(("WEB", 1))).Accepted.Should().BeTrue();
+        }
+
+        [Test]
+        public void should_score_the_files_when_the_download_has_no_grab()
+        {
+            GivenExistingFiles("CD", Quality.FLAC, Quality.FLAC, Quality.FLAC);
+
+            Subject.IsSatisfiedBy(Incoming(_singleRelease, "WEB", Quality.FLAC), GivenGrabs()).Accepted.Should().BeTrue();
+        }
+
+        [Test]
+        public void should_score_the_most_recent_grab()
+        {
+            GivenExistingFiles("CD", Quality.FLAC, Quality.FLAC, Quality.FLAC);
+
+            Subject.IsSatisfiedBy(Incoming(_singleRelease, Quality.FLAC), GivenGrabs(("WEB", 5), ("Vinyl", 1))).Accepted.Should().BeFalse();
         }
 
         [Test]

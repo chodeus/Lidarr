@@ -123,9 +123,16 @@ jobs:
           IMAGE: ${{ steps.meta.outputs.image-full }}
         run: |
           test_url=$(jq -re '.test_url' < meta.json)
+          sleezer_version=$(jq -re '.sleezer_version' < meta.json)
           exitcode=0
           docker run --quiet --network host -d --name service "${IMAGE}"
           curl -fsSL --retry-all-errors --retry 60 --retry-max-time 120 -m 10 -b /dev/shm/cookie "${test_url}" --output /dev/null || exitcode=$?
+          # A plugin that breaks startup makes Lidarr start again without plugins, so ask which version it loaded.
+          if (( exitcode == 0 )); then
+            api_key=$(docker exec service sed -n 's|.*<ApiKey>\(.*\)</ApiKey>.*|\1|p' /config/config.xml)
+            curl -fsSL -m 30 -H "X-Api-Key: ${api_key}" "http://localhost:8686/api/v1/system/plugins" |
+              jq -e --arg version "${sleezer_version#v}" 'any(.[]; .name == "Sleezer" and (.installedVersion | split(".")[0:3] | join(".")) == $version)' || exitcode=$?
+          fi
           docker logs service > smoketest.log 2>&1
           exit ${exitcode}
 

@@ -23,5 +23,17 @@ RUN --mount=type=bind,source=lidarr.tar.gz,target=/tmp/lidarr.tar.gz \
     echo -e "PackageVersion=${PACKAGE_VERSION}\nPackageAuthor=[chodeus](https://github.com/chodeus)\nUpdateMethod=Docker\nBranch=${VERSION_BRANCH}" > "${APP_DIR}/package_info" && \
     chmod -R u=rwX,go=rX "${APP_DIR}"
 
+ARG SLEEZER_REPO
+ARG SLEEZER_VERSION
+ARG SLEEZER_ZIP_SHA256
+
+# init-setup-app copies ${APP_DIR}/plugins into the config volume, where Lidarr loads plugins from.
+RUN curl -fsSL -o /tmp/sleezer.zip "https://github.com/${SLEEZER_REPO}/releases/download/${SLEEZER_VERSION}/Sleezer-${SLEEZER_VERSION}.net8.0.zip" && \
+    echo "${SLEEZER_ZIP_SHA256}  /tmp/sleezer.zip" | sha256sum -c - && \
+    mkdir -p "${APP_DIR}/plugins/${SLEEZER_REPO}" && \
+    unzip -q /tmp/sleezer.zip -d "${APP_DIR}/plugins/${SLEEZER_REPO}" && \
+    rm /tmp/sleezer.zip && \
+    chmod -R u=rwX,go=rX "${APP_DIR}/plugins"
+
 COPY root/ /
 RUN find /etc/s6-overlay/s6-rc.d -name "run*" -execdir chmod +x {} +

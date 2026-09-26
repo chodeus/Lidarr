@@ -120,6 +120,7 @@ class EditQualityProfileModalContent extends Component {
       id,
       name,
       upgradeAllowed,
+      allowSmallerReleaseUpgrades,
       cutoff,
       minFormatScore,
       cutoffFormatScore,
@@ -188,6 +189,23 @@ class EditQualityProfileModalContent extends Component {
                             onChange={onInputChange}
                           />
                         </FormGroup>
+
+                        {
+                          upgradeAllowed.value &&
+                            <FormGroup size={sizes.EXTRA_SMALL}>
+                              <FormLabel size={sizes.SMALL}>
+                                {translate('AllowSmallerReleaseUpgrades')}
+                              </FormLabel>
+
+                              <FormInputGroup
+                                type={inputTypes.CHECK}
+                                name="allowSmallerReleaseUpgrades"
+                                {...allowSmallerReleaseUpgrades}
+                                helpText={translate('AllowSmallerReleaseUpgradesHelpText')}
+                                onChange={onInputChange}
+                              />
+                            </FormGroup>
+                        }
 
                         {
                           upgradeAllowed.value &&

@@ -11,6 +11,7 @@ namespace Lidarr.Api.V1.Profiles.Quality
     {
         public string Name { get; set; }
         public bool UpgradeAllowed { get; set; }
+        public bool AllowSmallerReleaseUpgrades { get; set; }
         public int Cutoff { get; set; }
         public List<QualityProfileQualityItemResource> Items { get; set; }
         public int MinFormatScore { get; set; }
@@ -52,6 +53,7 @@ namespace Lidarr.Api.V1.Profiles.Quality
                 Id = model.Id,
                 Name = model.Name,
                 UpgradeAllowed = model.UpgradeAllowed,
+                AllowSmallerReleaseUpgrades = model.AllowSmallerReleaseUpgrades,
                 Cutoff = model.Cutoff,
                 Items = model.Items.ConvertAll(ToResource),
                 MinFormatScore = model.MinFormatScore,
@@ -99,6 +101,7 @@ namespace Lidarr.Api.V1.Profiles.Quality
                 Id = resource.Id,
                 Name = resource.Name,
                 UpgradeAllowed = resource.UpgradeAllowed,
+                AllowSmallerReleaseUpgrades = resource.AllowSmallerReleaseUpgrades,
                 Cutoff = resource.Cutoff,
                 Items = resource.Items.ConvertAll(ToModel),
                 MinFormatScore = resource.MinFormatScore,

@@ -35,15 +35,23 @@ if [[ ${1} == "source" ]]; then
     lidarr_repo=$(jq -re '.lidarr_repo' < meta.json)
     lidarr_sha=$(jq -re '.lidarr_sha' < meta.json)
     pr_repo=$(jq -re '.pr_repo' < meta.json)
-    pr_sha=$(jq -re '.pr_sha' < meta.json)
-    rm -rf _src
-    git clone --quiet --filter=blob:none --no-checkout "https://github.com/${lidarr_repo}.git" _src
-    git -C _src fetch --quiet "https://github.com/${pr_repo}.git" "${pr_sha}"
-    git -C _src checkout --quiet --detach "${lidarr_sha}"
-    if ! git -C _src -c user.name=build -c user.email=build@localhost merge --quiet --no-edit "${pr_sha}"; then
-        echo "${pr_repo}@${pr_sha:0:7} does not merge cleanly into ${lidarr_repo}@${lidarr_sha:0:7}: rebase the PR branch." >&2
+    read -r -a pr_branches <<< "$(jq -re '.pr_branches' < meta.json)"
+    read -r -a pr_shas <<< "$(jq -re '.pr_shas' < meta.json)"
+    if (( ${#pr_branches[@]} != ${#pr_shas[@]} )); then
+        echo "meta.json lists ${#pr_branches[@]} pr_branches but ${#pr_shas[@]} pr_shas: run ./build.sh update." >&2
         exit 1
     fi
+    rm -rf _src
+    git clone --quiet --filter=blob:none --no-checkout "https://github.com/${lidarr_repo}.git" _src
+    git -C _src fetch --quiet "https://github.com/${pr_repo}.git" "${pr_shas[@]}"
+    git -C _src checkout --quiet --detach "${lidarr_sha}"
+    # Merged in pr_branches order, so a failure names the branch that stopped fitting.
+    for i in "${!pr_branches[@]}"; do
+        if ! git -C _src -c user.name=build -c user.email=build@localhost merge --quiet --no-edit "${pr_shas[i]}"; then
+            echo "${pr_repo} ${pr_branches[i]}@${pr_shas[i]:0:7} does not merge cleanly into ${lidarr_repo}@${lidarr_sha:0:7} after the branches listed before it: rebase it." >&2
+            exit 1
+        fi
+    done
 fi
 
 if [[ ${1} == "source" || ${1} == "migrations" ]]; then

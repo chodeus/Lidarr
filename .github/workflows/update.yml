@@ -77,7 +77,7 @@ jobs:
       event_type: workflow
       status: failure
       title: "❌ Lidarr image updates stopped: ${{ github.ref_name }}"
-      description: "The hourly update failed, so the image is no longer tracking upstream develop or the base image. Most likely `custom-build` stopped merging cleanly — rebase it onto develop."
+      description: "The hourly update failed, so the image is no longer tracking upstream develop or the base image. Most likely one of meta.json's `pr_branches` stopped merging cleanly: the build log names it; rebase that branch onto develop."
       commit_sha: ${{ github.sha }}
     secrets:
       DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}

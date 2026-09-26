@@ -38,6 +38,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
     {
         public FilterFilesType Filter { get; set; }
         public bool NewDownload { get; set; }
+        public bool SceneSource { get; set; }
         public bool SingleRelease { get; set; }
         public bool IncludeExisting { get; set; }
         public bool AddNewArtists { get; set; }
@@ -76,7 +77,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             _logger = logger;
         }
 
-        public Tuple<List<LocalTrack>, List<ImportDecision<LocalTrack>>> GetLocalTracks(List<IFileInfo> musicFiles, DownloadClientItem downloadClientItem, ParsedAlbumInfo folderInfo, FilterFilesType filter)
+        public Tuple<List<LocalTrack>, List<ImportDecision<LocalTrack>>> GetLocalTracks(List<IFileInfo> musicFiles, DownloadClientItem downloadClientItem, ParsedAlbumInfo folderInfo, FilterFilesType filter, bool sceneSource)
         {
             var watch = new System.Diagnostics.Stopwatch();
             watch.Start();
@@ -113,13 +114,14 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                     Size = file.Length,
                     Modified = file.LastWriteTimeUtc,
                     FileTrackInfo = _audioTagService.ReadTags(file.FullName),
-                    AdditionalFile = false
+                    AdditionalFile = false,
+                    SceneSource = sceneSource,
+                    OtherAudioFiles = files.Count > 1
                 };
 
                 try
                 {
-                    // TODO fix otherfiles?
-                    _augmentingService.Augment(localTrack, true);
+                    _augmentingService.Augment(localTrack, localTrack.OtherAudioFiles);
                     localTracks.Add(localTrack);
                 }
                 catch (AugmentingFailedException)
@@ -144,7 +146,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             idOverrides ??= new IdentificationOverrides();
             itemInfo ??= new ImportDecisionMakerInfo();
 
-            var trackData = GetLocalTracks(musicFiles, itemInfo.DownloadClientItem, itemInfo.ParsedAlbumInfo, config.Filter);
+            var trackData = GetLocalTracks(musicFiles, itemInfo.DownloadClientItem, itemInfo.ParsedAlbumInfo, config.Filter, config.SceneSource);
             var localTracks = trackData.Item1;
             var decisions = trackData.Item2;
 

@@ -70,6 +70,23 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport
         }
 
         [Test]
+        public void should_not_use_download_client_item_title_as_scene_name_if_there_are_other_audio_files()
+        {
+            _localEpisode.OtherAudioFiles = true;
+            _localEpisode.DownloadClientAlbumInfo = new ParsedAlbumInfo
+            {
+                ReleaseTitle = _seasonName,
+                Discography = false
+            };
+
+            _localEpisode.Path = Path.Combine(@"C:\Test\Unsorted TV", _seasonName, _episodeName)
+                                     .AsOsAgnostic();
+
+            SceneNameCalculator.GetSceneName(_localEpisode).Should()
+                               .BeNull();
+        }
+
+        [Test]
         public void should_not_use_file_name_as_scenename_if_it_doesnt_look_like_scenename()
         {
             _localEpisode.Path = Path.Combine(@"C:\Test\Unsorted TV", _episodeName, "aaaaa.mkv")

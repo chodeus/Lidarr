@@ -404,6 +404,33 @@ namespace NzbDrone.Core.Test.MediaFiles
             result.First().Result.Should().Be(ImportResultType.Rejected);
         }
 
+        [Test]
+        public void should_import_a_download_folder_as_a_scene_source()
+        {
+            GivenValidArtist();
+            GivenSuccessfulImport();
+
+            Subject.ProcessRootFolder(DiskProvider.GetDirectoryInfo(_droneFactory));
+
+            Mocker.GetMock<IMakeImportDecision>()
+                  .Verify(c => c.GetImportDecisions(It.IsAny<List<IFileInfo>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerInfo>(), It.Is<ImportDecisionMakerConfig>(x => x.SceneSource)),
+                          Times.Once());
+        }
+
+        [Test]
+        public void should_import_a_downloaded_file_as_a_scene_source()
+        {
+            var file = "c:\\drop\\01 single.flac".AsOsAgnostic();
+            GivenAudioFiles(new[] { file }, 10);
+            GivenSuccessfulImport();
+
+            Subject.ProcessPath(file, ImportMode.Auto, Builder<Artist>.CreateNew().Build(), _trackedDownload.DownloadItem);
+
+            Mocker.GetMock<IMakeImportDecision>()
+                  .Verify(c => c.GetImportDecisions(It.IsAny<List<IFileInfo>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerInfo>(), It.Is<ImportDecisionMakerConfig>(x => x.SceneSource)),
+                          Times.Once());
+        }
+
         private void VerifyNoImport()
         {
             Mocker.GetMock<IImportApprovedTracks>().Verify(c => c.Import(It.IsAny<List<ImportDecision<LocalTrack>>>(), true, null, ImportMode.Auto),

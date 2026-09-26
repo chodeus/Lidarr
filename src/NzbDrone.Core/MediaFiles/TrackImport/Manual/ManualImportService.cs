@@ -118,6 +118,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
                 {
                     Filter = FilterFilesType.None,
                     NewDownload = true,
+                    SceneSource = SceneSource(artist, path),
                     SingleRelease = false,
                     IncludeExisting = !replaceExistingFiles,
                     AddNewArtists = false
@@ -195,6 +196,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
             {
                 Filter = filter,
                 NewDownload = true,
+                SceneSource = SceneSource(artist, folder),
                 SingleRelease = false,
                 IncludeExisting = !replaceExistingFiles,
                 AddNewArtists = false
@@ -233,6 +235,17 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
             return items;
         }
 
+        // Mirrors Sonarr: files under the artist folder, or any root folder when no artist is known, are library files rather than a release.
+        private bool SceneSource(Artist artist, string folder)
+        {
+            if (artist != null)
+            {
+                return !(artist.Path.PathEquals(folder) || artist.Path.IsParentPath(folder));
+            }
+
+            return _rootFolderService.GetBestRootFolder(folder) == null;
+        }
+
         public List<ManualImportItem> UpdateItems(List<ManualImportItem> items)
         {
             var replaceExistingFiles = items.All(x => x.ReplaceExistingFiles);
@@ -258,6 +271,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
                 {
                     Filter = FilterFilesType.None,
                     NewDownload = true,
+                    SceneSource = SceneSource(group.First().Artist, Path.GetDirectoryName(group.First().Path)),
                     SingleRelease = true,
                     IncludeExisting = !replaceExistingFiles,
                     AddNewArtists = false
@@ -400,6 +414,17 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
                         Album = album,
                         Release = release
                     };
+
+                    if (file.DownloadId.IsNotNullOrWhiteSpace())
+                    {
+                        var downloadItem = _trackedDownloadService.Find(file.DownloadId)?.DownloadItem;
+                        localTrack.DownloadClientAlbumInfo = downloadItem == null ? null : Parser.Parser.ParseAlbumTitle(downloadItem.Title);
+                    }
+
+                    // Execute keeps the user's choices instead of augmenting, so set the scene name as AugmentingService would.
+                    localTrack.SceneSource = !localTrack.ExistingFile;
+                    localTrack.OtherAudioFiles = message.Files.Count(x => x.DownloadId == file.DownloadId) > 1;
+                    localTrack.SceneName = localTrack.SceneSource ? SceneNameCalculator.GetSceneName(localTrack) : null;
 
                     var importDecision = new ImportDecision<LocalTrack>(localTrack);
                     if (_rootFolderService.GetBestRootFolder(artist.Path) == null)

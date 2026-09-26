@@ -153,6 +153,21 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport
             _fileInfos = videoFiles.Select(x => DiskProvider.GetFileInfo(x)).ToList();
         }
 
+        private List<LocalTrack> GivenAugmentationCapture()
+        {
+            var augmented = new List<LocalTrack>();
+
+            Mocker.GetMock<IAugmentingService>()
+                  .Setup(s => s.Augment(It.IsAny<LocalTrack>(), It.IsAny<bool>()))
+                  .Callback<LocalTrack, bool>((localTrack, otherFiles) =>
+                  {
+                      localTrack.Tracks = _localTrack.Tracks;
+                      augmented.Add(localTrack);
+                  });
+
+            return augmented;
+        }
+
         private void GivenAugmentationSuccess()
         {
             Mocker.GetMock<IAugmentingService>()
@@ -410,6 +425,55 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport
             Subject.GetImportDecisions(_fileInfos, _idOverrides, null, _idConfig).Should().HaveCount(1);
 
             ExceptionVerification.ExpectedErrors(1);
+        }
+
+        [Test]
+        public void should_mark_tracks_as_scene_source_when_importing_a_download()
+        {
+            var augmented = GivenAugmentationCapture();
+            _idConfig.SceneSource = true;
+
+            Subject.GetImportDecisions(_fileInfos, null, null, _idConfig);
+
+            augmented.Should().ContainSingle().Which.SceneSource.Should().BeTrue();
+        }
+
+        [Test]
+        public void should_not_mark_tracks_as_scene_source_by_default()
+        {
+            var augmented = GivenAugmentationCapture();
+
+            Subject.GetImportDecisions(_fileInfos, null, null, _idConfig);
+
+            augmented.Should().ContainSingle().Which.SceneSource.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_flag_other_audio_files_when_importing_several_files()
+        {
+            GivenAudioFiles(new List<string>
+            {
+                @"C:\Test\Unsorted\Artist - Album\01 - First.flac".AsOsAgnostic(),
+                @"C:\Test\Unsorted\Artist - Album\02 - Second.flac".AsOsAgnostic()
+            });
+
+            var augmented = GivenAugmentationCapture();
+
+            Subject.GetImportDecisions(_fileInfos, null, null, _idConfig);
+
+            augmented.Should().HaveCount(2).And.OnlyContain(x => x.OtherAudioFiles);
+            Mocker.GetMock<IAugmentingService>().Verify(s => s.Augment(It.IsAny<LocalTrack>(), true), Times.Exactly(2));
+        }
+
+        [Test]
+        public void should_not_flag_other_audio_files_for_a_single_file()
+        {
+            var augmented = GivenAugmentationCapture();
+
+            Subject.GetImportDecisions(_fileInfos, null, null, _idConfig);
+
+            augmented.Should().ContainSingle().Which.OtherAudioFiles.Should().BeFalse();
+            Mocker.GetMock<IAugmentingService>().Verify(s => s.Augment(It.IsAny<LocalTrack>(), false), Times.Once());
         }
     }
 }

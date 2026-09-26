@@ -9,9 +9,10 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
     {
         public static string GetSceneName(LocalTrack localEpisode)
         {
+            var otherAudioFiles = localEpisode.OtherAudioFiles;
             var downloadClientInfo = localEpisode.DownloadClientAlbumInfo;
 
-            if (downloadClientInfo != null && !downloadClientInfo.Discography)
+            if (!otherAudioFiles && downloadClientInfo != null && !downloadClientInfo.Discography)
             {
                 return Parser.Parser.RemoveFileExtension(downloadClientInfo.ReleaseTitle);
             }
@@ -25,7 +26,8 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
 
             var folderTitle = localEpisode.FolderAlbumInfo?.ReleaseTitle;
 
-            if (localEpisode.FolderAlbumInfo?.Discography == false &&
+            if (!otherAudioFiles &&
+                localEpisode.FolderAlbumInfo?.Discography == false &&
                 folderTitle.IsNotNullOrWhiteSpace() &&
                 SceneChecker.IsSceneTitle(folderTitle))
             {

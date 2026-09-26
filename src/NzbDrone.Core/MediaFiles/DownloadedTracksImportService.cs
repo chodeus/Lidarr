@@ -214,6 +214,7 @@ namespace NzbDrone.Core.MediaFiles
             {
                 Filter = FilterFilesType.None,
                 NewDownload = true,
+                SceneSource = true,
                 SingleRelease = false,
                 IncludeExisting = false,
                 AddNewArtists = false
@@ -316,6 +317,7 @@ namespace NzbDrone.Core.MediaFiles
             {
                 Filter = FilterFilesType.None,
                 NewDownload = true,
+                SceneSource = true,
                 SingleRelease = false,
                 IncludeExisting = false,
                 AddNewArtists = false

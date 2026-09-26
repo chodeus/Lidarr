@@ -164,3 +164,16 @@ jobs:
           path: |
             packages.txt
             smoketest.log
+
+  notify:
+    needs: [compile, image]
+    if: failure()
+    uses: chodeus/chodeus-ops/.github/workflows/notify-discord.yml@579feb04e3219248963bd27843298a8c2ea6b2fd # main
+    with:
+      event_type: workflow
+      status: failure
+      title: "❌ Lidarr image build failed: ${{ github.ref_name }}"
+      description: "No new image was published, so the running image stays on the last good build. If the Merge Sources step failed, rebase the branch it names onto develop; if compile failed, upstream develop changed code one of meta.json's `pr_branches` relies on."
+      commit_sha: ${{ github.sha }}
+    secrets:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}

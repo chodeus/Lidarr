@@ -19,6 +19,8 @@
   - A quality profile option, off by default, under Upgrades Allowed.
   - Lets an album switch to a release with fewer tracks when no incoming file is worse than any file on disk and at least one is better, such as a FLAC single replacing a 3-track MP3 single. The old files go to the recycle bin.
   - Migration 901.
+- **Releases imported into a different album** — branch [`fix/release-imported-to-different-album`](https://github.com/chodeus/Lidarr/tree/fix/release-imported-to-different-album), not submitted
+  - A release isn't grabbed again for an album when its last grab for that album, within 14 days, was imported only into other albums, such as an album grabbed for the single of the same name. Stops the same wrong release being grabbed every day.
 
 ## How the build works
 

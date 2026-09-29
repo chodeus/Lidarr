@@ -8,12 +8,12 @@ namespace NzbDrone.Core.Test.Profiles.Releases
     [TestFixture]
     public class TermMatcherServiceFixture : CoreTest<TermMatcherService>
     {
-        [TestCase("live", "Live at Wembley")]
+        [TestCase("live", "Live at the Venue")]
         [TestCase("live", "Album (Live)")]
         [TestCase("LIVE", "live")]
         [TestCase("greatest hits", "The Greatest Hits")]
         [TestCase("(live)", "Album (Live)")]
-        [TestCase("Live // Unplugged", "MTV Live // Unplugged")]
+        [TestCase("Live // Unplugged", "Album Live // Unplugged")]
         public void should_match_term_as_whole_word(string term, string title)
         {
             Subject.IsWholeWordMatch(term, title).Should().BeTrue();
@@ -44,7 +44,7 @@ namespace NzbDrone.Core.Test.Profiles.Releases
         }
 
         [TestCase("/christmas/i", "Christmastime")]
-        [TestCase("/^live/i", "Live at Wembley")]
+        [TestCase("/^live/i", "Live at the Venue")]
         public void should_match_regex_term_as_written(string term, string title)
         {
             Subject.IsWholeWordMatch(term, title).Should().BeTrue();

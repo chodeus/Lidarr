@@ -73,7 +73,7 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
 
         private const string MergedIntoId = "3f8a1d2e-0000-4000-8000-000000000002";
 
-        private void GivenRedirectTo(string location)
+        private void GivenRedirectTo(string location, HttpStatusCode status = HttpStatusCode.MovedPermanently)
         {
             var redirect = new HttpHeader();
             redirect["location"] = location;
@@ -82,14 +82,17 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
             Mocker.GetMock<IHttpClient>()
                   .Setup(c => c.Get(It.IsAny<HttpRequest>()))
                   .Returns<HttpRequest>(r => calls++ == 0
-                      ? new HttpResponse(r, redirect, string.Empty, HttpStatusCode.MovedPermanently)
+                      ? new HttpResponse(r, redirect, string.Empty, status)
                       : new HttpResponse(r, new HttpHeader(), Json, HttpStatusCode.OK));
         }
 
-        [Test]
-        public void should_follow_the_redirect_of_a_merged_release_group()
+        [TestCase(HttpStatusCode.MovedPermanently)]
+        [TestCase(HttpStatusCode.Found)]
+        [TestCase(HttpStatusCode.TemporaryRedirect)]
+        [TestCase(HttpStatusCode.PermanentRedirect)]
+        public void should_follow_the_redirect_of_a_merged_release_group(HttpStatusCode status)
         {
-            GivenRedirectTo($"https://musicbrainz.org/ws/2/release-group/{MergedIntoId}?inc=artist-credits&fmt=json");
+            GivenRedirectTo($"https://musicbrainz.org/ws/2/release-group/{MergedIntoId}?inc=artist-credits&fmt=json", status);
 
             Subject.GetCredit(ReleaseGroupId).Should().HaveCount(2);
 

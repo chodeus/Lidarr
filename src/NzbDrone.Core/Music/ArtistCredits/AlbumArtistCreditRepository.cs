@@ -39,7 +39,7 @@ namespace NzbDrone.Core.Music.ArtistCredits
             return Query(c => Enumerable.Contains(albumIds, c.AlbumId));
         }
 
-        // Albums sharing a title with a sibling come first: those are the ones whose folders collide.
+        // Albums with files come first (renames and tags need them), then albums sharing a title with a sibling (folders collide).
         public List<AlbumArtistCreditCandidate> GetCandidates(DateTime staleBefore, int limit)
         {
             const string sql = @"SELECT ""Albums"".""Id"" AS ""AlbumId"", ""Albums"".""ForeignAlbumId"", ""ArtistMetadata"".""ForeignArtistId""
@@ -49,6 +49,7 @@ namespace NzbDrone.Core.Music.ArtistCredits
                 WHERE ""AlbumArtistCredits"".""Id"" IS NULL OR ""AlbumArtistCredits"".""LastFetched"" < @StaleBefore
                 ORDER BY
                     CASE WHEN ""AlbumArtistCredits"".""Id"" IS NULL THEN 0 ELSE 1 END,
+                    CASE WHEN EXISTS (SELECT 1 FROM ""TrackFiles"" WHERE ""TrackFiles"".""AlbumId"" = ""Albums"".""Id"") THEN 0 ELSE 1 END,
                     CASE WHEN EXISTS (SELECT 1 FROM ""Albums"" AS ""Siblings""
                                       WHERE ""Siblings"".""ArtistMetadataId"" = ""Albums"".""ArtistMetadataId""
                                         AND ""Siblings"".""CleanTitle"" = ""Albums"".""CleanTitle""

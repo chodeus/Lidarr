@@ -1,9 +1,12 @@
 using System;
 using System.Linq;
+using FizzWare.NBuilder;
 using FluentAssertions;
 using NUnit.Framework;
+using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Music.ArtistCredits;
+using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Test.Framework;
 
 namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
@@ -55,6 +58,30 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
 
             candidates.Select(c => c.AlbumId).Should().Equal(newer.Id, older.Id, unique.Id, stale.Id);
             candidates.Should().OnlyContain(c => c.ForeignArtistId == "primary-id");
+        }
+
+        private void GivenFile(Album album)
+        {
+            Db.Insert(Builder<TrackFile>.CreateNew()
+                .With(f => f.Id = 0)
+                .With(f => f.AlbumId = album.Id)
+                .With(f => f.Quality = new QualityModel(Quality.FLAC))
+                .With(f => f.Path = $"/music/Artist Name/{album.Title}/01 - Track Title.flac")
+                .Build());
+        }
+
+        [Test]
+        public void should_put_albums_with_files_before_same_titled_and_newer_ones()
+        {
+            var newest = GivenAlbum("Newest Song", 2022);
+            var withFile = GivenAlbum("Song With File", 2018);
+            var pairNewer = GivenAlbum("Song", 2021);
+            var pairOlder = GivenAlbum("Song", 2019);
+            GivenFile(withFile);
+
+            var candidates = Subject.GetCandidates(DateTime.UtcNow.AddDays(-90), 10);
+
+            candidates.Select(c => c.AlbumId).Should().Equal(withFile.Id, pairNewer.Id, pairOlder.Id, newest.Id);
         }
 
         [Test]

@@ -19,7 +19,8 @@ namespace NzbDrone.Core.Music.ArtistCredits
     public class AlbumArtistCreditService : IAlbumArtistCreditService,
         IExecute<RefreshAlbumArtistCreditsCommand>,
         IHandle<AlbumDeletedEvent>,
-        IHandle<ApplicationStartedEvent>
+        IHandle<ApplicationStartedEvent>,
+        IHandle<ApplicationShutdownRequested>
     {
         // Sized to finish inside the 15-minute task interval at one request per 1.1 seconds.
         public const int BatchSize = 700;
@@ -30,6 +31,8 @@ namespace NzbDrone.Core.Music.ArtistCredits
         private readonly IMusicBrainzArtistCreditProxy _proxy;
         private readonly IConfigService _configService;
         private readonly Logger _logger;
+
+        private volatile bool _stopping;
 
         public AlbumArtistCreditService(IAlbumArtistCreditRepository repository,
                                         IMusicBrainzArtistCreditProxy proxy,
@@ -66,6 +69,11 @@ namespace NzbDrone.Core.Music.ArtistCredits
 
             foreach (var candidate in candidates)
             {
+                if (_stopping)
+                {
+                    break;
+                }
+
                 var names = _proxy.GetCredit(candidate.ForeignAlbumId);
 
                 // A failed read is retried on a later run, never stored as an empty credit.
@@ -98,6 +106,11 @@ namespace NzbDrone.Core.Music.ArtistCredits
         public void Handle(AlbumDeletedEvent message)
         {
             _repository.DeleteByAlbumId(message.Album.Id);
+        }
+
+        public void Handle(ApplicationShutdownRequested message)
+        {
+            _stopping = true;
         }
 
         public void Handle(ApplicationStartedEvent message)

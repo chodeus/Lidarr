@@ -68,6 +68,16 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
         }
 
         [Test]
+        public void should_find_credits_for_a_large_id_list()
+        {
+            var album = GivenAlbum("Song", 2020);
+            GivenCredit(album, 1);
+            var ids = Enumerable.Range(100000, 33000).Append(album.Id).ToList();
+
+            Subject.FindByAlbumIds(ids).Should().ContainSingle(c => c.AlbumId == album.Id);
+        }
+
+        [Test]
         public void should_find_and_delete_by_album()
         {
             var album = GivenAlbum("Song", 2020);

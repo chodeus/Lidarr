@@ -134,11 +134,13 @@ namespace NzbDrone.Core.MediaFiles
                     }
                 }
 
+                var albumArtistTag = AlbumArtistCreditLookup.AlbumArtistTag(album, albumartist.Name);
+
                 return new AudioTag
                 {
                     Title = track.Title,
-                    Performers = new[] { AlbumArtistCreditLookup.TrackArtistTag(album, artist, albumartist.ArtistMetadataId) },
-                    AlbumArtists = new[] { AlbumArtistCreditLookup.AlbumArtistTag(album, albumartist.Name) },
+                    Performers = new[] { AlbumArtistCreditLookup.TrackArtistTag(albumArtistTag, artist, albumartist.ArtistMetadataId) },
+                    AlbumArtists = new[] { albumArtistTag },
                     Track = (uint)track.AbsoluteTrackNumber,
                     TrackCount = (uint)release.Tracks.Value.Count(x => x.MediumNumber == track.MediumNumber),
                     Album = album.Title,

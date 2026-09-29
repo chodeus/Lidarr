@@ -62,7 +62,8 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
             GivenCredit(true);
 
             AlbumArtistCreditLookup.AlbumArtistTag(_album, "Artist Name").Should().Be("Artist Name, Guest Name & Other");
-            AlbumArtistCreditLookup.TrackArtistTag(_album, _primary, _primary.Id).Should().Be("Artist Name, Guest Name & Other");
+            var albumArtistTag = AlbumArtistCreditLookup.AlbumArtistTag(_album, "Artist Name");
+            AlbumArtistCreditLookup.TrackArtistTag(albumArtistTag, _primary, _primary.Id).Should().Be("Artist Name, Guest Name & Other");
         }
 
         [Test]
@@ -78,7 +79,7 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
         {
             GivenCredit(true);
 
-            AlbumArtistCreditLookup.TrackArtistTag(_album, _guest, _primary.Id).Should().Be("Guest Name");
+            AlbumArtistCreditLookup.TrackArtistTag(AlbumArtistCreditLookup.AlbumArtistTag(_album, "Artist Name"), _guest, _primary.Id).Should().Be("Guest Name");
         }
     }
 }

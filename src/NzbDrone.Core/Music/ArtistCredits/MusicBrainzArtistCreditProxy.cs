@@ -31,16 +31,23 @@ namespace NzbDrone.Core.Music.ArtistCredits
 
         public List<AlbumArtistCreditName> GetCredit(string releaseGroupId)
         {
+            // Albums from other metadata sources carry ids MusicBrainz has never issued.
+            if (!Guid.TryParse(releaseGroupId, out var id))
+            {
+                return new List<AlbumArtistCreditName>();
+            }
+
             try
             {
                 // MusicBrainz allows one request per second per client.
-                var request = new HttpRequestBuilder($"https://musicbrainz.org/ws/2/release-group/{releaseGroupId}")
+                var request = new HttpRequestBuilder($"https://musicbrainz.org/ws/2/release-group/{id:D}")
                     .AddQueryParam("inc", "artist-credits")
                     .AddQueryParam("fmt", "json")
                     .SetHeader("User-Agent", UserAgent)
                     .WithRateLimit(1.1)
                     .Build();
                 request.SuppressHttpError = true;
+                request.AllowAutoRedirect = false;
                 request.RequestTimeout = TimeSpan.FromSeconds(15);
 
                 var response = _httpClient.Get(request);
@@ -69,14 +76,25 @@ namespace NzbDrone.Core.Music.ArtistCredits
         {
             using var doc = JsonDocument.Parse(json);
 
-            return doc.RootElement.GetProperty("artist-credit").EnumerateArray()
+            // A release group without a credit is an answer, not a failure: storing it stops the retries.
+            if (!doc.RootElement.TryGetProperty("artist-credit", out var credits) || credits.ValueKind != JsonValueKind.Array)
+            {
+                return new List<AlbumArtistCreditName>();
+            }
+
+            return credits.EnumerateArray()
                 .Select(c => new AlbumArtistCreditName
                 {
-                    Name = c.GetProperty("name").GetString(),
-                    ForeignArtistId = c.GetProperty("artist").GetProperty("id").GetString(),
-                    JoinPhrase = c.TryGetProperty("joinphrase", out var join) ? join.GetString() ?? string.Empty : string.Empty
+                    Name = Text(c, "name"),
+                    ForeignArtistId = c.TryGetProperty("artist", out var artist) ? Text(artist, "id") : string.Empty,
+                    JoinPhrase = Text(c, "joinphrase")
                 })
                 .ToList();
+        }
+
+        private static string Text(JsonElement element, string property)
+        {
+            return element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : string.Empty;
         }
     }
 }

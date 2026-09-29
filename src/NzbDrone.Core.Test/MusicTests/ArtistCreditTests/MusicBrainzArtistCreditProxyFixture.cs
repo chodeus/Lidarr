@@ -15,6 +15,8 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
             {""name"":""Artist Name"",""joinphrase"":"" feat. "",""artist"":{""id"":""primary-id"",""name"":""Artist Name""}},
             {""name"":""Credited Guest"",""joinphrase"":"""",""artist"":{""id"":""guest-id"",""name"":""Canonical Guest""}}]}";
 
+        private const string ReleaseGroupId = "3f8a1d2e-0000-4000-8000-000000000001";
+
         private void GivenResponse(HttpStatusCode status, string content = "")
         {
             Mocker.GetMock<IHttpClient>()
@@ -34,11 +36,46 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
         }
 
         [Test]
+        public void should_treat_a_release_group_without_a_credit_as_no_credit()
+        {
+            MusicBrainzArtistCreditProxy.Parse(@"{""id"":""x""}").Should().BeEmpty();
+        }
+
+        [Test]
+        public void should_read_missing_fields_as_empty()
+        {
+            var names = MusicBrainzArtistCreditProxy.Parse(@"{""artist-credit"":[{""name"":null}]}");
+
+            names.Should().ContainSingle();
+            names[0].Name.Should().BeEmpty();
+            names[0].ForeignArtistId.Should().BeEmpty();
+            names[0].JoinPhrase.Should().BeEmpty();
+        }
+
+        [Test]
+        public void should_not_ask_musicbrainz_about_an_id_it_did_not_issue()
+        {
+            Subject.GetCredit("deezer:12345").Should().BeEmpty();
+
+            Mocker.GetMock<IHttpClient>().Verify(c => c.Get(It.IsAny<HttpRequest>()), Times.Never());
+        }
+
+        [Test]
+        public void should_not_follow_redirects()
+        {
+            GivenResponse(HttpStatusCode.OK, Json);
+
+            Subject.GetCredit(ReleaseGroupId);
+
+            Mocker.GetMock<IHttpClient>().Verify(c => c.Get(It.Is<HttpRequest>(r => !r.AllowAutoRedirect && r.Url.FullUri.Contains(ReleaseGroupId))), Times.Once());
+        }
+
+        [Test]
         public void should_return_the_credit()
         {
             GivenResponse(HttpStatusCode.OK, Json);
 
-            Subject.GetCredit("release-group-id").Should().HaveCount(2);
+            Subject.GetCredit(ReleaseGroupId).Should().HaveCount(2);
         }
 
         [Test]
@@ -46,7 +83,7 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
         {
             GivenResponse(HttpStatusCode.NotFound);
 
-            Subject.GetCredit("release-group-id").Should().BeEmpty();
+            Subject.GetCredit(ReleaseGroupId).Should().BeEmpty();
         }
 
         [Test]
@@ -54,7 +91,7 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
         {
             GivenResponse(HttpStatusCode.ServiceUnavailable);
 
-            Subject.GetCredit("release-group-id").Should().BeNull();
+            Subject.GetCredit(ReleaseGroupId).Should().BeNull();
         }
 
         [Test]
@@ -64,7 +101,7 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
                   .Setup(c => c.Get(It.IsAny<HttpRequest>()))
                   .Throws(new WebException("timeout"));
 
-            Subject.GetCredit("release-group-id").Should().BeNull();
+            Subject.GetCredit(ReleaseGroupId).Should().BeNull();
         }
     }
 }

@@ -135,6 +135,18 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
         }
 
         [Test]
+        public void should_stop_when_lidarr_is_shutting_down()
+        {
+            GivenCandidates(3);
+            GivenCredits(Credit("Artist Name"), Credit("Artist Name"), Credit("Artist Name"));
+
+            Subject.Handle(new ApplicationShutdownRequested());
+            Subject.Execute(new RefreshAlbumArtistCreditsCommand());
+
+            Mocker.GetMock<IMusicBrainzArtistCreditProxy>().Verify(p => p.GetCredit(It.IsAny<string>()), Times.Never());
+        }
+
+        [Test]
         public void should_delete_the_credit_of_a_deleted_album()
         {
             Subject.Handle(new AlbumDeletedEvent(new Album { Id = 3 }, false, false));

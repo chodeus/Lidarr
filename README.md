@@ -21,6 +21,9 @@
   - Migration 901.
 - **Releases imported into a different album** — branch [`fix/release-imported-to-different-album`](https://github.com/chodeus/Lidarr/tree/fix/release-imported-to-different-album), not submitted
   - A release isn't grabbed again for an album when its last grab for that album, within 14 days, was imported only into other albums, such as an album grabbed for the single of the same name. Stops the same wrong release being grabbed every day.
+- **Album artist credits** — branch [`feat/album-artist-credits`](https://github.com/chodeus/Lidarr/tree/feat/album-artist-credits), not submitted
+  - A scheduled task reads each album's full artist credit from MusicBrainz, which Lidarr's metadata leaves out, so versions of a single that differ only by guest can be told apart.
+  - `{Album Guests}` naming token, such as `{Album Title}{ (Album Guests)}`, and a Media Management option to write the full credit to the artist tags. Migration 902.
 
 ## How the build works
 

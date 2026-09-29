@@ -178,7 +178,7 @@ namespace NzbDrone.Core.Test.MetadataSource.SkyHook
         {
             _metadataProfile.Ignored = new List<string> { "live" };
 
-            var albums = new[] { "Live at Wembley", "Alive" }
+            var albums = new[] { "Live at the Venue", "Alive" }
                 .Select(title => new AlbumResource
                 {
                     Title = title,

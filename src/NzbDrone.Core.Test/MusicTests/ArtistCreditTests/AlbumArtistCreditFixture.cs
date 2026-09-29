@@ -42,6 +42,15 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
         }
 
         [Test]
+        public void should_name_no_guests_when_the_album_artist_is_not_credited()
+        {
+            var credit = AlbumArtistCredit.For(1, new List<AlbumArtistCreditName> { Name("Member One", "m1", " & "), Name("Member Two", "m2") }, "duo", DateTime.UtcNow);
+
+            credit.Credit.Should().Be("Member One & Member Two");
+            credit.Guests.Should().BeEmpty();
+        }
+
+        [Test]
         public void should_have_no_guests_for_a_solo_credit()
         {
             var credit = AlbumArtistCredit.For(1, new List<AlbumArtistCreditName> { Name("Artist Name", "primary") }, "primary", DateTime.UtcNow);

@@ -20,12 +20,17 @@ namespace NzbDrone.Core.Music.ArtistCredits
 
         public static AlbumArtistCredit For(int albumId, List<AlbumArtistCreditName> artists, string primaryForeignArtistId, DateTime fetched)
         {
+            // A credit that leaves out the album's own artist (a duo credited as its members) names no guests.
+            var guests = artists.Any(a => a.ForeignArtistId == primaryForeignArtistId)
+                ? Join(artists.Where(a => a.ForeignArtistId != primaryForeignArtistId).ToList())
+                : string.Empty;
+
             return new AlbumArtistCredit
             {
                 AlbumId = albumId,
                 Artists = artists,
                 Credit = Join(artists),
-                Guests = Join(artists.Where(a => a.ForeignArtistId != primaryForeignArtistId).ToList()),
+                Guests = guests,
                 LastFetched = fetched
             };
         }

@@ -39,8 +39,15 @@ namespace NzbDrone.Core.Music.ArtistCredits
                 var response = Get($"https://musicbrainz.org/ws/2/release-group/{id:D}?inc=artist-credits&fmt=json");
 
                 // A merged release group's old id redirects to its new one: follow that, and only on MusicBrainz itself.
-                if (IsRedirect(response.StatusCode) && MusicBrainzUrl(response.Headers.GetSingleValue("Location")) is { } target)
+                if (IsRedirect(response.StatusCode))
                 {
+                    var location = response.Headers.GetSingleValue("Location");
+                    if (MusicBrainzUrl(location) is not { } target)
+                    {
+                        _logger.Warn("MusicBrainz redirected release group {0} to {1}, which is not musicbrainz.org; not following it", releaseGroupId, location);
+                        return null;
+                    }
+
                     response = Get(target);
                 }
 
@@ -85,7 +92,7 @@ namespace NzbDrone.Core.Music.ArtistCredits
 
         private static string MusicBrainzUrl(string location)
         {
-            return Uri.TryCreate(location, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps && uri.Host == "musicbrainz.org" ? uri.AbsoluteUri : null;
+            return Uri.TryCreate(location, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps && uri.Host == "musicbrainz.org" && uri.IsDefaultPort ? uri.AbsoluteUri : null;
         }
 
         public static List<AlbumArtistCreditName> Parse(string json)

@@ -5,6 +5,7 @@ using NUnit.Framework;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Music.ArtistCredits;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
 {
@@ -95,20 +96,25 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
             Mocker.GetMock<IHttpClient>().Verify(c => c.Get(It.Is<HttpRequest>(r => r.Url.FullUri.Contains(MergedIntoId) && !r.AllowAutoRedirect)), Times.Once());
         }
 
-        [Test]
-        public void should_not_follow_a_redirect_off_musicbrainz()
+        [TestCase("https://example.com/somewhere")]
+        [TestCase("https://musicbrainz.org:8443/ws/2/release-group/3f8a1d2e-0000-4000-8000-000000000002")]
+        [TestCase("http://musicbrainz.org/ws/2/release-group/3f8a1d2e-0000-4000-8000-000000000002")]
+        public void should_not_follow_a_redirect_off_musicbrainz(string location)
         {
-            GivenRedirectTo("https://example.com/somewhere");
+            GivenRedirectTo(location);
 
             Subject.GetCredit(ReleaseGroupId).Should().BeNull();
 
             Mocker.GetMock<IHttpClient>().Verify(c => c.Get(It.IsAny<HttpRequest>()), Times.Once());
+            ExceptionVerification.ExpectedWarns(1);
         }
 
-        [Test]
-        public void should_store_no_credit_for_a_bad_request()
+        [TestCase(HttpStatusCode.BadRequest)]
+        [TestCase(HttpStatusCode.NotFound)]
+        [TestCase(HttpStatusCode.Gone)]
+        public void should_store_no_credit_for_a_permanent_answer(HttpStatusCode status)
         {
-            GivenResponse(HttpStatusCode.BadRequest);
+            GivenResponse(status);
 
             Subject.GetCredit(ReleaseGroupId).Should().BeEmpty();
         }

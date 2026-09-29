@@ -207,6 +207,13 @@ namespace NzbDrone.Core.Configuration
             set { SetValue("CopyUsingHardlinks", value); }
         }
 
+        public bool WriteAlbumArtistCredits
+        {
+            get { return GetValueBoolean("WriteAlbumArtistCredits", false); }
+
+            set { SetValue("WriteAlbumArtistCredits", value); }
+        }
+
         public bool EnableMediaInfo
         {
             get { return GetValueBoolean("EnableMediaInfo", true); }

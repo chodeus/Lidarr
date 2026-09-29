@@ -91,6 +91,7 @@ const albumTokens = [
   { token: '{Album CleanTitleThe}', example: 'Album Title, The' },
   { token: '{Album Type}', example: 'Album Type' },
   { token: '{Album Disambiguation}', example: 'Disambiguation' },
+  { token: '{Album Guests}', example: 'Guest & Other' },
   { token: '{Album Genre}', example: 'Rock' },
   { token: '{Album MbId}', example: '082c6aff-a7cc-36e0-a960-35a578ecd937' }
 ];

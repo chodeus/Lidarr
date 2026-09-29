@@ -25,6 +25,7 @@ namespace Lidarr.Api.V1.Config
         public bool SkipFreeSpaceCheckWhenImporting { get; set; }
         public int MinimumFreeSpaceWhenImporting { get; set; }
         public bool CopyUsingHardlinks { get; set; }
+        public bool WriteAlbumArtistCredits { get; set; }
         public bool EnableMediaInfo { get; set; }
         public bool UseScriptImport { get; set; }
         public string ScriptImportPath { get; set; }
@@ -56,6 +57,7 @@ namespace Lidarr.Api.V1.Config
                 SkipFreeSpaceCheckWhenImporting = model.SkipFreeSpaceCheckWhenImporting,
                 MinimumFreeSpaceWhenImporting = model.MinimumFreeSpaceWhenImporting,
                 CopyUsingHardlinks = model.CopyUsingHardlinks,
+                WriteAlbumArtistCredits = model.WriteAlbumArtistCredits,
                 EnableMediaInfo = model.EnableMediaInfo,
                 UseScriptImport = model.UseScriptImport,
                 ScriptImportPath = model.ScriptImportPath,

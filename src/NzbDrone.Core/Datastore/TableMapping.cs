@@ -26,6 +26,7 @@ using NzbDrone.Core.Jobs;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Music;
+using NzbDrone.Core.Music.ArtistCredits;
 using NzbDrone.Core.Notifications;
 using NzbDrone.Core.Organizer;
 using NzbDrone.Core.Parser.Model;
@@ -131,6 +132,8 @@ namespace NzbDrone.Core.Datastore
             Mapper.Entity<AlbumRelease>("AlbumReleases").RegisterModel()
                   .HasOne(r => r.Album, r => r.AlbumId)
                   .LazyLoad(x => x.Tracks, (db, release) => db.Query<Track>(new SqlBuilder(db.DatabaseType).Where<Track>(t => t.AlbumReleaseId == release.Id)).ToList(), r => r.Id > 0);
+
+            Mapper.Entity<AlbumArtistCredit>("AlbumArtistCredits").RegisterModel();
 
             Mapper.Entity<Track>("Tracks").RegisterModel()
                   .Ignore(t => t.HasFile)

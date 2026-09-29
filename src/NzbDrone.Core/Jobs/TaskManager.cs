@@ -15,6 +15,7 @@ using NzbDrone.Core.Lifecycle;
 using NzbDrone.Core.MediaFiles.Commands;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.Music.ArtistCredits;
 using NzbDrone.Core.Music.Commands;
 using NzbDrone.Core.Update.Commands;
 
@@ -118,6 +119,12 @@ namespace NzbDrone.Core.Jobs
                     {
                         Interval = 5,
                         TypeName = typeof(ImportListSyncCommand).FullName
+                    },
+
+                    new ScheduledTask
+                    {
+                        Interval = 15,
+                        TypeName = typeof(RefreshAlbumArtistCreditsCommand).FullName
                     },
 
                     new ScheduledTask

@@ -11,6 +11,7 @@ using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Music;
+using NzbDrone.Core.Music.ArtistCredits;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
 using TagLib;
@@ -136,8 +137,8 @@ namespace NzbDrone.Core.MediaFiles
                 return new AudioTag
                 {
                     Title = track.Title,
-                    Performers = new[] { artist.Name },
-                    AlbumArtists = new[] { albumartist.Name },
+                    Performers = new[] { AlbumArtistCreditLookup.TrackArtistTag(album, artist, albumartist.ArtistMetadataId) },
+                    AlbumArtists = new[] { AlbumArtistCreditLookup.AlbumArtistTag(album, albumartist.Name) },
                     Track = (uint)track.AbsoluteTrackNumber,
                     TrackCount = (uint)release.Tracks.Value.Count(x => x.MediumNumber == track.MediumNumber),
                     Album = album.Title,

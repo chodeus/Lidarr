@@ -532,6 +532,8 @@
   "FormatTimeSpanDays": "{days}d {time}",
   "Formats": "Formats",
   "FreeSpace": "Free Space",
+  "FullArtistCredits": "Write Full Artist Credits",
+  "FullArtistCreditsHelpText": "Write the album's full artist credit, such as 'Artist, Guest & Other', to the album artist tag and to the artist tag of tracks by the album's own artist. Credits are fetched in the background.",
   "FutureAlbums": "Future Albums",
   "FutureAlbumsData": "Monitor albums currently in the database that have a release date in the future.",
   "FutureDays": "Future Days",

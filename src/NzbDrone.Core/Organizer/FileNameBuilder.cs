@@ -13,6 +13,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Music;
+using NzbDrone.Core.Music.ArtistCredits;
 using NzbDrone.Core.Qualities;
 
 namespace NzbDrone.Core.Organizer
@@ -331,6 +332,7 @@ namespace NzbDrone.Core.Organizer
             tokenHandlers["{Album Type}"] = m => album.AlbumType;
             tokenHandlers["{Album Genre}"] = m => album.Genres.FirstOrDefault() ?? string.Empty;
             tokenHandlers["{Album MbId}"] = m => album.ForeignAlbumId ?? string.Empty;
+            tokenHandlers["{Album Guests}"] = m => Truncate(AlbumArtistCreditLookup.Guests(album), m.CustomFormat);
 
             if (album.Disambiguation != null)
             {

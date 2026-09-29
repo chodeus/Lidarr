@@ -250,6 +250,24 @@ class MediaManagement extends Component {
                         isAdvanced={true}
                         size={sizes.MEDIUM}
                       >
+                        <FormLabel>
+                          {translate('FullArtistCredits')}
+                        </FormLabel>
+
+                        <FormInputGroup
+                          type={inputTypes.CHECK}
+                          name="writeAlbumArtistCredits"
+                          helpText={translate('FullArtistCreditsHelpText')}
+                          onChange={onInputChange}
+                          {...settings.writeAlbumArtistCredits}
+                        />
+                      </FormGroup>
+
+                      <FormGroup
+                        advancedSettings={advancedSettings}
+                        isAdvanced={true}
+                        size={sizes.MEDIUM}
+                      >
                         <FormLabel>{translate('ImportUsingScript')}</FormLabel>
 
                         <FormInputGroup

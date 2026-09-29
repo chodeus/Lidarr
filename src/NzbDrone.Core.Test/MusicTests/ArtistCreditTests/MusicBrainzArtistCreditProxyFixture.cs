@@ -70,6 +70,59 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
             Mocker.GetMock<IHttpClient>().Verify(c => c.Get(It.Is<HttpRequest>(r => !r.AllowAutoRedirect && r.Url.FullUri.Contains(ReleaseGroupId))), Times.Once());
         }
 
+        private const string MergedIntoId = "3f8a1d2e-0000-4000-8000-000000000002";
+
+        private void GivenRedirectTo(string location)
+        {
+            var redirect = new HttpHeader();
+            redirect["location"] = location;
+
+            var calls = 0;
+            Mocker.GetMock<IHttpClient>()
+                  .Setup(c => c.Get(It.IsAny<HttpRequest>()))
+                  .Returns<HttpRequest>(r => calls++ == 0
+                      ? new HttpResponse(r, redirect, string.Empty, HttpStatusCode.MovedPermanently)
+                      : new HttpResponse(r, new HttpHeader(), Json, HttpStatusCode.OK));
+        }
+
+        [Test]
+        public void should_follow_the_redirect_of_a_merged_release_group()
+        {
+            GivenRedirectTo($"https://musicbrainz.org/ws/2/release-group/{MergedIntoId}?inc=artist-credits&fmt=json");
+
+            Subject.GetCredit(ReleaseGroupId).Should().HaveCount(2);
+
+            Mocker.GetMock<IHttpClient>().Verify(c => c.Get(It.Is<HttpRequest>(r => r.Url.FullUri.Contains(MergedIntoId) && !r.AllowAutoRedirect)), Times.Once());
+        }
+
+        [Test]
+        public void should_not_follow_a_redirect_off_musicbrainz()
+        {
+            GivenRedirectTo("https://example.com/somewhere");
+
+            Subject.GetCredit(ReleaseGroupId).Should().BeNull();
+
+            Mocker.GetMock<IHttpClient>().Verify(c => c.Get(It.IsAny<HttpRequest>()), Times.Once());
+        }
+
+        [Test]
+        public void should_store_no_credit_for_a_bad_request()
+        {
+            GivenResponse(HttpStatusCode.BadRequest);
+
+            Subject.GetCredit(ReleaseGroupId).Should().BeEmpty();
+        }
+
+        [Test]
+        public void should_leave_the_user_agent_to_lidarr()
+        {
+            GivenResponse(HttpStatusCode.OK, Json);
+
+            Subject.GetCredit(ReleaseGroupId);
+
+            Mocker.GetMock<IHttpClient>().Verify(c => c.Get(It.Is<HttpRequest>(r => r.Headers.GetSingleValue("User-Agent") == null)), Times.Once());
+        }
+
         [Test]
         public void should_return_the_credit()
         {

@@ -301,6 +301,16 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
         }
 
         [Test]
+        public void should_be_rejected_if_torrent_hash_differs_but_title_matches()
+        {
+            GivenTorrentRelease("0000000000000000000000000000000000000000", TITLE);
+            GivenGrab(TITLE);
+            GivenTracksImportedInto(OTHER_ALBUM_ID);
+
+            Subject.IsSatisfiedBy(_remoteAlbum, null).Accepted.Should().BeFalse();
+        }
+
+        [Test]
         public void should_be_accepted_if_torrent_hash_is_null_and_title_differs()
         {
             GivenTorrentRelease(null, "Some.Artist-Some.Album-2018-FLAC-Renamed");

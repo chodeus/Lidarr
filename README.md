@@ -27,6 +27,8 @@
 - **Album artist credits** — branch [`feat/album-artist-credits`](https://github.com/chodeus/Lidarr/tree/feat/album-artist-credits), not submitted
   - A scheduled task reads each album's full artist credit from MusicBrainz, which Lidarr's metadata leaves out, so versions of a single that differ only by guest can be told apart.
   - `{Album Guests}` naming token, such as `{Album Title}{ (Album Guests)}`, and a Media Management option to write the full credit to the artist tags. Migration 902.
+- **Removing unmatched queue items** — branch [`fix/ignore-unmatched-download`](https://github.com/chodeus/Lidarr/tree/fix/ignore-unmatched-download), not submitted
+  - Removing a queue item that never matched an artist (such as "found multiple artists") without blocklisting logs a warning again, instead of failing with an HTTP 500.
 
 ## How the build works
 

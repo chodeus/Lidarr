@@ -11,6 +11,7 @@ namespace NzbDrone.Core.Notifications.Pushcut
 {
     public interface IPushcutProxy
     {
+        void SendNotification(string title, string message, PushcutSettings settings);
         void SendNotification(string title, string message, List<NotificationMetadataLink> links, PushcutSettings settings);
         ValidationFailure Test(PushcutSettings settings);
     }
@@ -24,6 +25,11 @@ namespace NzbDrone.Core.Notifications.Pushcut
         {
             _httpClient = httpClient;
             _logger = logger;
+        }
+
+        public void SendNotification(string title, string message, PushcutSettings settings)
+        {
+            SendNotification(title, message, new List<NotificationMetadataLink>(), settings);
         }
 
         public void SendNotification(string title, string message, List<NotificationMetadataLink> links, PushcutSettings settings)

@@ -13,6 +13,7 @@ namespace NzbDrone.Core.Notifications.Telegram
 {
     public interface ITelegramProxy
     {
+        void SendNotification(string title, string message, TelegramSettings settings);
         void SendNotification(string title, string message, List<NotificationMetadataLink> links, TelegramSettings settings);
         ValidationFailure Test(TelegramSettings settings);
     }
@@ -27,6 +28,11 @@ namespace NzbDrone.Core.Notifications.Telegram
         {
             _httpClient = httpClient;
             _logger = logger;
+        }
+
+        public void SendNotification(string title, string message, TelegramSettings settings)
+        {
+            SendNotification(title, message, new List<NotificationMetadataLink>(), settings);
         }
 
         public void SendNotification(string title, string message, List<NotificationMetadataLink> links, TelegramSettings settings)

@@ -25,6 +25,8 @@ namespace NzbDrone.Core.Test.NotificationTests.MetadataLinks
         [SetUp]
         public void Setup()
         {
+            _request = null;
+
             _links = new List<NotificationMetadataLink>
             {
                 new NotificationMetadataLink(MetadataLinkType.MusicBrainzArtist, "MusicBrainz Artist", "https://musicbrainz.org/artist/artist-mbid")
@@ -55,6 +57,22 @@ namespace NzbDrone.Core.Test.NotificationTests.MetadataLinks
             Mocker.Resolve<PushcutProxy>().SendNotification("Title", "Message", _links, new PushcutSettings());
 
             Body.Should().Contain("\"actions\": [").And.Contain("\"url\": \"https://musicbrainz.org/artist/artist-mbid\"");
+        }
+
+        [Test]
+        public void telegram_develop_overload_should_send_without_links()
+        {
+            Mocker.Resolve<TelegramProxy>().SendNotification("Title", "Message", new TelegramSettings());
+
+            Body.Should().Contain("Message").And.NotContain("<a href");
+        }
+
+        [Test]
+        public void pushcut_develop_overload_should_send_without_actions()
+        {
+            Mocker.Resolve<PushcutProxy>().SendNotification("Title", "Message", new PushcutSettings());
+
+            Body.Should().Contain("\"actions\": []");
         }
 
         [Test]

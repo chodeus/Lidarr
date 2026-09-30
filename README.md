@@ -8,6 +8,9 @@
   - The Write Metadata to Audio Files settings become tagging profiles under Settings → Profiles, applied to artists by tag.
   - Each profile can skip hardlinked files (on by default), so a seeding torrent's files are never retagged.
   - Existing settings migrate into a default profile. Migration 082.
+- **Delay and tagging profile ordering** — branch [`fix/profile-order-and-tags`](https://github.com/chodeus/Lidarr/tree/fix/profile-order-and-tags), builds on `tagging-profiles`, not submitted
+  - Dragging a delay profile moves it where it's dropped instead of to the top, and both profile lists stay numbered 1..n with the default last.
+  - Saving a profile keeps its position, and a request without tags no longer fails.
 - **Artists sharing a clean name** — branch [`fix/ambiguous-artist-disambiguation`](https://github.com/chodeus/Lidarr/tree/fix/ambiguous-artist-disambiguation), upstream PR [#5840](https://github.com/Lidarr/Lidarr/pull/5840)
   - When two artists reduce to the same clean name, the parsed album picks the artist instead of failing with "found multiple artists".
 - **Must Not Contain terms for metadata profiles** — branch [`metadata-profile-must-not-contain`](https://github.com/chodeus/Lidarr/tree/metadata-profile-must-not-contain), not submitted

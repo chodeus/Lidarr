@@ -51,6 +51,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Specifications
                         new ProfileFormatItem { Format = _formats[1], Score = 3 },
                         new ProfileFormatItem { Format = _formats[2], Score = -10 }
                     },
+                    UpgradeAllowed = true,
                     AllowSmallerReleaseUpgrades = true
                 }
             };
@@ -138,6 +139,14 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Specifications
         public void should_reject_a_smaller_release_upgrade_when_the_profile_does_not_allow_it()
         {
             _artist.QualityProfile.Value.AllowSmallerReleaseUpgrades = false;
+
+            Subject.IsSatisfiedBy(Incoming(_singleRelease, Quality.FLAC), null).Accepted.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_reject_a_smaller_release_upgrade_when_the_profile_does_not_allow_upgrades()
+        {
+            _artist.QualityProfile.Value.UpgradeAllowed = false;
 
             Subject.IsSatisfiedBy(Incoming(_singleRelease, Quality.FLAC), null).Accepted.Should().BeFalse();
         }

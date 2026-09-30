@@ -61,7 +61,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Specifications
             var artist = incoming.FirstOrDefault()?.Artist;
             var profile = artist?.QualityProfile?.Value;
 
-            if (profile?.AllowSmallerReleaseUpgrades != true || incoming.Any(x => x.Quality == null) || existingFiles.Any(x => x?.Quality == null))
+            if (profile?.UpgradeAllowed != true || !profile.AllowSmallerReleaseUpgrades || incoming.Any(x => x.Quality == null) || existingFiles.Any(x => x?.Quality == null))
             {
                 return false;
             }

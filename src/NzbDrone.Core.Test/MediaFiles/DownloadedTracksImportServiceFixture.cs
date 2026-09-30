@@ -404,10 +404,11 @@ namespace NzbDrone.Core.Test.MediaFiles
             result.First().Result.Should().Be(ImportResultType.Rejected);
         }
 
-        [TestCase(".exe", ImportRejectionReason.ExecutableFile)]
-        [TestCase(".lnk", ImportRejectionReason.DangerousFile)]
-        [TestCase(".ps1", ImportRejectionReason.DangerousFile)]
-        public void should_return_rejection_reason_for_unsafe_file(string extension, ImportRejectionReason reason)
+        [TestCase(new[] { ".exe" }, new[] { ImportRejectionReason.ExecutableFile })]
+        [TestCase(new[] { ".lnk" }, new[] { ImportRejectionReason.DangerousFile })]
+        [TestCase(new[] { ".ps1" }, new[] { ImportRejectionReason.DangerousFile })]
+        [TestCase(new[] { ".exe", ".lnk" }, new[] { ImportRejectionReason.DangerousFile, ImportRejectionReason.ExecutableFile })]
+        public void should_return_rejection_reasons_for_unsafe_files(string[] extensions, ImportRejectionReason[] reasons)
         {
             GivenValidArtist();
 
@@ -432,13 +433,12 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             Mocker.GetMock<IDiskProvider>()
                 .Setup(s => s.GetFiles(It.IsAny<string>(), true))
-                .Returns(new[] { _audioFiles.First().Replace(".ext", extension) });
+                .Returns(extensions.Select(e => _audioFiles.First().Replace(".ext", e)).ToArray());
 
             var result = Subject.ProcessPath(path);
 
             result.Should().ContainSingle();
-            result.First().ImportDecision.Rejections.Single().Should().BeOfType<ImportRejection>()
-                  .Which.RejectionReason.Should().Be(reason);
+            result.First().ImportDecision.Rejections.Cast<ImportRejection>().Select(r => r.RejectionReason).Should().Equal(reasons);
         }
 
         private void VerifyNoImport()

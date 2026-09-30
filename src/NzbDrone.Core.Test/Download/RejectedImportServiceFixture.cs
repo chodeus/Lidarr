@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Core.Download;
@@ -35,9 +36,9 @@ namespace NzbDrone.Core.Test.Download
                   .Returns(new CachedIndexerSettings { FailDownloads = new HashSet<FailDownloads>(failDownloads) });
         }
 
-        private static ImportResult Rejected(ImportRejectionReason reason)
+        private static ImportResult Rejected(params ImportRejectionReason[] reasons)
         {
-            return new ImportResult(new ImportDecision<LocalTrack>(null, new ImportRejection(reason, "Caution")), "Caution");
+            return new ImportResult(new ImportDecision<LocalTrack>(null, reasons.Select(r => new ImportRejection(r, "Caution")).ToArray()), "Caution");
         }
 
         [TestCase(ImportRejectionReason.ExecutableFile, FailDownloads.Executables)]
@@ -71,6 +72,17 @@ namespace NzbDrone.Core.Test.Download
             Subject.Process(_trackedDownload, Rejected(ImportRejectionReason.DangerousFile)).Should().BeTrue();
 
             _trackedDownload.State.Should().Be(TrackedDownloadState.ImportPending);
+        }
+
+        [TestCase(FailDownloads.Executables)]
+        [TestCase(FailDownloads.PotentiallyDangerous)]
+        public void should_fail_a_folder_with_both_file_types_when_either_type_fails(FailDownloads failDownloads)
+        {
+            GivenFailDownloads(failDownloads);
+
+            Subject.Process(_trackedDownload, Rejected(ImportRejectionReason.DangerousFile, ImportRejectionReason.ExecutableFile)).Should().BeTrue();
+
+            _trackedDownload.State.Should().Be(TrackedDownloadState.DownloadFailedPending);
         }
 
         [Test]

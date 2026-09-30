@@ -30,7 +30,7 @@ namespace NzbDrone.Core.Download
             }
 
             var indexerSettings = _cachedIndexerSettingsProvider.GetSettings(trackedDownload.RemoteAlbum.Release.IndexerId);
-            var rejectionReason = (importResult.ImportDecision.Rejections.FirstOrDefault() as ImportRejection)?.RejectionReason;
+            var rejectionReasons = importResult.ImportDecision.Rejections.OfType<ImportRejection>().Select(r => r.RejectionReason).ToList();
 
             if (indexerSettings == null)
             {
@@ -38,13 +38,13 @@ namespace NzbDrone.Core.Download
                 return true;
             }
 
-            if (rejectionReason == ImportRejectionReason.DangerousFile &&
+            if (rejectionReasons.Contains(ImportRejectionReason.DangerousFile) &&
                 indexerSettings.FailDownloads.Contains(FailDownloads.PotentiallyDangerous))
             {
                 _logger.Trace("Download '{0}' contains potentially dangerous file, marking as failed", trackedDownload.DownloadItem.Title);
                 trackedDownload.Fail();
             }
-            else if (rejectionReason == ImportRejectionReason.ExecutableFile &&
+            else if (rejectionReasons.Contains(ImportRejectionReason.ExecutableFile) &&
                      indexerSettings.FailDownloads.Contains(FailDownloads.Executables))
             {
                 _logger.Trace("Download '{0}' contains executable file, marking as failed", trackedDownload.DownloadItem.Title);

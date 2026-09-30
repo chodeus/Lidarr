@@ -352,23 +352,25 @@ namespace NzbDrone.Core.MediaFiles
             return new ImportResult(new ImportDecision<LocalTrack>(null, new Rejection(message)), message);
         }
 
-        private ImportResult RejectionResult(ImportRejectionReason reason, string message)
-        {
-            return new ImportResult(new ImportDecision<LocalTrack>(null, new ImportRejection(reason, message)), message);
-        }
-
         private ImportResult CheckEmptyResultForIssue(string folder)
         {
             var files = _diskProvider.GetFiles(folder, true).ToList();
 
+            var rejections = new List<ImportRejection>();
+
             if (files.Any(file => FileExtensions.DangerousExtensions.Contains(Path.GetExtension(file))))
             {
-                return RejectionResult(ImportRejectionReason.DangerousFile, "Caution: Found potentially dangerous file");
+                rejections.Add(new ImportRejection(ImportRejectionReason.DangerousFile, "Caution: Found potentially dangerous file"));
             }
 
             if (files.Any(file => FileExtensions.ExecutableExtensions.Contains(Path.GetExtension(file))))
             {
-                return RejectionResult(ImportRejectionReason.ExecutableFile, "Caution: Found executable file");
+                rejections.Add(new ImportRejection(ImportRejectionReason.ExecutableFile, "Caution: Found executable file"));
+            }
+
+            if (rejections.Any())
+            {
+                return new ImportResult(new ImportDecision<LocalTrack>(null, rejections.ToArray()), rejections.Select(r => r.Reason).ToArray());
             }
 
             if (files.Any(file => FileExtensions.ArchiveExtensions.Contains(Path.GetExtension(file))))

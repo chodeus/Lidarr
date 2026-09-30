@@ -35,7 +35,7 @@ namespace NzbDrone.Core.Profiles.Tagging
 
         public TaggingProfile Add(TaggingProfile profile)
         {
-            profile.Order = _repo.Count();
+            profile.Order = ProfileOrder.Next(_repo.All(), p => p.Order);
 
             var result = _repo.Insert(profile);
             _bestForTagsCache.Clear();
@@ -45,11 +45,8 @@ namespace NzbDrone.Core.Profiles.Tagging
 
         public TaggingProfile Update(TaggingProfile profile)
         {
-            // the seeded default (Id 1) must stay the last-resort match
-            if (profile.Id == 1)
-            {
-                profile.Order = int.MaxValue;
-            }
+            // Order only changes through Reorder, and the seeded default stays the last-resort match
+            profile.Order = profile.Id == ProfileOrder.DefaultProfileId ? int.MaxValue : _repo.Get(profile.Id).Order;
 
             var result = _repo.Update(profile);
             _bestForTagsCache.Clear();
@@ -60,17 +57,8 @@ namespace NzbDrone.Core.Profiles.Tagging
         {
             _repo.Delete(id);
 
-            var all = All().OrderBy(d => d.Order).ToList();
-
-            for (var i = 0; i < all.Count; i++)
-            {
-                if (all[i].Id == 1)
-                {
-                    continue;
-                }
-
-                all[i].Order = i + 1;
-            }
+            var all = All();
+            ProfileOrder.Renumber(all, p => p.Order, (p, order) => p.Order = order);
 
             _repo.UpdateMany(all);
             _bestForTagsCache.Clear();
@@ -122,66 +110,15 @@ namespace NzbDrone.Core.Profiles.Tagging
 
         public List<TaggingProfile> Reorder(int id, int? afterId)
         {
-            var all = All().OrderBy(d => d.Order)
-                           .ToList();
+            var all = All();
 
-            var moving = all.SingleOrDefault(d => d.Id == id);
-            var after = afterId.HasValue ? all.SingleOrDefault(d => d.Id == afterId) : null;
-
-            if (moving == null)
+            if (ProfileOrder.Reorder(all, id, afterId, p => p.Order, (p, order) => p.Order = order))
             {
-                return all;
+                _repo.UpdateMany(all);
+                _bestForTagsCache.Clear();
             }
-
-            var afterOrder = GetAfterOrder(moving, after);
-            var afterCount = afterOrder + 2;
-            var movingOrder = moving.Order;
-
-            foreach (var taggingProfile in all)
-            {
-                if (taggingProfile.Id == 1)
-                {
-                    continue;
-                }
-
-                if (taggingProfile.Id == id)
-                {
-                    taggingProfile.Order = afterOrder + 1;
-                }
-                else if (taggingProfile.Id == after?.Id)
-                {
-                    taggingProfile.Order = afterOrder;
-                }
-                else if (taggingProfile.Order > afterOrder)
-                {
-                    taggingProfile.Order = afterCount;
-                    afterCount++;
-                }
-                else if (taggingProfile.Order > movingOrder)
-                {
-                    taggingProfile.Order--;
-                }
-            }
-
-            _repo.UpdateMany(all);
-            _bestForTagsCache.Clear();
 
             return All();
-        }
-
-        private int GetAfterOrder(TaggingProfile moving, TaggingProfile after)
-        {
-            if (after == null)
-            {
-                return 0;
-            }
-
-            if (moving.Order < after.Order)
-            {
-                return after.Order - 1;
-            }
-
-            return after.Order;
         }
     }
 }

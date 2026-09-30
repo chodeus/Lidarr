@@ -38,7 +38,7 @@ namespace NzbDrone.Core.Profiles.Delay
 
         public DelayProfile Add(DelayProfile profile)
         {
-            profile.Order = _repo.Count();
+            profile.Order = ProfileOrder.Next(_repo.All(), p => p.Order);
 
             var result = _repo.Insert(profile);
             _bestForTagsCache.Clear();
@@ -48,6 +48,9 @@ namespace NzbDrone.Core.Profiles.Delay
 
         public DelayProfile Update(DelayProfile profile)
         {
+            // Order only changes through Reorder
+            profile.Order = profile.Id == ProfileOrder.DefaultProfileId ? int.MaxValue : _repo.Get(profile.Id).Order;
+
             var result = _repo.Update(profile);
             _bestForTagsCache.Clear();
             return result;
@@ -57,17 +60,8 @@ namespace NzbDrone.Core.Profiles.Delay
         {
             _repo.Delete(id);
 
-            var all = All().OrderBy(d => d.Order).ToList();
-
-            for (var i = 0; i < all.Count; i++)
-            {
-                if (all[i].Id == 1)
-                {
-                    continue;
-                }
-
-                all[i].Order = i + 1;
-            }
+            var all = All();
+            ProfileOrder.Renumber(all, p => p.Order, (p, order) => p.Order = order);
 
             _repo.UpdateMany(all);
             _bestForTagsCache.Clear();
@@ -121,66 +115,15 @@ namespace NzbDrone.Core.Profiles.Delay
 
         public List<DelayProfile> Reorder(int id, int? afterId)
         {
-            var all = All().OrderBy(d => d.Order)
-                           .ToList();
+            var all = All();
 
-            var moving = all.SingleOrDefault(d => d.Id == id);
-            var after = afterId.HasValue ? all.SingleOrDefault(d => d.Id == afterId) : null;
-
-            if (moving == null)
+            if (ProfileOrder.Reorder(all, id, afterId, p => p.Order, (p, order) => p.Order = order))
             {
-                // TODO: This should throw
-                return all;
+                _repo.UpdateMany(all);
+                _bestForTagsCache.Clear();
             }
-
-            var afterOrder = GetAfterOrder(moving, after);
-            var afterCount = afterOrder + 2;
-            var movingOrder = moving.Order;
-
-            foreach (var delayProfile in all)
-            {
-                if (delayProfile.Id == 1)
-                {
-                    continue;
-                }
-
-                if (delayProfile.Id == id)
-                {
-                    delayProfile.Order = afterOrder + 1;
-                }
-                else if (delayProfile.Id == after?.Id)
-                {
-                    delayProfile.Order = afterOrder;
-                }
-                else if (delayProfile.Order > afterOrder)
-                {
-                    delayProfile.Order = afterCount;
-                    afterCount++;
-                }
-                else if (delayProfile.Order > movingOrder)
-                {
-                    delayProfile.Order--;
-                }
-            }
-
-            _repo.UpdateMany(all);
 
             return All();
-        }
-
-        private int GetAfterOrder(DelayProfile moving, DelayProfile after)
-        {
-            if (after == null)
-            {
-                return 0;
-            }
-
-            if (moving.Order < after.Order)
-            {
-                return after.Order - 1;
-            }
-
-            return after.Order;
         }
 
         private DelayProfile AddMissingItems(DelayProfile profile)

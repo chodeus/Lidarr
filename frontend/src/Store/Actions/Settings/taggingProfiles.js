@@ -74,16 +74,14 @@ export default {
 
     [REORDER_TAGGING_PROFILE]: (getState, payload, dispatch) => {
       const { id, moveIndex } = payload;
-      const moveOrder = moveIndex + 1;
-      const taggingProfiles = getState().settings.taggingProfiles.items;
-      const moving = _.find(taggingProfiles, { id });
+      const ordered = _.sortBy(_.reject(getState().settings.taggingProfiles.items, { id: 1 }), 'order');
 
-      // Don't move if the order hasn't changed
-      if (moving.order === moveOrder) {
+      // Don't move if the position hasn't changed
+      if (_.findIndex(ordered, { id }) === moveIndex) {
         return;
       }
 
-      const after = moveIndex > 0 ? _.find(taggingProfiles, { order: moveIndex }) : null;
+      const after = moveIndex > 0 ? ordered[moveIndex - 1] : null;
       const afterQueryParam = after ? `afterId=${after.id}` : '';
 
       const promise = createAjaxRequest({

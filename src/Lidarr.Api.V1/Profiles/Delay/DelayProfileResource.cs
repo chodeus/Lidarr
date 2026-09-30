@@ -54,7 +54,7 @@ namespace Lidarr.Api.V1.Profiles.Delay
                 BypassIfAboveCustomFormatScore = resource.BypassIfAboveCustomFormatScore,
                 MinimumCustomFormatScore = resource.MinimumCustomFormatScore,
                 Order = resource.Order,
-                Tags = new HashSet<int>(resource.Tags)
+                Tags = new HashSet<int>(resource.Tags ?? new HashSet<int>())
             };
         }
 

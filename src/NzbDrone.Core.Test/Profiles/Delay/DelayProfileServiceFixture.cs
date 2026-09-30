@@ -3,6 +3,7 @@ using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using NUnit.Framework;
+using NzbDrone.Common.Cache;
 using NzbDrone.Core.Profiles.Delay;
 using NzbDrone.Core.Test.Framework;
 
@@ -106,6 +107,55 @@ namespace NzbDrone.Core.Test.Profiles.Delay
             var afterMove = result.Single(d => d.Id == after.Id);
 
             afterMove.Order.Should().BeLessThan(afterOrder);
+        }
+
+        [Test]
+        public void add_should_order_after_the_highest_profile()
+        {
+            _last.Order = 7;
+
+            var profile = new DelayProfile();
+
+            Subject.Add(profile);
+
+            profile.Order.Should().Be(8);
+        }
+
+        [Test]
+        public void update_should_keep_the_stored_order()
+        {
+            Mocker.GetMock<IDelayProfileRepository>()
+                  .Setup(s => s.Get(_last.Id))
+                  .Returns(new DelayProfile { Id = _last.Id, Order = 3 });
+
+            var profile = new DelayProfile { Id = _last.Id, Order = 0 };
+
+            Subject.Update(profile);
+
+            profile.Order.Should().Be(3);
+        }
+
+        [Test]
+        public void update_should_keep_the_default_last()
+        {
+            var profile = new DelayProfile { Id = 1, Order = 0 };
+
+            Subject.Update(profile);
+
+            profile.Order.Should().Be(int.MaxValue);
+        }
+
+        [Test]
+        public void reorder_should_clear_best_for_tags_cache()
+        {
+            Mocker.SetConstant<ICacheManager>(new CacheManager());
+            _delayProfiles.ForEach(d => d.Tags = new HashSet<int>());
+
+            Subject.BestForTags(new HashSet<int>()).Id.Should().Be(_first.Id);
+
+            Subject.Reorder(_last.Id, null);
+
+            Subject.BestForTags(new HashSet<int>()).Id.Should().Be(_last.Id);
         }
     }
 }

@@ -54,7 +54,7 @@ namespace Lidarr.Api.V1.Profiles.Tagging
                 ScrubAudioTags = resource.ScrubAudioTags,
                 EmbedCoverArt = resource.EmbedCoverArt,
                 Order = resource.Order,
-                Tags = new HashSet<int>(resource.Tags),
+                Tags = new HashSet<int>(resource.Tags ?? new HashSet<int>()),
                 SkipHardlinkedFiles = resource.SkipHardlinkedFiles
             };
         }

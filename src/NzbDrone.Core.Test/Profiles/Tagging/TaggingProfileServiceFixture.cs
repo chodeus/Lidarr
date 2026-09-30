@@ -158,5 +158,31 @@ namespace NzbDrone.Core.Test.Profiles.Tagging
             result.Id.Should().Be(0);
             result.WriteAudioTags.Should().Be(WriteAudioTagsType.No);
         }
+
+        [Test]
+        public void add_should_order_after_the_highest_profile()
+        {
+            _untaggedProfile.Order = 7;
+
+            var profile = new TaggingProfile();
+
+            Subject.Add(profile);
+
+            profile.Order.Should().Be(8);
+        }
+
+        [Test]
+        public void update_should_keep_the_stored_order()
+        {
+            Mocker.GetMock<ITaggingProfileRepository>()
+                  .Setup(s => s.Get(_untaggedProfile.Id))
+                  .Returns(new TaggingProfile { Id = _untaggedProfile.Id, Order = 2 });
+
+            var profile = new TaggingProfile { Id = _untaggedProfile.Id, Order = 0 };
+
+            Subject.Update(profile);
+
+            profile.Order.Should().Be(2);
+        }
     }
 }

@@ -74,17 +74,15 @@ export default {
 
     [REORDER_DELAY_PROFILE]: (getState, payload, dispatch) => {
       const { id, moveIndex } = payload;
-      const moveOrder = moveIndex + 1;
-      const delayProfiles = getState().settings.delayProfiles.items;
-      const moving = _.find(delayProfiles, { id });
+      const ordered = _.sortBy(_.reject(getState().settings.delayProfiles.items, { id: 1 }), 'order');
 
-      // Don't move if the order hasn't changed
-      if (moving.order === moveOrder) {
+      // Don't move if the position hasn't changed
+      if (_.findIndex(ordered, { id }) === moveIndex) {
         return;
       }
 
-      const after = moveIndex > 0 ? _.find(delayProfiles, { order: moveIndex }) : null;
-      const afterQueryParam = after ? `after=${after.id}` : '';
+      const after = moveIndex > 0 ? ordered[moveIndex - 1] : null;
+      const afterQueryParam = after ? `afterId=${after.id}` : '';
 
       const promise = createAjaxRequest({
         method: 'PUT',

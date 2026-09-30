@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using FluentValidation;
 using NzbDrone.Common.Extensions;
@@ -26,6 +28,7 @@ namespace NzbDrone.Core.Indexers.IPTorrents
 
         public IPTorrentsSettings()
         {
+            FailDownloads = Array.Empty<int>();
             MinimumSeeders = IndexerDefaults.MINIMUM_SEEDERS;
         }
 
@@ -43,6 +46,9 @@ namespace NzbDrone.Core.Indexers.IPTorrents
 
         [FieldDefinition(4, Type = FieldType.Checkbox, Label = "IndexerSettingsRejectBlocklistedTorrentHashes", HelpText = "IndexerSettingsRejectBlocklistedTorrentHashesHelpText", Advanced = true)]
         public bool RejectBlocklistedTorrentHashesWhileGrabbing { get; set; }
+
+        [FieldDefinition(5, Type = FieldType.Select, SelectOptions = typeof(FailDownloads), Label = "IndexerSettingsFailDownloads", HelpText = "IndexerSettingsFailDownloadsHelpText", Advanced = true)]
+        public IEnumerable<int> FailDownloads { get; set; }
 
         public NzbDroneValidationResult Validate()
         {

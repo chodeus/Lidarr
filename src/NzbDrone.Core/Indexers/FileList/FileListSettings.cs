@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using FluentValidation;
 using NzbDrone.Core.Annotations;
@@ -25,6 +26,7 @@ namespace NzbDrone.Core.Indexers.FileList
 
         public FileListSettings()
         {
+            FailDownloads = Array.Empty<int>();
             BaseUrl = "https://filelist.io";
             MinimumSeeders = IndexerDefaults.MINIMUM_SEEDERS;
 
@@ -58,6 +60,9 @@ namespace NzbDrone.Core.Indexers.FileList
 
         [FieldDefinition(8, Type = FieldType.Checkbox, Label = "IndexerSettingsRejectBlocklistedTorrentHashes", HelpText = "IndexerSettingsRejectBlocklistedTorrentHashesHelpText", Advanced = true)]
         public bool RejectBlocklistedTorrentHashesWhileGrabbing { get; set; }
+
+        [FieldDefinition(9, Type = FieldType.Select, SelectOptions = typeof(FailDownloads), Label = "IndexerSettingsFailDownloads", HelpText = "IndexerSettingsFailDownloadsHelpText", Advanced = true)]
+        public IEnumerable<int> FailDownloads { get; set; }
 
         public NzbDroneValidationResult Validate()
         {

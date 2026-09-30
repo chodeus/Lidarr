@@ -404,6 +404,43 @@ namespace NzbDrone.Core.Test.MediaFiles
             result.First().Result.Should().Be(ImportResultType.Rejected);
         }
 
+        [TestCase(".exe", ImportRejectionReason.ExecutableFile)]
+        [TestCase(".lnk", ImportRejectionReason.DangerousFile)]
+        [TestCase(".ps1", ImportRejectionReason.DangerousFile)]
+        public void should_return_rejection_reason_for_unsafe_file(string extension, ImportRejectionReason reason)
+        {
+            GivenValidArtist();
+
+            var path = @"C:\Test\Unsorted\Artist.Title-Album.Title.2017-Lidarr".AsOsAgnostic();
+            var imported = new List<ImportDecision<LocalTrack>>();
+
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(s => s.FolderExists(path))
+                .Returns(true);
+
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(s => s.GetDirectoryInfo(It.IsAny<string>()))
+                .Returns(DiskProvider.GetDirectoryInfo(path));
+
+            Mocker.GetMock<IMakeImportDecision>()
+                .Setup(v => v.GetImportDecisions(It.IsAny<List<IFileInfo>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerInfo>(), It.IsAny<ImportDecisionMakerConfig>()))
+                .Returns(imported);
+
+            Mocker.GetMock<IImportApprovedTracks>()
+                .Setup(s => s.Import(It.IsAny<List<ImportDecision<LocalTrack>>>(), true, null, ImportMode.Auto))
+                .Returns(imported.Select(i => new ImportResult(i)).ToList());
+
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(s => s.GetFiles(It.IsAny<string>(), true))
+                .Returns(new[] { _audioFiles.First().Replace(".ext", extension) });
+
+            var result = Subject.ProcessPath(path);
+
+            result.Should().ContainSingle();
+            result.First().ImportDecision.Rejections.Single().Should().BeOfType<ImportRejection>()
+                  .Which.RejectionReason.Should().Be(reason);
+        }
+
         private void VerifyNoImport()
         {
             Mocker.GetMock<IImportApprovedTracks>().Verify(c => c.Import(It.IsAny<List<ImportDecision<LocalTrack>>>(), true, null, ImportMode.Auto),

@@ -33,6 +33,7 @@ namespace NzbDrone.Core.Download
         private readonly IProvideImportItemService _provideImportItemService;
         private readonly IParsingService _parsingService;
         private readonly ITrackedDownloadAlreadyImported _trackedDownloadAlreadyImported;
+        private readonly IRejectedImportService _rejectedImportService;
         private readonly Logger _logger;
 
         public CompletedDownloadService(IEventAggregator eventAggregator,
@@ -42,6 +43,7 @@ namespace NzbDrone.Core.Download
                                         IArtistService artistService,
                                         IParsingService parsingService,
                                         ITrackedDownloadAlreadyImported trackedDownloadAlreadyImported,
+                                        IRejectedImportService rejectedImportService,
                                         Logger logger)
         {
             _eventAggregator = eventAggregator;
@@ -51,6 +53,7 @@ namespace NzbDrone.Core.Download
             _artistService = artistService;
             _parsingService = parsingService;
             _trackedDownloadAlreadyImported = trackedDownloadAlreadyImported;
+            _rejectedImportService = rejectedImportService;
             _logger = logger;
         }
 
@@ -145,7 +148,10 @@ namespace NzbDrone.Core.Download
 
                 if (firstResult.Result == ImportResultType.Rejected && firstResult.ImportDecision.Item == null)
                 {
-                    trackedDownload.Warn(new TrackedDownloadStatusMessage(firstResult.Errors.First(), new List<string>()));
+                    if (!_rejectedImportService.Process(trackedDownload, firstResult))
+                    {
+                        trackedDownload.Warn(new TrackedDownloadStatusMessage(firstResult.Errors.First(), new List<string>()));
+                    }
 
                     return;
                 }

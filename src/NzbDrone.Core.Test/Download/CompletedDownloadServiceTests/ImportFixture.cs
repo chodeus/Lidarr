@@ -115,6 +115,45 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
                   .Returns(_trackedDownload.RemoteAlbum.Artist);
         }
 
+        private void GivenFolderRejection()
+        {
+            Mocker.GetMock<IDownloadedTracksImportService>()
+                .Setup(v => v.ProcessPath(It.IsAny<string>(), It.IsAny<ImportMode>(), It.IsAny<Artist>(), It.IsAny<DownloadClientItem>()))
+                .Returns(new List<ImportResult>
+                {
+                    new ImportResult(
+                        new ImportDecision<LocalTrack>(null, new ImportRejection(ImportRejectionReason.ExecutableFile, "Caution: Found executable file")),
+                        "Caution: Found executable file")
+                });
+        }
+
+        [Test]
+        public void should_leave_a_download_failed_by_its_indexer_settings_to_failed_download_handling()
+        {
+            GivenFolderRejection();
+
+            Mocker.GetMock<IRejectedImportService>()
+                .Setup(s => s.Process(_trackedDownload, It.IsAny<ImportResult>()))
+                .Callback(() => _trackedDownload.Fail())
+                .Returns(true);
+
+            Subject.Import(_trackedDownload);
+
+            _trackedDownload.State.Should().Be(TrackedDownloadState.DownloadFailedPending);
+            _trackedDownload.Status.Should().Be(TrackedDownloadStatus.Error);
+        }
+
+        [Test]
+        public void should_warn_on_a_folder_rejection_the_rejected_import_service_does_not_handle()
+        {
+            GivenFolderRejection();
+
+            Subject.Import(_trackedDownload);
+
+            _trackedDownload.Status.Should().Be(TrackedDownloadStatus.Warning);
+            _trackedDownload.StatusMessages.Should().ContainSingle(m => m.Title == "Caution: Found executable file");
+        }
+
         [Test]
         public void should_not_mark_as_imported_if_all_files_were_rejected()
         {

@@ -32,5 +32,16 @@ namespace NzbDrone.Core.MediaFiles
 
         public static HashSet<string> ArchiveExtensions => new HashSet<string>(_archiveExtensions, StringComparer.OrdinalIgnoreCase);
         public static HashSet<string> ExecutableExtensions => new HashSet<string>(_executableExtensions, StringComparer.OrdinalIgnoreCase);
+
+        public static HashSet<string> DangerousExtensions => new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".arj",
+            ".lnk",
+            ".lzh",
+            ".ps1",
+            ".scr",
+            ".vbs",
+            ".zipx"
+        };
     }
 }

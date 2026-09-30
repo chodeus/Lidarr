@@ -630,6 +630,8 @@
   "IndexerSettings": "Indexer Settings",
   "IndexerSettingsApiUrl": "API URL",
   "IndexerSettingsApiUrlHelpText": "Do not change this unless you know what you're doing. Since your API key will be sent to that host.",
+  "IndexerSettingsFailDownloads": "Fail Downloads",
+  "IndexerSettingsFailDownloadsHelpText": "While processing completed downloads {appName} will treat these selected filetypes as failed downloads.",
   "IndexerSettingsRejectBlocklistedTorrentHashes": "Reject Blocklisted Torrent Hashes While Grabbing",
   "IndexerSettingsRejectBlocklistedTorrentHashesHelpText": "If a torrent is blocked by hash it may not properly be rejected during RSS/Search for some indexers, enabling this will allow it to be rejected after the torrent is grabbed, but before it is sent to the client.",
   "IndexerSettingsSeedRatio": "Seed Ratio",

@@ -4,6 +4,7 @@ using NUnit.Framework;
 using NzbDrone.Common.Cache;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Core.ThingiProvider.Events;
 using NzbDrone.Core.Validation;
 
 namespace NzbDrone.Core.Test.IndexerTests
@@ -54,6 +55,32 @@ namespace NzbDrone.Core.Test.IndexerTests
             GivenSettings(new SettingsWithoutFailDownloads());
 
             Subject.GetSettings(4).FailDownloads.Should().BeEmpty();
+        }
+
+        [Test]
+        public void should_read_new_settings_after_the_indexer_is_updated()
+        {
+            GivenSettings(new SettingsWithFailDownloads());
+            Subject.GetSettings(4);
+
+            GivenSettings(new SettingsWithoutFailDownloads());
+            Subject.Handle(new ProviderUpdatedEvent<IIndexer>(new IndexerDefinition { Id = 4 }));
+
+            Subject.GetSettings(4).FailDownloads.Should().BeEmpty();
+        }
+
+        [Test]
+        public void should_forget_settings_after_the_indexer_is_deleted()
+        {
+            GivenSettings(new SettingsWithFailDownloads());
+            Subject.GetSettings(4);
+
+            Mocker.GetMock<IIndexerFactory>()
+                  .Setup(s => s.Find(4))
+                  .Returns((IndexerDefinition)null);
+            Subject.Handle(new ProviderDeletedEvent<IIndexer>(4));
+
+            Subject.GetSettings(4).Should().BeNull();
         }
 
         [Test]

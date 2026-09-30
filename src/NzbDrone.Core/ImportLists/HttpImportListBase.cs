@@ -36,15 +36,16 @@ namespace NzbDrone.Core.ImportLists
             _httpClient = httpClient;
         }
 
-        public override IList<ImportListItemInfo> Fetch()
+        public override ImportListFetchResult Fetch()
         {
             return FetchReleases(g => g.GetListItems(), true);
         }
 
-        protected virtual IList<ImportListItemInfo> FetchReleases(Func<IImportListRequestGenerator, ImportListPageableRequestChain> pageableRequestChainSelector, bool isRecent = false)
+        protected virtual ImportListFetchResult FetchReleases(Func<IImportListRequestGenerator, ImportListPageableRequestChain> pageableRequestChainSelector, bool isRecent = false)
         {
             var releases = new List<ImportListItemInfo>();
             var url = string.Empty;
+            var anyFailure = true;
 
             try
             {
@@ -90,6 +91,7 @@ namespace NzbDrone.Core.ImportLists
                 }
 
                 _importListStatusService.RecordSuccess(Definition.Id);
+                anyFailure = false;
             }
             catch (WebException webException)
             {
@@ -161,7 +163,7 @@ namespace NzbDrone.Core.ImportLists
                 _logger.Error(ex, "An error occurred while processing feed. {0}", url);
             }
 
-            return CleanupListItems(releases);
+            return new ImportListFetchResult(CleanupListItems(releases), anyFailure);
         }
 
         protected virtual bool IsValidRelease(ImportListItemInfo release)

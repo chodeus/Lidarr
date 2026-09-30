@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
 using Moq;
@@ -67,6 +68,34 @@ namespace NzbDrone.Core.Test.ImportListTests
             Subject.RecordSuccess(1);
 
             VerifyNoUpdate();
+        }
+
+        [TestCase(false, false, false)]
+        [TestCase(false, true, true)]
+        [TestCase(true, false, true)]
+        public void should_keep_removed_items_flag_until_cleaned(bool pending, bool removedItems, bool expected)
+        {
+            var status = new ImportListStatus { HasRemovedItemSinceLastClean = pending };
+            WithStatus(status);
+
+            Subject.UpdateListSyncStatus(1, removedItems);
+
+            status.HasRemovedItemSinceLastClean.Should().Be(expected);
+            status.LastInfoSync.Should().NotBeNull();
+            VerifyUpdate();
+        }
+
+        [Test]
+        public void should_clear_removed_items_flag_when_marked_as_cleaned()
+        {
+            var status = new ImportListStatus { HasRemovedItemSinceLastClean = true };
+            WithStatus(status);
+
+            Subject.MarkListsAsCleaned();
+
+            status.HasRemovedItemSinceLastClean.Should().BeFalse();
+            Mocker.GetMock<IImportListStatusRepository>()
+                  .Verify(v => v.UpdateMany(It.Is<List<ImportListStatus>>(l => l.Count == 1)), Times.Once());
         }
     }
 }

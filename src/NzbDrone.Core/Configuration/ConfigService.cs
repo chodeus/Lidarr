@@ -6,6 +6,7 @@ using NLog;
 using NzbDrone.Common.EnsureThat;
 using NzbDrone.Common.Http.Proxy;
 using NzbDrone.Core.Configuration.Events;
+using NzbDrone.Core.ImportLists;
 using NzbDrone.Core.Languages;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Messaging.Events;
@@ -121,6 +122,18 @@ namespace NzbDrone.Core.Configuration
             get { return GetValueInt("MinimumAge", 0); }
 
             set { SetValue("MinimumAge", value); }
+        }
+
+        public ListSyncLevelType ListSyncLevel
+        {
+            get { return GetValueEnum("ListSyncLevel", ListSyncLevelType.Disabled); }
+            set { SetValue("ListSyncLevel", value); }
+        }
+
+        public int ListSyncTag
+        {
+            get { return GetValueInt("ListSyncTag"); }
+            set { SetValue("ListSyncTag", value); }
         }
 
         public ProperDownloadTypes DownloadPropersAndRepacks

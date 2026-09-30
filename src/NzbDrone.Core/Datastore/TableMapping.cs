@@ -207,6 +207,9 @@ namespace NzbDrone.Core.Datastore
             Mapper.Entity<UpdateHistory>("UpdateHistory").RegisterModel();
             Mapper.Entity<ImportListExclusion>("ImportListExclusions").RegisterModel();
 
+            Mapper.Entity<ImportListItemInfo>("ImportListItems").RegisterModel()
+                  .Ignore(i => i.ImportList);
+
             Mapper.Entity<AutoTagging.AutoTag>("AutoTagging").RegisterModel();
         }
 

@@ -27,9 +27,10 @@ namespace NzbDrone.Core.ImportLists.Custom
             _customProxy = customProxy;
         }
 
-        public override IList<ImportListItemInfo> Fetch()
+        public override ImportListFetchResult Fetch()
         {
             var artists = new List<ImportListItemInfo>();
+            var anyFailure = false;
 
             try
             {
@@ -47,12 +48,13 @@ namespace NzbDrone.Core.ImportLists.Custom
             }
             catch (Exception ex)
             {
+                anyFailure = true;
                 _logger.Debug(ex, "Failed to fetch data for list {0} ({1})", Definition.Name, Name);
 
                 _importListStatusService.RecordFailure(Definition.Id);
             }
 
-            return CleanupListItems(artists);
+            return new ImportListFetchResult(CleanupListItems(artists), anyFailure);
         }
 
         public override object RequestAction(string action, IDictionary<string, string> query)

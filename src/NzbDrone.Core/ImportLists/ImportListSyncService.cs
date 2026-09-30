@@ -4,21 +4,27 @@ using System.Linq;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.ImportLists.Exclusions;
+using NzbDrone.Core.ImportLists.ImportListItems;
 using NzbDrone.Core.IndexerSearch;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Music.Commands;
+using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.ThingiProvider.Events;
 
 namespace NzbDrone.Core.ImportLists
 {
-    public class ImportListSyncService : IExecute<ImportListSyncCommand>
+    public class ImportListSyncService : IExecute<ImportListSyncCommand>, IHandleAsync<ProviderDeletedEvent<IImportList>>
     {
         private readonly IImportListFactory _importListFactory;
+        private readonly IImportListStatusService _importListStatusService;
         private readonly IImportListExclusionService _importListExclusionService;
+        private readonly IImportListItemService _importListItemService;
         private readonly IFetchAndParseImportList _listFetcherAndParser;
         private readonly ISearchForNewAlbum _albumSearchService;
         private readonly ISearchForNewArtist _artistSearchService;
@@ -28,10 +34,13 @@ namespace NzbDrone.Core.ImportLists
         private readonly IAddAlbumService _addAlbumService;
         private readonly IEventAggregator _eventAggregator;
         private readonly IManageCommandQueue _commandQueueManager;
+        private readonly IConfigService _configService;
         private readonly Logger _logger;
 
         public ImportListSyncService(IImportListFactory importListFactory,
+                                     IImportListStatusService importListStatusService,
                                      IImportListExclusionService importListExclusionService,
+                                     IImportListItemService importListItemService,
                                      IFetchAndParseImportList listFetcherAndParser,
                                      ISearchForNewAlbum albumSearchService,
                                      ISearchForNewArtist artistSearchService,
@@ -41,10 +50,13 @@ namespace NzbDrone.Core.ImportLists
                                      IAddAlbumService addAlbumService,
                                      IEventAggregator eventAggregator,
                                      IManageCommandQueue commandQueueManager,
+                                     IConfigService configService,
                                      Logger logger)
         {
             _importListFactory = importListFactory;
+            _importListStatusService = importListStatusService;
             _importListExclusionService = importListExclusionService;
+            _importListItemService = importListItemService;
             _listFetcherAndParser = listFetcherAndParser;
             _albumSearchService = albumSearchService;
             _artistSearchService = artistSearchService;
@@ -54,7 +66,35 @@ namespace NzbDrone.Core.ImportLists
             _addAlbumService = addAlbumService;
             _eventAggregator = eventAggregator;
             _commandQueueManager = commandQueueManager;
+            _configService = configService;
             _logger = logger;
+        }
+
+        private bool AllListsSuccessfulWithAPendingClean()
+        {
+            var lists = _importListFactory.AutomaticAddEnabled(false);
+            var anyRemoved = false;
+
+            foreach (var list in lists)
+            {
+                var status = _importListStatusService.GetListStatus(list.Definition.Id);
+
+                if (status.DisabledTill.HasValue)
+                {
+                    // list failed the last time it was synced.
+                    return false;
+                }
+
+                if (!status.LastInfoSync.HasValue)
+                {
+                    // list has never been synced.
+                    return false;
+                }
+
+                anyRemoved |= status.HasRemovedItemSinceLastClean;
+            }
+
+            return anyRemoved;
         }
 
         private List<Album> SyncAll()
@@ -68,18 +108,30 @@ namespace NzbDrone.Core.ImportLists
 
             _logger.ProgressInfo("Starting Import List Sync");
 
-            var listItems = _listFetcherAndParser.Fetch().ToList();
+            var result = _listFetcherAndParser.Fetch();
 
-            return ProcessListItems(listItems);
+            var listItems = result.Items.ToList();
+
+            var processed = ProcessListItems(listItems);
+
+            TryCleanLibrary();
+
+            return processed;
         }
 
         private List<Album> SyncList(ImportListDefinition definition)
         {
             _logger.ProgressInfo($"Starting Import List Refresh for List {definition.Name}");
 
-            var listItems = _listFetcherAndParser.FetchSingleList(definition).ToList();
+            var result = _listFetcherAndParser.FetchSingleList(definition);
 
-            return ProcessListItems(listItems);
+            var listItems = result.Items.ToList();
+
+            var processed = ProcessListItems(listItems);
+
+            TryCleanLibrary();
+
+            return processed;
         }
 
         private List<Album> ProcessListItems(List<ImportListItemInfo> items)
@@ -344,6 +396,79 @@ namespace NzbDrone.Core.ImportLists
             var processed = message.DefinitionId.HasValue ? SyncList(_importListFactory.Get(message.DefinitionId.Value)) : SyncAll();
 
             _eventAggregator.PublishEvent(new ImportListSyncCompleteEvent(processed));
+        }
+
+        private void TryCleanLibrary()
+        {
+            if (_configService.ListSyncLevel == ListSyncLevelType.Disabled)
+            {
+                return;
+            }
+
+            if (AllListsSuccessfulWithAPendingClean())
+            {
+                CleanLibrary();
+            }
+        }
+
+        private void CleanLibrary()
+        {
+            if (_configService.ListSyncLevel == ListSyncLevelType.Disabled)
+            {
+                return;
+            }
+
+            var artistsToUpdate = new List<Artist>();
+            var artistsInLibrary = _artistService.GetAllArtists();
+            var allListItems = _importListItemService.All();
+
+            var listArtistIds = allListItems.Select(l => l.ArtistMusicBrainzId).Where(x => x.IsNotNullOrWhiteSpace()).ToHashSet();
+            var listArtistNames = allListItems.Where(l => l.Artist.IsNotNullOrWhiteSpace()).Select(l => l.Artist.CleanArtistName()).ToHashSet();
+            var listAlbumIds = allListItems.Select(l => l.AlbumMusicBrainzId).Where(x => x.IsNotNullOrWhiteSpace()).ToHashSet();
+
+            // An album list keeps the artist of any listed album
+            var artistsWithListedAlbums = _albumService.GetAllAlbums()
+                .Where(a => listAlbumIds.Contains(a.ForeignAlbumId) || a.OldForeignAlbumIds.Any(listAlbumIds.Contains))
+                .Select(a => a.ArtistMetadataId)
+                .ToHashSet();
+
+            foreach (var artist in artistsInLibrary)
+            {
+                var artistExists = listArtistIds.Contains(artist.ForeignArtistId) ||
+                                   artist.Metadata.Value.OldForeignArtistIds.Any(listArtistIds.Contains) ||
+                                   listArtistNames.Contains(artist.CleanName) ||
+                                   artistsWithListedAlbums.Contains(artist.ArtistMetadataId);
+
+                if (!artistExists)
+                {
+                    switch (_configService.ListSyncLevel)
+                    {
+                        case ListSyncLevelType.LogOnly:
+                            _logger.Info("{0} was in your library, but not found in your lists --> You might want to unmonitor or remove it", artist);
+                            break;
+                        case ListSyncLevelType.KeepAndUnmonitor when artist.Monitored:
+                            _logger.Info("{0} was in your library, but not found in your lists --> Keeping in library but unmonitoring it", artist);
+                            artist.Monitored = false;
+                            artistsToUpdate.Add(artist);
+                            break;
+                        case ListSyncLevelType.KeepAndTag when !artist.Tags.Contains(_configService.ListSyncTag):
+                            _logger.Info("{0} was in your library, but not found in your lists --> Keeping in library but tagging it", artist);
+                            artist.Tags.Add(_configService.ListSyncTag);
+                            artistsToUpdate.Add(artist);
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+
+            _artistService.UpdateArtists(artistsToUpdate, true);
+            _importListStatusService.MarkListsAsCleaned();
+        }
+
+        public void HandleAsync(ProviderDeletedEvent<IImportList> message)
+        {
+            TryCleanLibrary();
         }
     }
 }

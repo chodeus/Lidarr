@@ -1,3 +1,4 @@
+using System.Linq;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
@@ -40,6 +41,19 @@ namespace NzbDrone.Core.Test.NotificationTests.Discord
             GivenUnmatchedDownload("Artist.Name-Album.Title-GROUP");
 
             _payload.Embeds[0].Title.Should().Be("Artist.Name-Album.Title-GROUP");
+        }
+
+        [TestCase(1018)]
+        [TestCase(1019)]
+        [TestCase(3000)]
+        public void should_keep_the_download_field_within_1024_characters(int titleLength)
+        {
+            GivenUnmatchedDownload(new string('a', titleLength));
+
+            var field = _payload.Embeds[0].Fields.Single(f => f.Name == "Download");
+
+            field.Value.Length.Should().BeLessOrEqualTo(1024);
+            field.Value.Should().StartWith("```").And.EndWith("```");
         }
 
         [Test]

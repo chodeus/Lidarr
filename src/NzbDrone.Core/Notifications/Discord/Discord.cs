@@ -363,7 +363,7 @@ namespace NzbDrone.Core.Notifications.Discord
                         break;
                     case DiscordManualInteractionFieldType.DownloadTitle:
                         discordField.Name = "Download";
-                        discordField.Value = string.Format("```{0}```", message.TrackedDownload.DownloadItem.Title);
+                        discordField.Value = string.Format("```{0}```", GetFieldText(message.TrackedDownload.DownloadItem.Title, 1018));
                         break;
                     case DiscordManualInteractionFieldType.Links:
                         discordField.Name = "Links";
@@ -608,6 +608,12 @@ namespace NzbDrone.Core.Notifications.Discord
             var title = $"{artist.Name} - {albumTitles}".Replace("`", "\\`");
 
             return title.Length > 256 ? $"{title.AsSpan(0, 253).TrimEnd('\\')}..." : title;
+        }
+
+        // Discord rejects a field value over 1024 characters
+        private static string GetFieldText(string text, int limit)
+        {
+            return text.Length > limit ? $"{text.AsSpan(0, limit - 3)}..." : text;
         }
 
         // Same escaping and 256-character embed limit as GetTitle

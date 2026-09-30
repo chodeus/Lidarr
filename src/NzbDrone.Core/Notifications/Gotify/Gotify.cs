@@ -25,12 +25,12 @@ namespace NzbDrone.Core.Notifications.Gotify
 
         public override void OnGrab(GrabMessage grabMessage)
         {
-            SendNotification(ALBUM_GRABBED_TITLE, grabMessage.Message, grabMessage.Artist);
+            SendNotification(ALBUM_GRABBED_TITLE, grabMessage.Message, grabMessage.Artist, grabMessage.RemoteAlbum?.Albums);
         }
 
         public override void OnReleaseImport(AlbumDownloadMessage message)
         {
-            SendNotification(ALBUM_DOWNLOADED_TITLE, message.Message, message.Artist);
+            SendNotification(ALBUM_DOWNLOADED_TITLE, message.Message, message.Artist, message.Album == null ? null : new List<Album> { message.Album });
         }
 
         public override void OnArtistAdd(ArtistAddMessage message)
@@ -45,7 +45,7 @@ namespace NzbDrone.Core.Notifications.Gotify
 
         public override void OnAlbumDelete(AlbumDeleteMessage deleteMessage)
         {
-            SendNotification(ALBUM_DELETED_TITLE, deleteMessage.Message, deleteMessage.Album?.Artist);
+            SendNotification(ALBUM_DELETED_TITLE, deleteMessage.Message, deleteMessage.Album?.Artist, deleteMessage.Album == null ? null : new List<Album> { deleteMessage.Album });
         }
 
         public override void OnHealthIssue(HealthCheck.HealthCheck healthCheck)
@@ -65,7 +65,7 @@ namespace NzbDrone.Core.Notifications.Gotify
 
         public override void OnManualInteractionRequired(ManualInteractionRequiredMessage message)
         {
-            SendNotification(MANUAL_INTERACTION_REQUIRED_TITLE, message.Message, null);
+            SendNotification(MANUAL_INTERACTION_REQUIRED_TITLE, message.Message, message.Artist, message.Album?.Albums);
         }
 
         public override void OnImportFailure(AlbumDownloadMessage message)
@@ -100,9 +100,19 @@ namespace NzbDrone.Core.Notifications.Gotify
                 var payload = new GotifyMessage
                 {
                     Title = title,
-                    Message = sb.ToString(),
                     Priority = Settings.Priority
                 };
+
+                if (Settings.MetadataLinks.Any())
+                {
+                    isMarkdown = true;
+
+                    sb.AppendLine("");
+                    sb.AppendLine("[Lidarr.audio](https://lidarr.audio)");
+                    payload.SetClickUrl("https://lidarr.audio");
+                }
+
+                payload.Message = sb.ToString();
 
                 payload.SetContentType(isMarkdown);
 
@@ -117,7 +127,7 @@ namespace NzbDrone.Core.Notifications.Gotify
             return new ValidationResult(failures);
         }
 
-        private void SendNotification(string title, string message, Artist artist)
+        private void SendNotification(string title, string message, Artist artist, List<Album> albums = null)
         {
             var isMarkdown = false;
             var sb = new StringBuilder();
@@ -138,10 +148,28 @@ namespace NzbDrone.Core.Notifications.Gotify
             var payload = new GotifyMessage
             {
                 Title = title,
-                Message = sb.ToString(),
                 Priority = Settings.Priority
             };
 
+            var links = NotificationMetadataLinkGenerator.GenerateLinks(artist, albums, Settings.MetadataLinks);
+
+            if (links.Any())
+            {
+                isMarkdown = true;
+                sb.AppendLine("");
+
+                foreach (var link in links)
+                {
+                    sb.AppendLine($"[{link.Label}]({link.Link})");
+
+                    if ((int?)link.Type == Settings.PreferredMetadataLink)
+                    {
+                        payload.SetClickUrl(link.Link);
+                    }
+                }
+            }
+
+            payload.Message = sb.ToString();
             payload.SetContentType(isMarkdown);
 
             _proxy.SendNotification(payload, Settings);

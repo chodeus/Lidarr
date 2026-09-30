@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using FluentValidation;
 using NzbDrone.Core.Annotations;
 using NzbDrone.Core.ThingiProvider;
@@ -13,11 +16,27 @@ namespace NzbDrone.Core.Notifications.Telegram
             RuleFor(c => c.ChatId).NotEmpty();
             RuleFor(c => c.TopicId).Must(topicId => !topicId.HasValue || topicId > 1)
                                    .WithMessage("Topic ID must be greater than 1 or empty");
+
+            RuleFor(c => c.MetadataLinks).Custom((links, context) =>
+            {
+                foreach (var link in links)
+                {
+                    if (!Enum.IsDefined(typeof(MetadataLinkType), link))
+                    {
+                        context.AddFailure("MetadataLinks", $"MetadataLink is not valid: {link}");
+                    }
+                }
+            });
         }
     }
 
     public class TelegramSettings : IProviderConfig
     {
+        public TelegramSettings()
+        {
+            MetadataLinks = Enumerable.Empty<int>();
+        }
+
         private static readonly TelegramSettingsValidator Validator = new TelegramSettingsValidator();
 
         [FieldDefinition(0, Label = "Bot Token", Privacy = PrivacyLevel.ApiKey, HelpLink = "https://core.telegram.org/bots")]
@@ -34,6 +53,9 @@ namespace NzbDrone.Core.Notifications.Telegram
 
         [FieldDefinition(4, Label = "NotificationsTelegramSettingsIncludeAppName", Type = FieldType.Checkbox, HelpText = "NotificationsTelegramSettingsIncludeAppNameHelpText")]
         public bool IncludeAppNameInTitle { get; set; }
+
+        [FieldDefinition(5, Label = "NotificationsTelegramSettingsMetadataLinks", Type = FieldType.Select, SelectOptions = typeof(MetadataLinkType), HelpText = "NotificationsTelegramSettingsMetadataLinksHelpText")]
+        public IEnumerable<int> MetadataLinks { get; set; }
 
         public NzbDroneValidationResult Validate()
         {

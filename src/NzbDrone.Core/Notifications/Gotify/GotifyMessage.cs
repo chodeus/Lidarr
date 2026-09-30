@@ -20,12 +20,21 @@ namespace NzbDrone.Core.Notifications.Gotify
 
             Extras.ClientDisplay = new GotifyClientDisplay(contentType);
         }
+
+        public void SetClickUrl(string url)
+        {
+            Extras.ClientNotification ??= new GotifyClientNotification();
+            Extras.ClientNotification.Click = new GotifyClientNotificationClick(url);
+        }
     }
 
     public class GotifyExtras
     {
         [JsonProperty("client::display")]
         public GotifyClientDisplay ClientDisplay { get; set; }
+
+        [JsonProperty("client::notification")]
+        public GotifyClientNotification ClientNotification { get; set; }
     }
 
     public class GotifyClientDisplay
@@ -35,6 +44,21 @@ namespace NzbDrone.Core.Notifications.Gotify
         public GotifyClientDisplay(string contentType)
         {
             ContentType = contentType;
+        }
+    }
+
+    public class GotifyClientNotification
+    {
+        public GotifyClientNotificationClick Click { get; set; }
+    }
+
+    public class GotifyClientNotificationClick
+    {
+        public string Url { get; set; }
+
+        public GotifyClientNotificationClick(string url)
+        {
+            Url = url;
         }
     }
 }

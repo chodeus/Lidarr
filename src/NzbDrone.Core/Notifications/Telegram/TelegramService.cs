@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Net;
+using System.Text;
 using System.Web;
 using FluentValidation.Results;
 using NLog;
@@ -11,7 +13,7 @@ namespace NzbDrone.Core.Notifications.Telegram
 {
     public interface ITelegramProxy
     {
-        void SendNotification(string title, string message, TelegramSettings settings);
+        void SendNotification(string title, string message, List<NotificationMetadataLink> links, TelegramSettings settings);
         ValidationFailure Test(TelegramSettings settings);
     }
 
@@ -27,17 +29,23 @@ namespace NzbDrone.Core.Notifications.Telegram
             _logger = logger;
         }
 
-        public void SendNotification(string title, string message, TelegramSettings settings)
+        public void SendNotification(string title, string message, List<NotificationMetadataLink> links, TelegramSettings settings)
         {
-            // Format text to add the title before and bold using markdown
-            var text = $"<b>{HttpUtility.HtmlEncode(title)}</b>\n{HttpUtility.HtmlEncode(message)}";
+            var text = new StringBuilder($"<b>{HttpUtility.HtmlEncode(title)}</b>\n");
+
+            text.AppendLine(HttpUtility.HtmlEncode(message));
+
+            foreach (var link in links)
+            {
+                text.AppendLine($"<a href=\"{link.Link}\">{HttpUtility.HtmlEncode(link.Label)}</a>");
+            }
 
             var requestBuilder = new HttpRequestBuilder(URL).Resource("bot{token}/sendmessage").Post();
 
             var request = requestBuilder.SetSegment("token", settings.BotToken)
                                         .AddFormParameter("chat_id", settings.ChatId)
                                         .AddFormParameter("parse_mode", "HTML")
-                                        .AddFormParameter("text", text)
+                                        .AddFormParameter("text", text.ToString())
                                         .AddFormParameter("disable_notification", settings.SendSilently)
                                         .AddFormParameter("message_thread_id", settings.TopicId)
                                         .Build();
@@ -53,7 +61,12 @@ namespace NzbDrone.Core.Notifications.Telegram
                 const string title = "Test Notification";
                 const string body = "This is a test message from Lidarr";
 
-                SendNotification(settings.IncludeAppNameInTitle ? brandedTitle : title, body, settings);
+                var links = new List<NotificationMetadataLink>
+                {
+                    new NotificationMetadataLink(null, "Lidarr.audio", "https://lidarr.audio")
+                };
+
+                SendNotification(settings.IncludeAppNameInTitle ? brandedTitle : title, body, links, settings);
             }
             catch (Exception ex)
             {

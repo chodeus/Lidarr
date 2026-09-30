@@ -152,6 +152,40 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         }
 
         [Test]
+        public void should_match_files_tagged_with_an_artist_alias()
+        {
+            var tracks = GivenTracks(3);
+            var release = GivenAlbumRelease("album", tracks);
+            var localTracks = GivenLocalTracks(tracks, release);
+            var mapping = GivenMapping(localTracks, tracks);
+
+            release.Album.Value.ArtistMetadata = Builder<ArtistMetadata>
+                .CreateNew()
+                .With(x => x.Name = "renamed artist")
+                .With(x => x.Aliases = new List<string> { "other alias", "artist" })
+                .Build();
+
+            DistanceCalculator.AlbumReleaseDistance(localTracks, release, mapping).NormalizedDistance().Should().Be(0.0);
+        }
+
+        [Test]
+        public void should_still_penalise_an_artist_that_matches_no_alias()
+        {
+            var tracks = GivenTracks(3);
+            var release = GivenAlbumRelease("album", tracks);
+            var localTracks = GivenLocalTracks(tracks, release);
+            var mapping = GivenMapping(localTracks, tracks);
+
+            release.Album.Value.ArtistMetadata = Builder<ArtistMetadata>
+                .CreateNew()
+                .With(x => x.Name = "renamed artist")
+                .With(x => x.Aliases = new List<string> { "other alias" })
+                .Build();
+
+            DistanceCalculator.AlbumReleaseDistance(localTracks, release, mapping).NormalizedDistance().Should().NotBe(0.0);
+        }
+
+        [Test]
         public void test_comp_track_artists_match()
         {
             var tracks = GivenTracks(3);

@@ -125,21 +125,31 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
         public void AddString(string key, string value, string target)
         {
             // Adds a penaltly based on the distance between value and target
+            Add(key, StringPenalty(value, target));
+        }
+
+        // Penalty against the closest of several accepted spellings, such as an artist's name and aliases
+        public void AddStringToClosest(string key, string value, IEnumerable<string> targets)
+        {
+            Add(key, targets.Select(t => StringPenalty(value, t)).DefaultIfEmpty(StringPenalty(value, null)).Min());
+        }
+
+        private static double StringPenalty(string value, string target)
+        {
             var cleanValue = Clean(value ?? string.Empty);
             var cleanTarget = Clean(target ?? string.Empty);
 
             if (cleanValue.IsNullOrWhiteSpace() && cleanTarget.IsNotNullOrWhiteSpace())
             {
-                Add(key, 1.0);
+                return 1.0;
             }
-            else if (cleanValue.IsNullOrWhiteSpace() && cleanTarget.IsNullOrWhiteSpace())
+
+            if (cleanValue.IsNullOrWhiteSpace() && cleanTarget.IsNullOrWhiteSpace())
             {
-                Add(key, 0.0);
+                return 0.0;
             }
-            else
-            {
-                Add(key, 1.0 - cleanValue.LevenshteinCoefficient(cleanTarget));
-            }
+
+            return 1.0 - cleanValue.LevenshteinCoefficient(cleanTarget);
         }
 
         public void AddBool(string key, bool expr)

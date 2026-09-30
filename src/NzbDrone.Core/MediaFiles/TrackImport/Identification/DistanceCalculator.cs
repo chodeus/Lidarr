@@ -86,7 +86,10 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
             if (!VariousArtistIds.Contains(release.Album.Value.ArtistMetadata.Value.ForeignArtistId))
             {
                 var artist = localTracks.MostCommon(x => x.FileTrackInfo.ArtistTitle) ?? "";
-                dist.AddString("artist", artist, release.Album.Value.ArtistMetadata.Value.Name);
+                var metadata = release.Album.Value.ArtistMetadata.Value;
+
+                // Files tagged with an artist's former or alternate name still match
+                dist.AddStringToClosest("artist", artist, new[] { metadata.Name }.Concat(metadata.Aliases ?? new List<string>()));
                 Logger.Trace("artist: {0} vs {1}; {2}", artist, release.Album.Value.ArtistMetadata.Value.Name, dist.NormalizedDistance());
             }
 

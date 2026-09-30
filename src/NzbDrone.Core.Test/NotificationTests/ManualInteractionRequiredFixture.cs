@@ -67,6 +67,17 @@ namespace NzbDrone.Core.Test.NotificationTests
         }
 
         [Test]
+        public void should_fall_back_to_the_download_title_without_albums()
+        {
+            GivenMatchedAlbum(new QualityModel(Quality.FLAC));
+            _trackedDownload.RemoteAlbum.Albums = new List<Album>();
+
+            Subject.Handle(new ManualInteractionRequiredEvent(_trackedDownload));
+
+            _notification.Verify(n => n.OnManualInteractionRequired(It.Is<ManualInteractionRequiredMessage>(m => m.Message == "Artist.Name-Album.Title-GROUP")), Times.Once());
+        }
+
+        [Test]
         public void should_send_an_unmatched_download_to_a_notification_without_tags()
         {
             Subject.Handle(new ManualInteractionRequiredEvent(_trackedDownload));

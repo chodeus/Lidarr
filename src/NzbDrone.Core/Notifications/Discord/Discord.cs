@@ -306,7 +306,7 @@ namespace NzbDrone.Core.Notifications.Discord
                 },
                 Url = artist != null ? $"https://musicbrainz.org/artist/{artist.ForeignArtistId}" : null,
                 Description = "Manual interaction needed",
-                Title = artist != null && albums.Any() ? GetTitle(artist, albums) : message.TrackedDownload.DownloadItem.Title,
+                Title = artist != null && albums.Any() ? GetTitle(artist, albums) : GetDownloadTitle(message.TrackedDownload.DownloadItem.Title),
                 Color = (int)DiscordColors.Standard,
                 Fields = new List<DiscordField>(),
                 Timestamp = DateTime.UtcNow.ToString("O")
@@ -606,6 +606,14 @@ namespace NzbDrone.Core.Notifications.Discord
             var albumTitles = string.Join(" + ", albums.Select(e => e.Title));
 
             var title = $"{artist.Name} - {albumTitles}".Replace("`", "\\`");
+
+            return title.Length > 256 ? $"{title.AsSpan(0, 253).TrimEnd('\\')}..." : title;
+        }
+
+        // Same escaping and 256-character embed limit as GetTitle
+        private string GetDownloadTitle(string downloadTitle)
+        {
+            var title = downloadTitle.Replace("`", "\\`");
 
             return title.Length > 256 ? $"{title.AsSpan(0, 253).TrimEnd('\\')}..." : title;
         }

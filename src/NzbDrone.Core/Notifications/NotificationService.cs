@@ -376,7 +376,7 @@ namespace NzbDrone.Core.Notifications
             var artist = message.Album?.Artist;
             var mess = "";
 
-            if (artist != null && message.Album.Albums != null && message.Album.ParsedAlbumInfo?.Quality != null)
+            if (artist != null && message.Album.Albums is { Count: > 0 } && message.Album.ParsedAlbumInfo?.Quality != null)
             {
                 mess = GetMessage(artist, message.Album.Albums, message.Album.ParsedAlbumInfo.Quality);
             }

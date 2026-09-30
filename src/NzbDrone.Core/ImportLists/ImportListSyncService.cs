@@ -422,10 +422,16 @@ namespace NzbDrone.Core.ImportLists
             var listArtistNames = allListItems.Where(l => l.Artist.IsNotNullOrWhiteSpace()).Select(l => l.Artist.CleanArtistName()).ToHashSet();
             var listAlbumIds = allListItems.Select(l => l.AlbumMusicBrainzId).Where(x => x.IsNotNullOrWhiteSpace()).Distinct().ToList();
 
-            // An album list keeps the artist of any listed album
-            var artistsWithListedAlbums = _albumService.FindById(listAlbumIds)
-                .Select(a => a.ArtistMetadataId)
-                .ToHashSet();
+            // An album list keeps the artist of any listed album, including one listed by a former ID
+            var listedAlbums = _albumService.FindById(listAlbumIds);
+            var unmatchedAlbumIds = listAlbumIds.Except(listedAlbums.Select(a => a.ForeignAlbumId)).ToHashSet();
+
+            if (unmatchedAlbumIds.Any())
+            {
+                listedAlbums.AddRange(_albumService.GetAllAlbums().Where(a => a.OldForeignAlbumIds.Any(unmatchedAlbumIds.Contains)));
+            }
+
+            var artistsWithListedAlbums = listedAlbums.Select(a => a.ArtistMetadataId).ToHashSet();
 
             foreach (var artist in artistsInLibrary)
             {

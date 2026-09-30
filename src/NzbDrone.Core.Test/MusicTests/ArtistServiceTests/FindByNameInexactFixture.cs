@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using NUnit.Framework;
@@ -66,6 +67,51 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistServiceTests
             var artist = Subject.FindByNameInexact(name);
 
             artist.Should().BeNull();
+        }
+
+        private Artist WithAliases(string name, params string[] aliases)
+        {
+            var artist = CreateArtist(name);
+            artist.Metadata.Value.Aliases = aliases.ToList();
+            _artists.Add(artist);
+
+            return artist;
+        }
+
+        [TestCase("Peas Collective")]
+        [TestCase("peas collective")]
+        public void should_find_artist_by_exact_alias(string name)
+        {
+            WithAliases("Will I Am Group", "Peas Collective");
+
+            Subject.FindByNameInexact(name).Name.Should().Be("Will I Am Group");
+        }
+
+        [Test]
+        public void should_prefer_an_artist_name_over_another_artists_alias()
+        {
+            WithAliases("Keys Tribute", "Zeta Orchestra");
+            var named = CreateArtist("Zeta Orchestra");
+            _artists.Add(named);
+
+            Subject.FindByNameInexact("Zeta Orchestra").Should().Be(named);
+        }
+
+        [Test]
+        public void should_not_match_an_alias_shared_by_several_artists()
+        {
+            WithAliases("First Artist", "Shared Alias");
+            WithAliases("Second Artist", "Shared Alias");
+
+            Subject.FindByNameInexact("Shared Alias").Should().BeNull();
+        }
+
+        [Test]
+        public void should_match_alias_before_a_fuzzy_name_match()
+        {
+            WithAliases("Keys Side Project", "The Black Keyss");
+
+            Subject.FindByNameInexact("The Black Keyss").Name.Should().Be("Keys Side Project");
         }
     }
 }

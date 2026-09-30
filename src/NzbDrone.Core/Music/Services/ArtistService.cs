@@ -135,6 +135,14 @@ namespace NzbDrone.Core.Music
         {
             var artists = GetAllArtists();
 
+            var aliasMatch = FindByAlias(artists, title.CleanArtistName());
+
+            if (aliasMatch != null)
+            {
+                _logger.Debug("Matched {0} to {1} by alias", title, aliasMatch);
+                return aliasMatch;
+            }
+
             foreach (var func in ArtistScoringFunctions(title, title.CleanArtistName()))
             {
                 var results = FindByStringInexact(artists, func.Item1, func.Item2);
@@ -145,6 +153,19 @@ namespace NzbDrone.Core.Music
             }
 
             return null;
+        }
+
+        private static Artist FindByAlias(List<Artist> artists, string cleanTitle)
+        {
+            // An artist's own name always wins over another artist's alias
+            if (cleanTitle.IsNullOrWhiteSpace() || artists.Any(a => a.CleanName == cleanTitle))
+            {
+                return null;
+            }
+
+            var matches = artists.Where(a => a.Metadata.Value.Aliases.Any(x => x.CleanArtistName() == cleanTitle)).ToList();
+
+            return matches.Count == 1 ? matches[0] : null;
         }
 
         public List<Artist> GetCandidates(string title)

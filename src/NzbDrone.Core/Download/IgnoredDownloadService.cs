@@ -25,10 +25,11 @@ namespace NzbDrone.Core.Download
 
         public bool IgnoreDownload(TrackedDownload trackedDownload)
         {
-            var artist = trackedDownload.RemoteAlbum.Artist;
-            var albums = trackedDownload.RemoteAlbum.Albums;
+            // A download that never mapped to an artist, such as one with multiple matching artists, has no RemoteAlbum
+            var artist = trackedDownload.RemoteAlbum?.Artist;
+            var albums = trackedDownload.RemoteAlbum?.Albums;
 
-            if (artist == null || albums.Empty())
+            if (artist == null || albums == null || albums.Empty())
             {
                 _logger.Warn("Unable to ignore download for unknown artist/album");
                 return false;

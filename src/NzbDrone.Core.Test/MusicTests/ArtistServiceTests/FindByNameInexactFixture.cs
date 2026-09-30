@@ -109,9 +109,10 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistServiceTests
         [Test]
         public void should_match_alias_before_a_fuzzy_name_match()
         {
-            WithAliases("Keys Side Project", "The Black Keyss");
+            _artists.Add(CreateArtist("Placeholder Band"));
+            WithAliases("Side Project Name", "Placeholder Bandd");
 
-            Subject.FindByNameInexact("The Black Keyss").Name.Should().Be("Keys Side Project");
+            Subject.FindByNameInexact("Placeholder Bandd").Name.Should().Be("Side Project Name");
         }
     }
 }

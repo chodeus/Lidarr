@@ -94,6 +94,27 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
             }
         }
 
+        private void GivenEarlierAttempt(int daysAgo, params int[] importedAlbumIds)
+        {
+            var date = DateTime.UtcNow.AddDays(-daysAgo);
+
+            _albumGrabs.Add(new EntityHistory
+            {
+                DownloadId = _downloadId,
+                SourceTitle = TITLE,
+                AlbumId = ALBUM_ID,
+                Date = date,
+                EventType = EntityHistoryEventType.Grabbed
+            });
+
+            GivenDownloadEvent(ALBUM_ID, EntityHistoryEventType.Grabbed, date);
+
+            foreach (var albumId in importedAlbumIds)
+            {
+                GivenDownloadEvent(albumId, EntityHistoryEventType.TrackFileImported, date.AddHours(1));
+            }
+        }
+
         private void GivenTorrentRelease(string infoHash, string title)
         {
             _remoteAlbum.Release = Builder<TorrentInfo>.CreateNew()
@@ -210,6 +231,25 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
                       new EntityHistory { DownloadId = olderDownloadId, AlbumId = ALBUM_ID, EventType = EntityHistoryEventType.Grabbed },
                       new EntityHistory { DownloadId = olderDownloadId, AlbumId = OTHER_ALBUM_ID, EventType = EntityHistoryEventType.TrackFileImported }
                   });
+
+            Subject.IsSatisfiedBy(_remoteAlbum, null).Accepted.Should().BeTrue();
+        }
+
+        [Test]
+        public void should_be_rejected_if_the_last_grab_went_elsewhere_after_an_earlier_one_imported_into_the_album()
+        {
+            GivenGrab(TITLE);
+            GivenEarlierAttempt(3, ALBUM_ID);
+            GivenTracksImportedInto(OTHER_ALBUM_ID);
+
+            Subject.IsSatisfiedBy(_remoteAlbum, null).Accepted.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_be_accepted_if_the_last_grab_imported_nothing_after_an_earlier_one_went_elsewhere()
+        {
+            GivenGrab(TITLE);
+            GivenEarlierAttempt(3, OTHER_ALBUM_ID);
 
             Subject.IsSatisfiedBy(_remoteAlbum, null).Accepted.Should().BeTrue();
         }

@@ -55,8 +55,9 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
 
                 var downloadHistory = _historyService.FindByDownloadId(lastGrab.DownloadId);
 
-                // Only track file events record where each file went, the download event records the parsed albums
-                var importedAlbumIds = downloadHistory.Where(h => h.EventType == EntityHistoryEventType.TrackFileImported)
+                // Only track file events record where each file went, the download event records the parsed albums.
+                // A re-grabbed torrent keeps its info hash, so earlier attempts share this download id.
+                var importedAlbumIds = downloadHistory.Where(h => h.EventType == EntityHistoryEventType.TrackFileImported && h.Date > lastGrab.Date)
                                                       .Select(h => h.AlbumId)
                                                       .ToHashSet();
 

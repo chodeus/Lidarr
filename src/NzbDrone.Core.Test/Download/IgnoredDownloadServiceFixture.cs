@@ -9,6 +9,7 @@ using NzbDrone.Core.Music;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.Download
 {
@@ -50,6 +51,8 @@ namespace NzbDrone.Core.Test.Download
 
             Mocker.GetMock<IEventAggregator>()
                   .Verify(v => v.PublishEvent(It.IsAny<DownloadIgnoredEvent>()), Times.Never());
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -61,6 +64,8 @@ namespace NzbDrone.Core.Test.Download
 
             Mocker.GetMock<IEventAggregator>()
                   .Verify(v => v.PublishEvent(It.IsAny<DownloadIgnoredEvent>()), Times.Never());
+
+            ExceptionVerification.ExpectedWarns(1);
         }
     }
 }

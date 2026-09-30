@@ -75,6 +75,49 @@ namespace NzbDrone.Core.Test.NotificationTests.MetadataLinks
             Body.Should().Contain("\"actions\": []");
         }
 
+        private static AlbumDownloadMessage ImportFailure()
+        {
+            return new AlbumDownloadMessage
+            {
+                Message = "Import failed",
+                Artist = new Artist { Metadata = new LazyLoaded<ArtistMetadata>(new ArtistMetadata { ForeignArtistId = "artist-mbid" }) }
+            };
+        }
+
+        [Test]
+        public void telegram_import_failure_should_link_the_artist()
+        {
+            List<NotificationMetadataLink> links = null;
+
+            Mocker.GetMock<ITelegramProxy>()
+                  .Setup(s => s.SendNotification(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<List<NotificationMetadataLink>>(), It.IsAny<TelegramSettings>()))
+                  .Callback<string, string, List<NotificationMetadataLink>, TelegramSettings>((_, _, l, _) => links = l);
+
+            var telegram = Mocker.Resolve<Telegram>();
+            telegram.Definition = new NotificationDefinition { Settings = new TelegramSettings { MetadataLinks = new[] { (int)MetadataLinkType.MusicBrainzArtist } } };
+
+            telegram.OnImportFailure(ImportFailure());
+
+            links.Should().ContainSingle(l => l.Link == "https://musicbrainz.org/artist/artist-mbid");
+        }
+
+        [Test]
+        public void pushcut_import_failure_should_link_the_artist()
+        {
+            List<NotificationMetadataLink> links = null;
+
+            Mocker.GetMock<IPushcutProxy>()
+                  .Setup(s => s.SendNotification(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<List<NotificationMetadataLink>>(), It.IsAny<PushcutSettings>()))
+                  .Callback<string, string, List<NotificationMetadataLink>, PushcutSettings>((_, _, l, _) => links = l);
+
+            var pushcut = Mocker.Resolve<Pushcut>();
+            pushcut.Definition = new NotificationDefinition { Settings = new PushcutSettings { MetadataLinks = new[] { (int)MetadataLinkType.MusicBrainzArtist } } };
+
+            pushcut.OnImportFailure(ImportFailure());
+
+            links.Should().ContainSingle(l => l.Link == "https://musicbrainz.org/artist/artist-mbid");
+        }
+
         [Test]
         public void gotify_should_add_links_and_click_through_to_the_preferred_one()
         {

@@ -84,7 +84,7 @@ namespace NzbDrone.Core.Notifications.Telegram
         {
             var title = Settings.IncludeAppNameInTitle ? IMPORT_FAILURE_TITLE_BRANDED : IMPORT_FAILURE_TITLE;
 
-            _proxy.SendNotification(title, message.Message, new List<NotificationMetadataLink>(), Settings);
+            _proxy.SendNotification(title, message.Message, GetLinks(message.Artist), Settings);
         }
 
         public override void OnApplicationUpdate(ApplicationUpdateMessage updateMessage)

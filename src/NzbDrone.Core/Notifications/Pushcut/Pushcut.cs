@@ -74,7 +74,7 @@ namespace NzbDrone.Core.Notifications.Pushcut
 
         public override void OnImportFailure(AlbumDownloadMessage message)
         {
-            _proxy.SendNotification(IMPORT_FAILURE_TITLE, message.Message, new List<NotificationMetadataLink>(), Settings);
+            _proxy.SendNotification(IMPORT_FAILURE_TITLE, message.Message, GetLinks(message.Artist), Settings);
         }
 
         public override void OnApplicationUpdate(ApplicationUpdateMessage updateMessage)

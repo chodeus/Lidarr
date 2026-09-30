@@ -14,7 +14,9 @@ namespace NzbDrone.Core.Notifications.Telegram
     public interface ITelegramProxy
     {
         void SendNotification(string title, string message, TelegramSettings settings);
-        void SendNotification(string title, string message, List<NotificationMetadataLink> links, TelegramSettings settings);
+
+        // Default keeps implementations compiled against develop loading
+        void SendNotification(string title, string message, List<NotificationMetadataLink> links, TelegramSettings settings) => SendNotification(title, message, settings);
         ValidationFailure Test(TelegramSettings settings);
     }
 

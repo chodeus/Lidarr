@@ -35,6 +35,8 @@
   - A new On Manual Interaction Required event for connections: it fires once per download when an import is blocked (unparsed, or no artist match). Discord has its own field list; the webhook sends `ManualInteractionRequired`. Migration 904.
 - **Notification links** — branch [`feat/notification-links`](https://github.com/chodeus/Lidarr/tree/feat/notification-links), builds on `feat/manual-interaction-notification`, not submitted
   - Gotify, Pushcut and Telegram can add MusicBrainz links for the artist and album (Gotify also sets a click-through link). Import failure notifications link the artist.
+- **Import list Clean Library Level** — branch [`feat/import-list-clean-library`](https://github.com/chodeus/Lidarr/tree/feat/import-list-clean-library), not submitted
+  - Settings → Import Lists → Options (advanced): Log Only, Keep and Unmonitor, or Keep and Tag artists that no list holds any more. Off by default; a clean runs only after every list synced without failure and one of them dropped an item. Migration 905.
 
 ## How the build works
 

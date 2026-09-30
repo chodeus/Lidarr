@@ -108,9 +108,7 @@ namespace NzbDrone.Core.ImportLists
 
             _logger.ProgressInfo("Starting Import List Sync");
 
-            var result = _listFetcherAndParser.Fetch();
-
-            var listItems = result.Items.ToList();
+            var listItems = _listFetcherAndParser.Fetch().ToList();
 
             var processed = ProcessListItems(listItems);
 
@@ -123,9 +121,7 @@ namespace NzbDrone.Core.ImportLists
         {
             _logger.ProgressInfo($"Starting Import List Refresh for List {definition.Name}");
 
-            var result = _listFetcherAndParser.FetchSingleList(definition);
-
-            var listItems = result.Items.ToList();
+            var listItems = _listFetcherAndParser.FetchSingleList(definition).ToList();
 
             var processed = ProcessListItems(listItems);
 

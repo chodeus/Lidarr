@@ -10,23 +10,6 @@ using NzbDrone.Core.ThingiProvider;
 
 namespace NzbDrone.Core.ImportLists
 {
-    public class ImportListFetchResult
-    {
-        public ImportListFetchResult()
-        {
-            Items = new List<ImportListItemInfo>();
-        }
-
-        public ImportListFetchResult(IEnumerable<ImportListItemInfo> items, bool anyFailure)
-        {
-            Items = items.ToList();
-            AnyFailure = anyFailure;
-        }
-
-        public List<ImportListItemInfo> Items { get; set; }
-        public bool AnyFailure { get; set; }
-    }
-
     public abstract class ImportListBase<TSettings> : IImportList
         where TSettings : IImportListSettings, new()
     {
@@ -77,7 +60,7 @@ namespace NzbDrone.Core.ImportLists
 
         protected TSettings Settings => (TSettings)Definition.Settings;
 
-        public abstract ImportListFetchResult Fetch();
+        public abstract IList<ImportListItemInfo> Fetch();
 
         protected virtual IList<ImportListItemInfo> CleanupListItems(IEnumerable<ImportListItemInfo> releases)
         {

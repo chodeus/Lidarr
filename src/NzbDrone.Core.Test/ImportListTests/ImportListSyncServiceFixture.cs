@@ -48,7 +48,7 @@ namespace NzbDrone.Core.Test.ImportListTests
 
             Mocker.GetMock<IFetchAndParseImportList>()
                 .Setup(v => v.Fetch())
-                .Returns(() => new ImportListFetchResult(_importListReports, false));
+                .Returns(_importListReports);
 
             Mocker.GetMock<IImportListExclusionService>()
                 .Setup(v => v.All())
@@ -541,7 +541,7 @@ namespace NzbDrone.Core.Test.ImportListTests
         {
             Mocker.GetMock<IFetchAndParseImportList>()
                 .Setup(v => v.Fetch())
-                .Returns(new ImportListFetchResult());
+                .Returns(new List<ImportListItemInfo>());
 
             Subject.Execute(new ImportListSyncCommand());
 

@@ -29,10 +29,9 @@ namespace NzbDrone.Core.ImportLists.Lidarr
             _lidarrV1Proxy = lidarrV1Proxy;
         }
 
-        public override ImportListFetchResult Fetch()
+        public override IList<ImportListItemInfo> Fetch()
         {
             var artistsAndAlbums = new List<ImportListItemInfo>();
-            var anyFailure = false;
 
             try
             {
@@ -78,13 +77,12 @@ namespace NzbDrone.Core.ImportLists.Lidarr
             }
             catch (Exception ex)
             {
-                anyFailure = true;
                 _logger.Debug(ex, "Failed to fetch data for list {0} ({1})", Definition.Name, Name);
 
                 _importListStatusService.RecordFailure(Definition.Id);
             }
 
-            return new ImportListFetchResult(CleanupListItems(artistsAndAlbums), anyFailure);
+            return CleanupListItems(artistsAndAlbums);
         }
 
         public override object RequestAction(string action, IDictionary<string, string> query)

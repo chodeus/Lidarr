@@ -86,6 +86,18 @@ namespace NzbDrone.Core.Test.ImportListTests
         }
 
         [Test]
+        public void should_not_set_removed_items_flag_from_develop_overload()
+        {
+            var status = new ImportListStatus();
+            WithStatus(status);
+
+            Subject.UpdateListSyncStatus(1);
+
+            status.HasRemovedItemSinceLastClean.Should().BeFalse();
+            status.LastInfoSync.Should().NotBeNull();
+        }
+
+        [Test]
         public void should_clear_removed_items_flag_when_marked_as_cleaned()
         {
             var status = new ImportListStatus { HasRemovedItemSinceLastClean = true };

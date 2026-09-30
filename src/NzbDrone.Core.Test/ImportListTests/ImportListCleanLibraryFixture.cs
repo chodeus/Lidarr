@@ -56,11 +56,11 @@ namespace NzbDrone.Core.Test.ImportListTests
 
             Mocker.GetMock<IFetchAndParseImportList>()
                   .Setup(v => v.Fetch())
-                  .Returns(new ImportListFetchResult());
+                  .Returns(new List<ImportListItemInfo>());
 
             Mocker.GetMock<IFetchAndParseImportList>()
                   .Setup(v => v.FetchSingleList(It.IsAny<ImportListDefinition>()))
-                  .Returns(new ImportListFetchResult());
+                  .Returns(new List<ImportListItemInfo>());
 
             Mocker.GetMock<IArtistService>()
                   .Setup(v => v.GetAllArtists())

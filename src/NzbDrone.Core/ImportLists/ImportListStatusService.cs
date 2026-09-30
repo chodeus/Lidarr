@@ -9,8 +9,11 @@ namespace NzbDrone.Core.ImportLists
 {
     public interface IImportListStatusService : IProviderStatusServiceBase<ImportListStatus>
     {
-        ImportListStatus GetListStatus(int importListId);
+        DateTime? GetLastSyncListInfo(int importListId);
 
+        void UpdateListSyncStatus(int importListId);
+
+        ImportListStatus GetListStatus(int importListId);
         void UpdateListSyncStatus(int importListId, bool removedItems);
         void MarkListsAsCleaned();
     }
@@ -20,6 +23,16 @@ namespace NzbDrone.Core.ImportLists
         public ImportListStatusService(IImportListStatusRepository providerStatusRepository, IEventAggregator eventAggregator, IRuntimeInfo runtimeInfo, Logger logger)
             : base(providerStatusRepository, eventAggregator, runtimeInfo, logger)
         {
+        }
+
+        public DateTime? GetLastSyncListInfo(int importListId)
+        {
+            return GetProviderStatus(importListId).LastInfoSync;
+        }
+
+        public void UpdateListSyncStatus(int importListId)
+        {
+            UpdateListSyncStatus(importListId, false);
         }
 
         public ImportListStatus GetListStatus(int importListId)

@@ -12,6 +12,7 @@ using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.SkyHook.Resource;
 using NzbDrone.Core.Parser;
+using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Validation;
 using SpotifyAPI.Web;
 using SpotifyAPI.Web.Models;
@@ -98,7 +99,7 @@ namespace NzbDrone.Core.ImportLists.Spotify
             };
         }
 
-        public override ImportListFetchResult Fetch()
+        public override IList<ImportListItemInfo> Fetch()
         {
             IList<SpotifyImportListItemInfo> releases;
             using (var api = GetApi())
@@ -110,7 +111,7 @@ namespace NzbDrone.Core.ImportLists.Spotify
             // map to musicbrainz ids
             releases = MapSpotifyReleases(releases);
 
-            return new ImportListFetchResult(CleanupListItems(releases), false);
+            return CleanupListItems(releases);
         }
 
         public abstract IList<SpotifyImportListItemInfo> Fetch(SpotifyWebAPI api);

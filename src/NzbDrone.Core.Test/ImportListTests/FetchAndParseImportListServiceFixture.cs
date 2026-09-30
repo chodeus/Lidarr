@@ -31,18 +31,28 @@ namespace NzbDrone.Core.Test.ImportListTests
                 .Build().ToList();
         }
 
-        private Mock<IImportList> WithList(int id, ImportListFetchResult fetchResult, int? syncDeletedCount = null)
+        private Mock<IImportList> WithList(int id, bool fails = false, int? syncDeletedCount = null)
         {
             var importListDefinition = new ImportListDefinition { Id = id, EnableAutomaticAdd = true };
+            var status = new ImportListStatus { MostRecentFailure = DateTime.UtcNow.AddDays(-1) };
 
             var mockImportList = new Mock<IImportList>();
             mockImportList.SetupGet(s => s.Definition).Returns(importListDefinition);
-            mockImportList.Setup(s => s.Fetch()).Returns(fetchResult);
             mockImportList.SetupGet(s => s.MinRefreshInterval).Returns(TimeSpan.FromHours(12));
+            mockImportList.Setup(s => s.Fetch())
+                          .Callback(() =>
+                          {
+                              // Lists record their own failure and return what they have
+                              if (fails)
+                              {
+                                  status.MostRecentFailure = DateTime.UtcNow;
+                              }
+                          })
+                          .Returns(_listItems);
 
             Mocker.GetMock<IImportListStatusService>()
                 .Setup(v => v.GetListStatus(id))
-                .Returns(new ImportListStatus());
+                .Returns(status);
 
             if (syncDeletedCount.HasValue)
             {
@@ -59,39 +69,36 @@ namespace NzbDrone.Core.Test.ImportListTests
         [Test]
         public void should_store_items_if_list_doesnt_fail()
         {
-            WithList(1, new ImportListFetchResult { Items = _listItems, AnyFailure = false });
+            WithList(1);
 
-            var listResult = Subject.Fetch();
-            listResult.AnyFailure.Should().BeFalse();
-            listResult.Items.Should().HaveCount(5);
+            Subject.Fetch().Should().HaveCount(5);
 
             Mocker.GetMock<IImportListStatusService>()
                 .Verify(v => v.UpdateListSyncStatus(1, false), Times.Once());
             Mocker.GetMock<IImportListItemService>()
-                .Verify(v => v.SyncItemsForList(_listItems, 1), Times.Once());
+                .Verify(v => v.SyncItemsForList(It.Is<List<ImportListItemInfo>>(l => l.SequenceEqual(_listItems)), 1), Times.Once());
         }
 
         [Test]
         public void should_only_store_items_for_lists_that_dont_fail()
         {
-            WithList(1, new ImportListFetchResult { Items = _listItems, AnyFailure = false });
-            WithList(2, new ImportListFetchResult { Items = _listItems, AnyFailure = true });
+            WithList(1);
+            WithList(2, fails: true);
 
-            var listResult = Subject.Fetch();
-            listResult.AnyFailure.Should().BeTrue();
+            Subject.Fetch();
 
             Mocker.GetMock<IImportListItemService>()
-                .Verify(v => v.SyncItemsForList(_listItems, 1), Times.Once());
-            Mocker.GetMock<IImportListStatusService>()
-                .Verify(v => v.UpdateListSyncStatus(2, It.IsAny<bool>()), Times.Never());
+                .Verify(v => v.SyncItemsForList(It.IsAny<List<ImportListItemInfo>>(), 1), Times.Once());
             Mocker.GetMock<IImportListItemService>()
                 .Verify(v => v.SyncItemsForList(It.IsAny<List<ImportListItemInfo>>(), 2), Times.Never());
+            Mocker.GetMock<IImportListStatusService>()
+                .Verify(v => v.UpdateListSyncStatus(2, false), Times.Once());
         }
 
         [Test]
         public void should_set_removed_flag_if_list_has_removed_items()
         {
-            WithList(1, new ImportListFetchResult { Items = _listItems, AnyFailure = false }, syncDeletedCount: 500);
+            WithList(1, syncDeletedCount: 500);
 
             Subject.Fetch();
 
@@ -101,19 +108,18 @@ namespace NzbDrone.Core.Test.ImportListTests
 
         [TestCase(false)]
         [TestCase(true)]
-        public void should_only_store_single_list_items_if_it_doesnt_fail(bool anyFailure)
+        public void should_only_store_single_list_items_if_it_doesnt_fail(bool fails)
         {
-            var mockImportList = WithList(1, new ImportListFetchResult { Items = _listItems, AnyFailure = anyFailure });
+            var mockImportList = WithList(1, fails);
 
             Mocker.GetMock<IImportListFactory>()
                 .Setup(v => v.GetInstance(It.IsAny<ImportListDefinition>()))
                 .Returns(mockImportList.Object);
 
-            var listResult = Subject.FetchSingleList((ImportListDefinition)mockImportList.Object.Definition);
-            listResult.AnyFailure.Should().Be(anyFailure);
+            Subject.FetchSingleList((ImportListDefinition)mockImportList.Object.Definition);
 
             Mocker.GetMock<IImportListItemService>()
-                .Verify(v => v.SyncItemsForList(_listItems, 1), anyFailure ? Times.Never() : Times.Once());
+                .Verify(v => v.SyncItemsForList(It.IsAny<List<ImportListItemInfo>>(), 1), fails ? Times.Never() : Times.Once());
         }
     }
 }

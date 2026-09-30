@@ -76,6 +76,11 @@ namespace NzbDrone.Core.Notifications.Email
             SendEmail(Settings, DOWNLOAD_FAILURE_TITLE_BRANDED, message.Message);
         }
 
+        public override void OnManualInteractionRequired(ManualInteractionRequiredMessage message)
+        {
+            SendEmail(Settings, MANUAL_INTERACTION_REQUIRED_TITLE_BRANDED, message.Message);
+        }
+
         public override void OnImportFailure(AlbumDownloadMessage message)
         {
             SendEmail(Settings, IMPORT_FAILURE_TITLE_BRANDED, message.Message);

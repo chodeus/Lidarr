@@ -16,6 +16,7 @@ namespace Lidarr.Api.V1.Notifications
         public bool OnHealthRestored { get; set; }
         public bool OnDownloadFailure { get; set; }
         public bool OnImportFailure { get; set; }
+        public bool OnManualInteractionRequired { get; set; }
         public bool OnTrackRetag { get; set; }
         public bool OnApplicationUpdate { get; set; }
         public bool SupportsOnGrab { get; set; }
@@ -30,6 +31,7 @@ namespace Lidarr.Api.V1.Notifications
         public bool IncludeHealthWarnings { get; set; }
         public bool SupportsOnDownloadFailure { get; set; }
         public bool SupportsOnImportFailure { get; set; }
+        public bool SupportsOnManualInteractionRequired { get; set; }
         public bool SupportsOnTrackRetag { get; set; }
         public bool SupportsOnApplicationUpdate { get; set; }
         public string TestCommand { get; set; }
@@ -57,6 +59,7 @@ namespace Lidarr.Api.V1.Notifications
             resource.OnHealthRestored = definition.OnHealthRestored;
             resource.OnDownloadFailure = definition.OnDownloadFailure;
             resource.OnImportFailure = definition.OnImportFailure;
+            resource.OnManualInteractionRequired = definition.OnManualInteractionRequired;
             resource.OnTrackRetag = definition.OnTrackRetag;
             resource.OnApplicationUpdate = definition.OnApplicationUpdate;
             resource.SupportsOnGrab = definition.SupportsOnGrab;
@@ -71,6 +74,7 @@ namespace Lidarr.Api.V1.Notifications
             resource.IncludeHealthWarnings = definition.IncludeHealthWarnings;
             resource.SupportsOnDownloadFailure = definition.SupportsOnDownloadFailure;
             resource.SupportsOnImportFailure = definition.SupportsOnImportFailure;
+            resource.SupportsOnManualInteractionRequired = definition.SupportsOnManualInteractionRequired;
             resource.SupportsOnTrackRetag = definition.SupportsOnTrackRetag;
             resource.SupportsOnApplicationUpdate = definition.SupportsOnApplicationUpdate;
 
@@ -97,6 +101,7 @@ namespace Lidarr.Api.V1.Notifications
             definition.OnHealthRestored = resource.OnHealthRestored;
             definition.OnDownloadFailure = resource.OnDownloadFailure;
             definition.OnImportFailure = resource.OnImportFailure;
+            definition.OnManualInteractionRequired = resource.OnManualInteractionRequired;
             definition.OnTrackRetag = resource.OnTrackRetag;
             definition.OnApplicationUpdate = resource.OnApplicationUpdate;
             definition.SupportsOnGrab = resource.SupportsOnGrab;
@@ -111,6 +116,7 @@ namespace Lidarr.Api.V1.Notifications
             definition.IncludeHealthWarnings = resource.IncludeHealthWarnings;
             definition.SupportsOnDownloadFailure = resource.SupportsOnDownloadFailure;
             definition.SupportsOnImportFailure = resource.SupportsOnImportFailure;
+            definition.SupportsOnManualInteractionRequired = resource.SupportsOnManualInteractionRequired;
             definition.SupportsOnTrackRetag = resource.SupportsOnTrackRetag;
             definition.SupportsOnApplicationUpdate = resource.SupportsOnApplicationUpdate;
 

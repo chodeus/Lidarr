@@ -63,6 +63,11 @@ namespace NzbDrone.Core.Notifications.Gotify
             SendNotification(DOWNLOAD_FAILURE_TITLE, message.Message, null);
         }
 
+        public override void OnManualInteractionRequired(ManualInteractionRequiredMessage message)
+        {
+            SendNotification(MANUAL_INTERACTION_REQUIRED_TITLE, message.Message, null);
+        }
+
         public override void OnImportFailure(AlbumDownloadMessage message)
         {
             SendNotification(IMPORT_FAILURE_TITLE, message.Message, message.Artist);

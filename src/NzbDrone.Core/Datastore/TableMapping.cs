@@ -93,6 +93,7 @@ namespace NzbDrone.Core.Datastore
                   .Ignore(i => i.SupportsOnHealthRestored)
                   .Ignore(i => i.SupportsOnDownloadFailure)
                   .Ignore(i => i.SupportsOnImportFailure)
+                  .Ignore(i => i.SupportsOnManualInteractionRequired)
                   .Ignore(i => i.SupportsOnTrackRetag)
                   .Ignore(i => i.SupportsOnApplicationUpdate);
 

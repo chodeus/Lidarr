@@ -72,6 +72,13 @@ namespace NzbDrone.Core.Notifications.Telegram
             _proxy.SendNotification(title, message.Message, Settings);
         }
 
+        public override void OnManualInteractionRequired(ManualInteractionRequiredMessage message)
+        {
+            var title = Settings.IncludeAppNameInTitle ? MANUAL_INTERACTION_REQUIRED_TITLE_BRANDED : MANUAL_INTERACTION_REQUIRED_TITLE;
+
+            _proxy.SendNotification(title, message.Message, Settings);
+        }
+
         public override void OnImportFailure(AlbumDownloadMessage message)
         {
             var title = Settings.IncludeAppNameInTitle ? IMPORT_FAILURE_TITLE_BRANDED : IMPORT_FAILURE_TITLE;

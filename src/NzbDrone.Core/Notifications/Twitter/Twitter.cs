@@ -58,6 +58,11 @@ namespace NzbDrone.Core.Notifications.Twitter
             _twitterService.SendNotification($"Download Failed: {message.Message}", Settings);
         }
 
+        public override void OnManualInteractionRequired(ManualInteractionRequiredMessage message)
+        {
+            _twitterService.SendNotification($"Manual Interaction Required: {message.Message}", Settings);
+        }
+
         public override void OnImportFailure(AlbumDownloadMessage message)
         {
             _twitterService.SendNotification($"Import Failed: {message.Message}", Settings);

@@ -67,6 +67,7 @@ class Notification extends Component {
       onHealthRestored,
       onDownloadFailure,
       onImportFailure,
+      onManualInteractionRequired,
       onTrackRetag,
       onApplicationUpdate,
       supportsOnGrab,
@@ -80,6 +81,7 @@ class Notification extends Component {
       supportsOnHealthRestored,
       supportsOnDownloadFailure,
       supportsOnImportFailure,
+      supportsOnManualInteractionRequired,
       supportsOnTrackRetag,
       supportsOnApplicationUpdate,
       tags,
@@ -193,6 +195,14 @@ class Notification extends Component {
         }
 
         {
+          supportsOnManualInteractionRequired && onManualInteractionRequired ?
+            <Label kind={kinds.SUCCESS} >
+              {translate('OnManualInteractionRequired')}
+            </Label> :
+            null
+        }
+
+        {
           supportsOnApplicationUpdate && onApplicationUpdate ?
             <Label kind={kinds.SUCCESS} >
               {translate('OnApplicationUpdate')}
@@ -201,7 +211,7 @@ class Notification extends Component {
         }
 
         {
-          !onGrab && !onReleaseImport && !onRename && !onTrackRetag && !onArtistAdd && !onArtistDelete && !onAlbumDelete && !onHealthIssue && !onHealthRestored && !onDownloadFailure && !onImportFailure && !onApplicationUpdate ?
+          !onGrab && !onReleaseImport && !onRename && !onTrackRetag && !onArtistAdd && !onArtistDelete && !onAlbumDelete && !onHealthIssue && !onHealthRestored && !onDownloadFailure && !onImportFailure && !onManualInteractionRequired && !onApplicationUpdate ?
             <Label
               kind={kinds.DISABLED}
               outline={true}
@@ -251,6 +261,7 @@ Notification.propTypes = {
   onHealthRestored: PropTypes.bool.isRequired,
   onDownloadFailure: PropTypes.bool.isRequired,
   onImportFailure: PropTypes.bool.isRequired,
+  onManualInteractionRequired: PropTypes.bool.isRequired,
   onTrackRetag: PropTypes.bool.isRequired,
   onApplicationUpdate: PropTypes.bool.isRequired,
   supportsOnGrab: PropTypes.bool.isRequired,
@@ -264,6 +275,7 @@ Notification.propTypes = {
   supportsOnHealthRestored: PropTypes.bool.isRequired,
   supportsOnDownloadFailure: PropTypes.bool.isRequired,
   supportsOnImportFailure: PropTypes.bool.isRequired,
+  supportsOnManualInteractionRequired: PropTypes.bool.isRequired,
   supportsOnTrackRetag: PropTypes.bool.isRequired,
   supportsOnApplicationUpdate: PropTypes.bool.isRequired,
   tags: PropTypes.arrayOf(PropTypes.number).isRequired,

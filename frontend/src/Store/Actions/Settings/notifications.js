@@ -112,6 +112,7 @@ export default {
         selectedSchema.onHealthIssue = selectedSchema.supportsOnHealthIssue;
         selectedSchema.onDownloadFailure = selectedSchema.supportsOnDownloadFailure;
         selectedSchema.onImportFailure = selectedSchema.supportsOnImportFailure;
+        selectedSchema.onManualInteractionRequired = selectedSchema.supportsOnManualInteractionRequired;
         selectedSchema.onTrackRetag = selectedSchema.supportsOnTrackRetag;
         selectedSchema.onApplicationUpdate = selectedSchema.supportsOnApplicationUpdate;
 

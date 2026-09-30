@@ -880,6 +880,7 @@
   "OnHealthRestored": "On Health Restored",
   "OnImportFailure": "On Import Failure",
   "OnLatestVersion": "The latest version of {appName} is already installed",
+  "OnManualInteractionRequired": "On Manual Interaction Required",
   "OnReleaseImport": "On Release Import",
   "OnRename": "On Rename",
   "OnTrackRetag": "On Track Retag",

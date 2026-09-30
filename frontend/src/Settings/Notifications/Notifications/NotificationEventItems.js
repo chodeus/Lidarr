@@ -26,6 +26,7 @@ function NotificationEventItems(props) {
     onHealthRestored,
     onDownloadFailure,
     onImportFailure,
+    onManualInteractionRequired,
     onTrackRetag,
     onApplicationUpdate,
     supportsOnGrab,
@@ -40,6 +41,7 @@ function NotificationEventItems(props) {
     includeHealthWarnings,
     supportsOnDownloadFailure,
     supportsOnImportFailure,
+    supportsOnManualInteractionRequired,
     supportsOnTrackRetag,
     supportsOnApplicationUpdate
   } = item;
@@ -109,6 +111,17 @@ function NotificationEventItems(props) {
               helpText={translate('OnImportFailure')}
               isDisabled={!supportsOnImportFailure.value}
               {...onImportFailure}
+              onChange={onInputChange}
+            />
+          </div>
+
+          <div>
+            <FormInputGroup
+              type={inputTypes.CHECK}
+              name="onManualInteractionRequired"
+              helpText={translate('OnManualInteractionRequired')}
+              isDisabled={!supportsOnManualInteractionRequired.value}
+              {...onManualInteractionRequired}
               onChange={onInputChange}
             />
           </div>

@@ -252,6 +252,32 @@ namespace NzbDrone.Core.Notifications.CustomScript
             ExecuteScript(environmentVariables);
         }
 
+        public override void OnManualInteractionRequired(ManualInteractionRequiredMessage message)
+        {
+            var artist = message.Artist;
+            var environmentVariables = new StringDictionary();
+
+            environmentVariables.Add("Lidarr_EventType", "ManualInteractionRequired");
+            environmentVariables.Add("Lidarr_InstanceName", _configFileProvider.InstanceName);
+            environmentVariables.Add("Lidarr_ApplicationUrl", _configService.ApplicationUrl);
+
+            if (artist != null)
+            {
+                environmentVariables.Add("Lidarr_Artist_Id", artist.Id.ToString());
+                environmentVariables.Add("Lidarr_Artist_Name", artist.Metadata.Value.Name);
+                environmentVariables.Add("Lidarr_Artist_Path", artist.Path);
+                environmentVariables.Add("Lidarr_Artist_MBId", artist.Metadata.Value.ForeignArtistId);
+            }
+
+            environmentVariables.Add("Lidarr_Download_Client", message.DownloadClientInfo?.Name ?? string.Empty);
+            environmentVariables.Add("Lidarr_Download_Client_Type", message.DownloadClientInfo?.Type ?? string.Empty);
+            environmentVariables.Add("Lidarr_Download_Id", message.DownloadId ?? string.Empty);
+            environmentVariables.Add("Lidarr_Download_Size", message.TrackedDownload.DownloadItem.TotalSize.ToString());
+            environmentVariables.Add("Lidarr_Download_Title", message.TrackedDownload.DownloadItem.Title);
+
+            ExecuteScript(environmentVariables);
+        }
+
         public override void OnHealthIssue(HealthCheck.HealthCheck healthCheck)
         {
             var environmentVariables = new StringDictionary();

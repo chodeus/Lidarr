@@ -19,6 +19,7 @@ namespace NzbDrone.Core.Notifications
         protected const string HEALTH_RESTORED_TITLE = "Health Check Restored";
         protected const string DOWNLOAD_FAILURE_TITLE = "Download Failed";
         protected const string IMPORT_FAILURE_TITLE = "Import Failed";
+        protected const string MANUAL_INTERACTION_REQUIRED_TITLE = "Manual Interaction";
         protected const string TRACK_RETAGGED_TITLE = "Track File Tags Updated";
         protected const string APPLICATION_UPDATE_TITLE = "Application Updated";
 
@@ -31,6 +32,7 @@ namespace NzbDrone.Core.Notifications
         protected const string HEALTH_RESTORED_TITLE_BRANDED = "Lidarr - " + HEALTH_RESTORED_TITLE;
         protected const string DOWNLOAD_FAILURE_TITLE_BRANDED = "Lidarr - " + DOWNLOAD_FAILURE_TITLE;
         protected const string IMPORT_FAILURE_TITLE_BRANDED = "Lidarr - " + IMPORT_FAILURE_TITLE;
+        protected const string MANUAL_INTERACTION_REQUIRED_TITLE_BRANDED = "Lidarr - " + MANUAL_INTERACTION_REQUIRED_TITLE;
         protected const string TRACK_RETAGGED_TITLE_BRANDED = "Lidarr - " + TRACK_RETAGGED_TITLE;
         protected const string APPLICATION_UPDATE_TITLE_BRANDED = "Lidarr - " + APPLICATION_UPDATE_TITLE;
 
@@ -87,6 +89,10 @@ namespace NzbDrone.Core.Notifications
         {
         }
 
+        public virtual void OnManualInteractionRequired(ManualInteractionRequiredMessage message)
+        {
+        }
+
         public virtual void OnTrackRetag(TrackRetagMessage message)
         {
         }
@@ -110,6 +116,7 @@ namespace NzbDrone.Core.Notifications
         public bool SupportsOnHealthRestored => HasConcreteImplementation("OnHealthRestored");
         public bool SupportsOnDownloadFailure => HasConcreteImplementation("OnDownloadFailure");
         public bool SupportsOnImportFailure => HasConcreteImplementation("OnImportFailure");
+        public bool SupportsOnManualInteractionRequired => HasConcreteImplementation("OnManualInteractionRequired");
         public bool SupportsOnTrackRetag => HasConcreteImplementation("OnTrackRetag");
         public bool SupportsOnApplicationUpdate => HasConcreteImplementation("OnApplicationUpdate");
 

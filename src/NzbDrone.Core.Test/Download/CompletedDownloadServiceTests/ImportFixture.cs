@@ -116,6 +116,20 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
         }
 
         [Test]
+        public void should_publish_manual_interaction_required_once_when_import_is_blocked()
+        {
+            _trackedDownload.RemoteAlbum = null;
+
+            Subject.Import(_trackedDownload);
+            Subject.Import(_trackedDownload);
+
+            _trackedDownload.State.Should().Be(TrackedDownloadState.ImportBlocked);
+
+            Mocker.GetMock<IEventAggregator>()
+                .Verify(v => v.PublishEvent(It.IsAny<ManualInteractionRequiredEvent>()), Times.Once());
+        }
+
+        [Test]
         public void should_not_mark_as_imported_if_all_files_were_rejected()
         {
             Mocker.GetMock<IDownloadedTracksImportService>()

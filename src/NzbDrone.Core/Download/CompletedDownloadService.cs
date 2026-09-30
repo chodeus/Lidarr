@@ -252,6 +252,14 @@ namespace NzbDrone.Core.Download
         private void SetStateToImportBlocked(TrackedDownload trackedDownload)
         {
             trackedDownload.State = TrackedDownloadState.ImportBlocked;
+
+            if (!trackedDownload.HasNotifiedManualInteractionRequired)
+            {
+                trackedDownload.HasNotifiedManualInteractionRequired = true;
+
+                var manualInteractionEvent = new ManualInteractionRequiredEvent(trackedDownload);
+                _eventAggregator.PublishEvent(manualInteractionEvent);
+            }
         }
 
         private void SetImportItem(TrackedDownload trackedDownload)

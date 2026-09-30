@@ -27,6 +27,7 @@ namespace NzbDrone.Core.Notifications
           IHandle<HealthCheckRestoredEvent>,
           IHandle<DownloadFailedEvent>,
           IHandle<AlbumImportIncompleteEvent>,
+          IHandle<ManualInteractionRequiredEvent>,
           IHandle<TrackFileRetaggedEvent>,
           IHandle<UpdateInstalledEvent>,
           IHandleAsync<RenameCompletedEvent>,
@@ -366,6 +367,58 @@ namespace NzbDrone.Core.Notifications
                 {
                     _notificationStatusService.RecordFailure(notification.Definition.Id);
                     _logger.Warn(ex, "Unable to send OnDownloadFailure notification to: " + notification.Definition.Name);
+                }
+            }
+        }
+
+        public void Handle(ManualInteractionRequiredEvent message)
+        {
+            var artist = message.Album?.Artist;
+            var mess = "";
+
+            if (artist != null && message.Album.Albums != null && message.Album.ParsedAlbumInfo?.Quality != null)
+            {
+                mess = GetMessage(artist, message.Album.Albums, message.Album.ParsedAlbumInfo.Quality);
+            }
+
+            if (mess.IsNullOrWhiteSpace() && message.TrackedDownload.DownloadItem != null)
+            {
+                mess = message.TrackedDownload.DownloadItem.Title;
+            }
+
+            if (mess.IsNullOrWhiteSpace())
+            {
+                return;
+            }
+
+            var manualInteractionMessage = new ManualInteractionRequiredMessage
+            {
+                Message = mess,
+                Artist = artist,
+                Quality = message.Album?.ParsedAlbumInfo?.Quality,
+                Album = message.Album,
+                TrackedDownload = message.TrackedDownload,
+                DownloadClientInfo = message.TrackedDownload.DownloadItem?.DownloadClientInfo,
+                DownloadId = message.TrackedDownload.DownloadItem?.DownloadId
+            };
+
+            foreach (var notification in _notificationFactory.OnManualInteractionEnabled())
+            {
+                try
+                {
+                    // A download that never mapped to an artist can only match notifications without tags
+                    if (artist == null ? notification.Definition.Tags.Any() : !ShouldHandleArtist(notification.Definition, artist))
+                    {
+                        continue;
+                    }
+
+                    notification.OnManualInteractionRequired(manualInteractionMessage);
+                    _notificationStatusService.RecordSuccess(notification.Definition.Id);
+                }
+                catch (Exception ex)
+                {
+                    _notificationStatusService.RecordFailure(notification.Definition.Id);
+                    _logger.Warn(ex, "Unable to send OnManualInteractionRequired notification to: " + notification.Definition.Name);
                 }
             }
         }

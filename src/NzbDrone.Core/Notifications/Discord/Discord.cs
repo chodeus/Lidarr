@@ -291,6 +291,97 @@ namespace NzbDrone.Core.Notifications.Discord
             _proxy.SendPayload(payload, Settings);
         }
 
+        public override void OnManualInteractionRequired(ManualInteractionRequiredMessage message)
+        {
+            var artist = message.Artist;
+            var albums = message.Album?.Albums ?? new List<Album>();
+            var artistMetadata = artist?.Metadata?.Value;
+
+            var embed = new Embed
+            {
+                Author = new DiscordAuthor
+                {
+                    Name = Settings.Author.IsNullOrWhiteSpace() ? _configFileProvider.InstanceName : Settings.Author,
+                    IconUrl = "https://raw.githubusercontent.com/lidarr/Lidarr/develop/Logo/256.png"
+                },
+                Url = artist != null ? $"https://musicbrainz.org/artist/{artist.ForeignArtistId}" : null,
+                Description = "Manual interaction needed",
+                Title = artist != null && albums.Any() ? GetTitle(artist, albums) : message.TrackedDownload.DownloadItem.Title,
+                Color = (int)DiscordColors.Standard,
+                Fields = new List<DiscordField>(),
+                Timestamp = DateTime.UtcNow.ToString("O")
+            };
+
+            if (Settings.ManualInteractionFields.Contains((int)DiscordManualInteractionFieldType.Poster) && albums.Any())
+            {
+                embed.Thumbnail = new DiscordImage
+                {
+                    Url = albums.First().Images.FirstOrDefault(x => x.CoverType == MediaCoverTypes.Cover)?.RemoteUrl
+                };
+            }
+
+            if (Settings.ManualInteractionFields.Contains((int)DiscordManualInteractionFieldType.Fanart) && artistMetadata != null)
+            {
+                embed.Image = new DiscordImage
+                {
+                    Url = artistMetadata.Images.FirstOrDefault(x => x.CoverType == MediaCoverTypes.Fanart)?.RemoteUrl
+                };
+            }
+
+            foreach (var field in Settings.ManualInteractionFields)
+            {
+                var discordField = new DiscordField();
+
+                switch ((DiscordManualInteractionFieldType)field)
+                {
+                    case DiscordManualInteractionFieldType.Overview:
+                        var overview = albums.FirstOrDefault()?.Overview ?? "";
+                        discordField.Name = "Overview";
+                        discordField.Value = overview.Length <= 300 ? overview : $"{overview.AsSpan(0, 300)}...";
+                        break;
+                    case DiscordManualInteractionFieldType.Rating:
+                        discordField.Name = "Rating";
+                        discordField.Value = albums.FirstOrDefault()?.Ratings?.Value.ToString();
+                        break;
+                    case DiscordManualInteractionFieldType.Genres:
+                        discordField.Name = "Genres";
+                        discordField.Value = albums.FirstOrDefault()?.Genres?.Take(5).Join(", ");
+                        break;
+                    case DiscordManualInteractionFieldType.Quality:
+                        discordField.Name = "Quality";
+                        discordField.Inline = true;
+                        discordField.Value = message.Quality?.Quality.Name;
+                        break;
+                    case DiscordManualInteractionFieldType.Group:
+                        discordField.Name = "Group";
+                        discordField.Value = message.Album?.ParsedAlbumInfo?.ReleaseGroup;
+                        break;
+                    case DiscordManualInteractionFieldType.Size:
+                        discordField.Name = "Size";
+                        discordField.Value = BytesToString(message.TrackedDownload.DownloadItem.TotalSize);
+                        discordField.Inline = true;
+                        break;
+                    case DiscordManualInteractionFieldType.DownloadTitle:
+                        discordField.Name = "Download";
+                        discordField.Value = string.Format("```{0}```", message.TrackedDownload.DownloadItem.Title);
+                        break;
+                    case DiscordManualInteractionFieldType.Links:
+                        discordField.Name = "Links";
+                        discordField.Value = artist != null ? GetLinksString(artist) : null;
+                        break;
+                }
+
+                if (discordField.Name.IsNotNullOrWhiteSpace() && discordField.Value.IsNotNullOrWhiteSpace())
+                {
+                    embed.Fields.Add(discordField);
+                }
+            }
+
+            var payload = CreatePayload(null, new List<Embed> { embed });
+
+            _proxy.SendPayload(payload, Settings);
+        }
+
         public override void OnHealthIssue(HealthCheck.HealthCheck healthCheck)
         {
             var attachments = new List<Embed>

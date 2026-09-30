@@ -84,6 +84,11 @@ namespace NzbDrone.Core.Notifications.Webhook
 
         public override string Name => "Webhook";
 
+        public override void OnManualInteractionRequired(ManualInteractionRequiredMessage message)
+        {
+            _proxy.SendWebhook(BuildManualInteractionRequiredPayload(message), Settings);
+        }
+
         public override ValidationResult Test()
         {
             var failures = new List<ValidationFailure>();

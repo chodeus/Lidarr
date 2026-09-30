@@ -20,6 +20,7 @@ namespace NzbDrone.Core.Notifications
         void OnApplicationUpdate(ApplicationUpdateMessage updateMessage);
         void OnDownloadFailure(DownloadFailedMessage message);
         void OnImportFailure(AlbumDownloadMessage message);
+        void OnManualInteractionRequired(ManualInteractionRequiredMessage message);
         void OnTrackRetag(TrackRetagMessage message);
         void ProcessQueue();
         bool SupportsOnGrab { get; }
@@ -34,6 +35,7 @@ namespace NzbDrone.Core.Notifications
         bool SupportsOnApplicationUpdate { get; }
         bool SupportsOnDownloadFailure { get; }
         bool SupportsOnImportFailure { get; }
+        bool SupportsOnManualInteractionRequired { get; }
         bool SupportsOnTrackRetag { get; }
     }
 }

@@ -82,6 +82,38 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
         }
 
         [Test]
+        public void should_keep_the_manual_interaction_flag_when_a_downloading_item_is_tracked_again()
+        {
+            GivenDownloadHistory();
+
+            var client = new DownloadClientDefinition()
+            {
+                Id = 1,
+                Protocol = nameof(TorrentDownloadProtocol)
+            };
+
+            var item = new DownloadClientItem()
+            {
+                Title = "The torrent release folder",
+                DownloadId = "35238",
+                DownloadClientInfo = new DownloadClientItemClientInfo
+                {
+                    Protocol = client.Protocol,
+                    Id = client.Id,
+                    Name = client.Name
+                }
+            };
+
+            var first = Subject.TrackDownload(client, item);
+            first.HasNotifiedManualInteractionRequired = true;
+
+            var second = Subject.TrackDownload(client, item);
+
+            second.Should().NotBeSameAs(first);
+            second.HasNotifiedManualInteractionRequired.Should().BeTrue();
+        }
+
+        [Test]
         public void should_unmap_tracked_download_if_album_deleted()
         {
             GivenDownloadHistory();

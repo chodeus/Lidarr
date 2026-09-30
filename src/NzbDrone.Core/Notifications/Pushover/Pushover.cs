@@ -56,6 +56,11 @@ namespace NzbDrone.Core.Notifications.Pushover
             _proxy.SendNotification(DOWNLOAD_FAILURE_TITLE, message.Message, Settings);
         }
 
+        public override void OnManualInteractionRequired(ManualInteractionRequiredMessage message)
+        {
+            _proxy.SendNotification(MANUAL_INTERACTION_REQUIRED_TITLE, message.Message, Settings);
+        }
+
         public override void OnImportFailure(AlbumDownloadMessage message)
         {
             _proxy.SendNotification(IMPORT_FAILURE_TITLE, message.Message, Settings);

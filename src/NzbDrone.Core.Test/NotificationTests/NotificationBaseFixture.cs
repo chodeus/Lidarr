@@ -94,6 +94,11 @@ namespace NzbDrone.Core.Test.NotificationTests
                 TestLogger.Info("OnImportFailure was called");
             }
 
+            public override void OnManualInteractionRequired(ManualInteractionRequiredMessage message)
+            {
+                TestLogger.Info("OnManualInteractionRequired was called");
+            }
+
             public override void OnTrackRetag(TrackRetagMessage message)
             {
                 TestLogger.Info("OnTrackRetag was called");
@@ -141,6 +146,7 @@ namespace NzbDrone.Core.Test.NotificationTests
             notification.SupportsOnHealthRestored.Should().BeTrue();
             notification.SupportsOnDownloadFailure.Should().BeTrue();
             notification.SupportsOnImportFailure.Should().BeTrue();
+            notification.SupportsOnManualInteractionRequired.Should().BeTrue();
             notification.SupportsOnTrackRetag.Should().BeTrue();
             notification.SupportsOnApplicationUpdate.Should().BeTrue();
             notification.SupportsOnAlbumDelete.Should().BeTrue();
@@ -160,6 +166,7 @@ namespace NzbDrone.Core.Test.NotificationTests
             notification.SupportsOnHealthRestored.Should().BeFalse();
             notification.SupportsOnDownloadFailure.Should().BeFalse();
             notification.SupportsOnImportFailure.Should().BeFalse();
+            notification.SupportsOnManualInteractionRequired.Should().BeFalse();
             notification.SupportsOnTrackRetag.Should().BeFalse();
             notification.SupportsOnApplicationUpdate.Should().BeFalse();
             notification.SupportsOnAlbumDelete.Should().BeFalse();

@@ -15,6 +15,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                                              IExecute<CheckForFinishedDownloadCommand>,
                                              IHandle<AlbumGrabbedEvent>,
                                              IHandle<TrackImportedEvent>,
+                                             IHandle<ManualInteractionRequiredEvent>,
                                              IHandle<DownloadsProcessedEvent>,
                                              IHandle<TrackedDownloadsRemovedEvent>
     {
@@ -185,6 +186,11 @@ namespace NzbDrone.Core.Download.TrackedDownloads
             var trackedDownloads = _trackedDownloadService.GetTrackedDownloads().Where(t => t.IsTrackable && DownloadIsTrackable(t)).ToList();
 
             _eventAggregator.PublishEvent(new TrackedDownloadRefreshedEvent(trackedDownloads));
+        }
+
+        public void Handle(ManualInteractionRequiredEvent message)
+        {
+            _refreshDebounce.Execute();
         }
     }
 }

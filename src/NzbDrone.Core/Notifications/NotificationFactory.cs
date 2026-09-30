@@ -21,6 +21,7 @@ namespace NzbDrone.Core.Notifications
         List<INotification> OnHealthRestoredEnabled(bool filterBlockedNotifications = true);
         List<INotification> OnDownloadFailureEnabled(bool filterBlockedNotifications = true);
         List<INotification> OnImportFailureEnabled(bool filterBlockedNotifications = true);
+        List<INotification> OnManualInteractionEnabled(bool filterBlockedNotifications = true);
         List<INotification> OnTrackRetagEnabled(bool filterBlockedNotifications = true);
         List<INotification> OnApplicationUpdateEnabled(bool filterBlockedNotifications = true);
     }
@@ -152,6 +153,16 @@ namespace NzbDrone.Core.Notifications
             return GetAvailableProviders().Where(n => ((NotificationDefinition)n.Definition).OnImportFailure).ToList();
         }
 
+        public List<INotification> OnManualInteractionEnabled(bool filterBlockedNotifications = true)
+        {
+            if (filterBlockedNotifications)
+            {
+                return FilterBlockedNotifications(GetAvailableProviders().Where(n => ((NotificationDefinition)n.Definition).OnManualInteractionRequired)).ToList();
+            }
+
+            return GetAvailableProviders().Where(n => ((NotificationDefinition)n.Definition).OnManualInteractionRequired).ToList();
+        }
+
         public List<INotification> OnTrackRetagEnabled(bool filterBlockedNotifications = true)
         {
             if (filterBlockedNotifications)
@@ -203,6 +214,7 @@ namespace NzbDrone.Core.Notifications
             definition.SupportsOnHealthRestored = provider.SupportsOnHealthRestored;
             definition.SupportsOnDownloadFailure = provider.SupportsOnDownloadFailure;
             definition.SupportsOnImportFailure = provider.SupportsOnImportFailure;
+            definition.SupportsOnManualInteractionRequired = provider.SupportsOnManualInteractionRequired;
             definition.SupportsOnTrackRetag = provider.SupportsOnTrackRetag;
             definition.SupportsOnApplicationUpdate = provider.SupportsOnApplicationUpdate;
         }

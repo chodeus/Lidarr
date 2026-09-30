@@ -48,6 +48,18 @@ namespace NzbDrone.Core.Notifications.Discord
                 (int)DiscordImportFieldType.Poster,
                 (int)DiscordImportFieldType.Fanart
             };
+            ManualInteractionFields = new[]
+            {
+                (int)DiscordManualInteractionFieldType.Overview,
+                (int)DiscordManualInteractionFieldType.Rating,
+                (int)DiscordManualInteractionFieldType.Genres,
+                (int)DiscordManualInteractionFieldType.Quality,
+                (int)DiscordManualInteractionFieldType.Size,
+                (int)DiscordManualInteractionFieldType.Links,
+                (int)DiscordManualInteractionFieldType.DownloadTitle,
+                (int)DiscordManualInteractionFieldType.Poster,
+                (int)DiscordManualInteractionFieldType.Fanart
+            };
         }
 
         private static readonly DiscordSettingsValidator Validator = new();
@@ -69,6 +81,9 @@ namespace NzbDrone.Core.Notifications.Discord
 
         [FieldDefinition(5, Label = "On Import Fields", Advanced = true, SelectOptions = typeof(DiscordImportFieldType), HelpText = "Change the fields that are passed for this 'on import' notification", Type = FieldType.Select)]
         public IEnumerable<int> ImportFields { get; set; }
+
+        [FieldDefinition(6, Label = "On Manual Interaction Fields", Advanced = true, SelectOptions = typeof(DiscordManualInteractionFieldType), HelpText = "Change the fields that are passed for this 'on manual interaction' notification", Type = FieldType.Select)]
+        public IEnumerable<int> ManualInteractionFields { get; set; }
 
         public NzbDroneValidationResult Validate()
         {

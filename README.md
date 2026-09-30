@@ -37,6 +37,8 @@
   - Gotify, Pushcut and Telegram can add MusicBrainz links for the artist and album (Gotify also sets a click-through link). Import failure notifications link the artist.
 - **Import list Clean Library Level** — branch [`feat/import-list-clean-library`](https://github.com/chodeus/Lidarr/tree/feat/import-list-clean-library), not submitted
   - Settings → Import Lists → Options (advanced): Log Only, Keep and Unmonitor, or Keep and Tag artists that no list holds any more. Off by default; a clean runs only after every list synced without failure and one of them dropped an item. Migration 905.
+- **Exact artist alias matching** — branch [`feat/artist-alias-matching`](https://github.com/chodeus/Lidarr/tree/feat/artist-alias-matching), not submitted
+  - A release named by an artist's exact alias (such as "Kanye West" for Ye) maps to that artist before the fuzzy name matching, unless another artist has that exact name or shares the alias.
 
 ## How the build works
 

@@ -33,6 +33,8 @@
   - Each indexer gets an advanced Fail Downloads option (Executables, Potentially Dangerous). A download whose folder holds only such files is marked failed, so Lidarr blocklists it and searches again, instead of warning.
 - **Manual interaction notifications** — branch [`feat/manual-interaction-notification`](https://github.com/chodeus/Lidarr/tree/feat/manual-interaction-notification), not submitted
   - A new On Manual Interaction Required event for connections: it fires once per download when an import is blocked (unparsed, or no artist match). Discord has its own field list; the webhook sends `ManualInteractionRequired`. Migration 904.
+- **Notification links** — branch [`feat/notification-links`](https://github.com/chodeus/Lidarr/tree/feat/notification-links), builds on `feat/manual-interaction-notification`, not submitted
+  - Gotify, Pushcut and Telegram can add MusicBrainz links for the artist and album (Gotify also sets a click-through link). Import failure notifications link the artist.
 
 ## How the build works
 

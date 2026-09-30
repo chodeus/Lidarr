@@ -10,7 +10,7 @@ import translate from 'Utilities/String/translate';
 import ImportListsExclusionsConnector from './ImportListExclusions/ImportListExclusionsConnector';
 import ImportListsConnector from './ImportLists/ImportListsConnector';
 import ManageImportListsModal from './ImportLists/Manage/ManageImportListsModal';
-import ImportListOptionsConnector from './Options/ImportListOptionsConnector';
+import ImportListOptions from './Options/ImportListOptions';
 
 class ImportListSettings extends Component {
 
@@ -108,7 +108,7 @@ class ImportListSettings extends Component {
         <PageContentBody>
           <ImportListsConnector />
 
-          <ImportListOptionsConnector
+          <ImportListOptions
             onChildMounted={this.onChildMounted}
             onChildStateChange={this.onChildStateChange}
           />

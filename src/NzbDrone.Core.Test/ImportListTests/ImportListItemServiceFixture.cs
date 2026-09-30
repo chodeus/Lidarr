@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Linq.Expressions;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
@@ -19,9 +21,15 @@ namespace NzbDrone.Core.Test.ImportListTests
                 .Returns(existing);
         }
 
-        private static ImportListItemInfo Item(string artistId, string albumId = null)
+        private static ImportListItemInfo Item(string artistId, string albumId = null, int releaseYear = 2020)
         {
-            return new ImportListItemInfo { Artist = $"Artist {artistId}", ArtistMusicBrainzId = artistId, AlbumMusicBrainzId = albumId };
+            return new ImportListItemInfo { Artist = $"Artist {artistId}", ArtistMusicBrainzId = artistId, AlbumMusicBrainzId = albumId, ReleaseDate = new DateTime(releaseYear, 1, 1) };
+        }
+
+        private void VerifyReleaseDateUpdates(Func<IList<ImportListItemInfo>, bool> match)
+        {
+            Mocker.GetMock<IImportListItemRepository>()
+                .Verify(v => v.SetFields(It.Is<IList<ImportListItemInfo>>(l => match(l)), It.IsAny<Expression<Func<ImportListItemInfo, object>>[]>()), Times.Once());
         }
 
         [Test]
@@ -30,7 +38,7 @@ namespace NzbDrone.Core.Test.ImportListTests
             GivenExisting(new List<ImportListItemInfo> { Item("6"), Item("7") });
 
             var newItem = Item("5");
-            var updatedItem = Item("6");
+            var updatedItem = Item("6", releaseYear: 2021);
 
             var numDeleted = Subject.SyncItemsForList(new List<ImportListItemInfo> { newItem, updatedItem }, 1);
 
@@ -39,11 +47,20 @@ namespace NzbDrone.Core.Test.ImportListTests
             Mocker.GetMock<IImportListItemRepository>()
                 .Verify(v => v.InsertMany(It.Is<List<ImportListItemInfo>>(s => s.Count == 1 && s[0].ArtistMusicBrainzId == "5")), Times.Once());
 
-            Mocker.GetMock<IImportListItemRepository>()
-                .Verify(v => v.UpdateMany(It.Is<List<ImportListItemInfo>>(s => s.Count == 1 && s[0].ArtistMusicBrainzId == "6")), Times.Once());
+            VerifyReleaseDateUpdates(s => s.Count == 1 && s[0].ArtistMusicBrainzId == "6" && s[0].ReleaseDate.Year == 2021);
 
             Mocker.GetMock<IImportListItemRepository>()
                 .Verify(v => v.DeleteMany(It.Is<List<ImportListItemInfo>>(s => s.Count == 1 && s[0].ArtistMusicBrainzId == "7")), Times.Once());
+        }
+
+        [Test]
+        public void should_not_update_items_that_did_not_change()
+        {
+            GivenExisting(new List<ImportListItemInfo> { Item("6") });
+
+            Subject.SyncItemsForList(new List<ImportListItemInfo> { Item("6") }, 1).Should().Be(0);
+
+            VerifyReleaseDateUpdates(s => s.Count == 0);
         }
 
         [Test]

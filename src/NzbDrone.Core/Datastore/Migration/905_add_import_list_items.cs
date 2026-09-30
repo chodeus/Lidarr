@@ -16,8 +16,13 @@ namespace NzbDrone.Core.Datastore.Migration
                 .WithColumn("AlbumMusicBrainzId").AsString().Nullable()
                 .WithColumn("ReleaseDate").AsDateTimeOffset().Nullable();
 
+            Create.Index().OnTable("ImportListItems").OnColumn("ImportListId");
+
             Alter.Table("ImportListStatus")
                 .AddColumn("HasRemovedItemSinceLastClean").AsBoolean().WithDefaultValue(false);
+
+            // Every list stores its items on its next sync before a clean can run
+            Execute.Sql("UPDATE \"ImportListStatus\" SET \"LastInfoSync\" = NULL");
         }
     }
 }

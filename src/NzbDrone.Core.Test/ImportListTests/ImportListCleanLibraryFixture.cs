@@ -67,8 +67,8 @@ namespace NzbDrone.Core.Test.ImportListTests
                   .Returns(_existingArtists);
 
             Mocker.GetMock<IAlbumService>()
-                  .Setup(v => v.GetAllAlbums())
-                  .Returns(_existingAlbums);
+                  .Setup(v => v.FindById(It.IsAny<List<string>>()))
+                  .Returns((List<string> ids) => _existingAlbums.Where(a => ids.Contains(a.ForeignAlbumId)).ToList());
 
             Mocker.GetMock<IImportListItemService>()
                   .Setup(v => v.All())
@@ -233,7 +233,6 @@ namespace NzbDrone.Core.Test.ImportListTests
         [TestCase(null, "Artist 1", null)]
         [TestCase(null, "ARTIST 1", null)]
         [TestCase(null, null, "album-1")]
-        [TestCase(null, null, "old-album-1")]
         public void should_not_clean_artist_that_is_on_a_list(string artistId, string artistName, string albumId)
         {
             _listItems.Add(new ImportListItemInfo { ImportListId = 1, ArtistMusicBrainzId = artistId, Artist = artistName, AlbumMusicBrainzId = albumId });

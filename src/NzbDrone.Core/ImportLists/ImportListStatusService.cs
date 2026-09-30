@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using NLog;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Core.Messaging.Events;
@@ -59,13 +60,13 @@ namespace NzbDrone.Core.ImportLists
             {
                 var toUpdate = new List<ImportListStatus>();
 
-                foreach (var status in _providerStatusRepository.All())
+                foreach (var status in _providerStatusRepository.All().Where(s => s.HasRemovedItemSinceLastClean))
                 {
                     status.HasRemovedItemSinceLastClean = false;
                     toUpdate.Add(status);
                 }
 
-                _providerStatusRepository.UpdateMany(toUpdate);
+                _providerStatusRepository.SetFields(toUpdate, s => s.HasRemovedItemSinceLastClean);
             }
         }
     }

@@ -7,6 +7,7 @@ import AppSectionState, {
 import CustomFormat from 'typings/CustomFormat';
 import DownloadClient from 'typings/DownloadClient';
 import ImportList from 'typings/ImportList';
+import ImportListOptionsSettings from 'typings/ImportListOptionsSettings';
 import Indexer from 'typings/Indexer';
 import IndexerFlag from 'typings/IndexerFlag';
 import MetadataProfile from 'typings/MetadataProfile';
@@ -28,6 +29,10 @@ export interface GeneralAppState
 export interface ImportListAppState
   extends AppSectionState<ImportList>,
     AppSectionDeleteState,
+    AppSectionSaveState {}
+
+export interface ImportListOptionsSettingsAppState
+  extends AppSectionItemState<ImportListOptionsSettings>,
     AppSectionSaveState {}
 
 export interface IndexerAppState
@@ -66,6 +71,7 @@ interface SettingsAppState {
   downloadClients: DownloadClientAppState;
   general: GeneralAppState;
   importLists: ImportListAppState;
+  importListOptions: ImportListOptionsSettingsAppState;
   indexerFlags: IndexerFlagSettingsAppState;
   indexers: IndexerAppState;
   metadataProfiles: MetadataProfilesAppState;

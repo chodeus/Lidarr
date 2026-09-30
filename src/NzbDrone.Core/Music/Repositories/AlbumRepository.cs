@@ -18,6 +18,7 @@ namespace NzbDrone.Core.Music
         List<Album> GetAlbumsForRefresh(int artistMetadataId, List<string> foreignIds);
         Album FindByTitle(int artistMetadataId, string title);
         Album FindById(string foreignAlbumId);
+        List<Album> FindById(List<string> foreignAlbumIds);
         PagingSpec<Album> AlbumsWithoutFiles(PagingSpec<Album> pagingSpec);
         PagingSpec<Album> AlbumsWhereCutoffUnmet(PagingSpec<Album> pagingSpec, List<QualitiesBelowCutoff> qualitiesBelowCutoff);
         List<Album> AlbumsBetweenDates(DateTime startDate, DateTime endDate, bool includeUnmonitored);
@@ -88,6 +89,12 @@ namespace NzbDrone.Core.Music
         public Album FindById(string foreignAlbumId)
         {
             return Query(s => s.ForeignAlbumId == foreignAlbumId).SingleOrDefault();
+        }
+
+        public List<Album> FindById(List<string> foreignAlbumIds)
+        {
+            // Chunked to stay under SQLite's bound parameter limit
+            return foreignAlbumIds.Chunk(500).SelectMany(ids => Query(s => ids.Contains(s.ForeignAlbumId))).ToList();
         }
 
         // x.Id == null is converted to SQL, so warning incorrect

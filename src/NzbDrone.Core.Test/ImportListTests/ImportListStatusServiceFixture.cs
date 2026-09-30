@@ -107,7 +107,7 @@ namespace NzbDrone.Core.Test.ImportListTests
 
             status.HasRemovedItemSinceLastClean.Should().BeFalse();
             Mocker.GetMock<IImportListStatusRepository>()
-                  .Verify(v => v.UpdateMany(It.Is<List<ImportListStatus>>(l => l.Count == 1)), Times.Once());
+                  .Verify(v => v.SetFields(It.Is<IList<ImportListStatus>>(l => l.Count == 1), It.IsAny<System.Linq.Expressions.Expression<Func<ImportListStatus, object>>[]>()), Times.Once());
         }
     }
 }

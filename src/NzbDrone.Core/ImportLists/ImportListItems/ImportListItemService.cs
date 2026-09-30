@@ -25,32 +25,33 @@ namespace NzbDrone.Core.ImportLists.ImportListItems
         public int SyncItemsForList(List<ImportListItemInfo> listItems, int listId)
         {
             var existingListItems = GetAllForLists(new List<int> { listId });
+            var unmatched = existingListItems.GroupBy(Key).ToDictionary(g => g.Key, g => new Queue<ImportListItemInfo>(g));
 
             var toAdd = new List<ImportListItemInfo>();
             var toUpdate = new List<ImportListItemInfo>();
 
             listItems.ForEach(item =>
             {
-                var existingItem = FindItem(existingListItems, item);
-
-                if (existingItem == null)
+                if (!unmatched.TryGetValue(Key(item), out var matches) || !matches.TryDequeue(out var existingItem))
                 {
                     toAdd.Add(item);
                     return;
                 }
 
-                // Remove so we'll only be left with items to remove at the end
-                existingListItems.Remove(existingItem);
-                toUpdate.Add(existingItem);
-
-                existingItem.ReleaseDate = item.ReleaseDate;
+                if (existingItem.ReleaseDate != item.ReleaseDate)
+                {
+                    existingItem.ReleaseDate = item.ReleaseDate;
+                    toUpdate.Add(existingItem);
+                }
             });
 
-            _importListItemRepository.InsertMany(toAdd);
-            _importListItemRepository.UpdateMany(toUpdate);
-            _importListItemRepository.DeleteMany(existingListItems);
+            var toDelete = unmatched.Values.SelectMany(q => q).ToList();
 
-            return existingListItems.Count;
+            _importListItemRepository.InsertMany(toAdd);
+            _importListItemRepository.SetFields(toUpdate, i => i.ReleaseDate);
+            _importListItemRepository.DeleteMany(toDelete);
+
+            return toDelete.Count;
         }
 
         public List<ImportListItemInfo> All()
@@ -70,13 +71,9 @@ namespace NzbDrone.Core.ImportLists.ImportListItems
         }
 
         // Same identity as the fetch's DistinctBy
-        private ImportListItemInfo FindItem(List<ImportListItemInfo> existingItems, ImportListItemInfo item)
+        private static (string Artist, string ArtistMusicBrainzId, string Album, string AlbumMusicBrainzId) Key(ImportListItemInfo item)
         {
-            return existingItems.FirstOrDefault(e =>
-                e.Artist == item.Artist &&
-                e.ArtistMusicBrainzId == item.ArtistMusicBrainzId &&
-                e.Album == item.Album &&
-                e.AlbumMusicBrainzId == item.AlbumMusicBrainzId);
+            return (item.Artist, item.ArtistMusicBrainzId, item.Album, item.AlbumMusicBrainzId);
         }
     }
 }

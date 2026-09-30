@@ -31,6 +31,8 @@
   - Removing a queue item that never matched an artist (such as "found multiple artists") without blocklisting logs a warning again, instead of failing with an HTTP 500.
 - **Fail downloads with unsafe files** — branch [`feat/fail-downloads`](https://github.com/chodeus/Lidarr/tree/feat/fail-downloads), not submitted
   - Each indexer gets an advanced Fail Downloads option (Executables, Potentially Dangerous). A download whose folder holds only such files is marked failed, so Lidarr blocklists it and searches again, instead of warning.
+- **Manual interaction notifications** — branch [`feat/manual-interaction-notification`](https://github.com/chodeus/Lidarr/tree/feat/manual-interaction-notification), not submitted
+  - A new On Manual Interaction Required event for connections: it fires once per download when an import is blocked (unparsed, or no artist match). Discord has its own field list; the webhook sends `ManualInteractionRequired`. Migration 904.
 
 ## How the build works
 

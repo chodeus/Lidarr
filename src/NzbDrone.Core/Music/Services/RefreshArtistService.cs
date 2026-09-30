@@ -289,12 +289,14 @@ namespace NzbDrone.Core.Music
             _eventAggregator.PublishEvent(new AlbumInfoRefreshedEvent(entity, newChildren, updateChildren, removedChildren));
         }
 
-        private void RescanArtists(List<Artist> artists, bool isNew, CommandTrigger trigger, bool infoUpdated)
+        private void RescanArtists(List<Artist> artists, bool isNew, bool selectedArtists, CommandTrigger trigger, bool infoUpdated)
         {
             var rescanAfterRefresh = _configService.RescanAfterRefresh;
             var shouldRescan = true;
             var filter = FilterFilesType.Matched;
-            var folders = _rootFolderService.All().Select(x => x.Path).ToList();
+
+            // A full refresh scans the root folders so files outside any artist folder are still found
+            var folders = selectedArtists ? artists.Select(x => x.Path).ToList() : _rootFolderService.All().Select(x => x.Path).ToList();
 
             if (isNew)
             {
@@ -357,7 +359,7 @@ namespace NzbDrone.Core.Music
                 }
             }
 
-            RescanArtists(artists, isNew, trigger, updated);
+            RescanArtists(artists, isNew, true, trigger, updated);
         }
 
         private void UpdateTags(Artist artist)
@@ -447,7 +449,7 @@ namespace NzbDrone.Core.Music
                     }
                 }
 
-                RescanArtists(artists, isNew, trigger, updated);
+                RescanArtists(artists, isNew, false, trigger, updated);
             }
         }
     }

@@ -4,10 +4,13 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.AutoTagging;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.History;
 using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.MediaFiles.Commands;
+using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Music.Commands;
@@ -142,6 +145,53 @@ namespace NzbDrone.Core.Test.MusicTests
 
             VerifyEventNotPublished<ArtistUpdatedEvent>();
             VerifyEventPublished<ArtistRefreshCompleteEvent>();
+        }
+
+        private void GivenRescanAfterManualRefresh()
+        {
+            var newArtistInfo = _artist.JsonClone();
+            newArtistInfo.Metadata = _artist.Metadata.Value.JsonClone();
+            newArtistInfo.Albums = _remoteAlbums;
+
+            GivenNewArtistInfo(newArtistInfo);
+            GivenAlbumsForRefresh(_albums);
+            AllowArtistUpdate();
+
+            _artist.Path = "/music/Artist".AsOsAgnostic();
+
+            Mocker.GetMock<IConfigService>()
+                .SetupGet(x => x.RescanAfterRefresh)
+                .Returns(RescanAfterRefreshType.Always);
+
+            Mocker.GetMock<IRootFolderService>()
+                .Setup(x => x.All())
+                .Returns(new List<RootFolder> { new RootFolder { Path = "/music".AsOsAgnostic() } });
+        }
+
+        [Test]
+        public void should_only_rescan_the_refreshed_artists_folders()
+        {
+            GivenRescanAfterManualRefresh();
+
+            Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }) { Trigger = CommandTrigger.Manual });
+
+            Mocker.GetMock<IManageCommandQueue>()
+                .Verify(v => v.Push(It.Is<RescanFoldersCommand>(c => c.Folders.Count == 1 && c.Folders[0] == _artist.Path), It.IsAny<CommandPriority>(), It.IsAny<CommandTrigger>()), Times.Once());
+        }
+
+        [Test]
+        public void should_rescan_root_folders_after_a_full_refresh()
+        {
+            GivenRescanAfterManualRefresh();
+
+            Mocker.GetMock<IArtistService>(MockBehavior.Strict)
+                .Setup(s => s.GetAllArtists())
+                .Returns(new List<Artist> { _artist });
+
+            Subject.Execute(new RefreshArtistCommand { Trigger = CommandTrigger.Manual });
+
+            Mocker.GetMock<IManageCommandQueue>()
+                .Verify(v => v.Push(It.Is<RescanFoldersCommand>(c => c.Folders.Count == 1 && c.Folders[0] == "/music".AsOsAgnostic()), It.IsAny<CommandPriority>(), It.IsAny<CommandTrigger>()), Times.Once());
         }
 
         [Test]

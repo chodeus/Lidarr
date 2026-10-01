@@ -180,6 +180,21 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
+        public void should_rescan_root_folders_when_a_refreshed_artist_was_merged_away()
+        {
+            GivenRescanAfterManualRefresh();
+
+            Mocker.GetMock<IArtistService>(MockBehavior.Strict)
+                .Setup(s => s.GetArtists(It.IsAny<IEnumerable<int>>()))
+                .Returns(new List<Artist>());
+
+            Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }) { Trigger = CommandTrigger.Manual });
+
+            Mocker.GetMock<IManageCommandQueue>()
+                .Verify(v => v.Push(It.Is<RescanFoldersCommand>(c => c.Folders.Count == 1 && c.Folders[0] == "/music".AsOsAgnostic()), It.IsAny<CommandPriority>(), It.IsAny<CommandTrigger>()), Times.Once());
+        }
+
+        [Test]
         public void should_rescan_root_folders_after_a_full_refresh()
         {
             GivenRescanAfterManualRefresh();

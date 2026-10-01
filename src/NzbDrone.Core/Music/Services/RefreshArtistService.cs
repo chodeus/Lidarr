@@ -359,7 +359,10 @@ namespace NzbDrone.Core.Music
                 }
             }
 
-            RescanArtists(artists, isNew, true, trigger, updated);
+            // A merged or deleted artist's files may sit in another artist's folder, so scan the root folders
+            var allStillExist = _artistService.GetArtists(artistIds).Count == artistIds.Distinct().Count();
+
+            RescanArtists(artists, isNew, allStillExist, trigger, updated);
         }
 
         private void UpdateTags(Artist artist)

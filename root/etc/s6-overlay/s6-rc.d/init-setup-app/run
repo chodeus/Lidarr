@@ -15,3 +15,9 @@ ENVIRONMENT APP
 WEBUI_PORTS=${WEBUI_PORTS}
 ----------------------------------------------------------------------
 "
+
+# The image decides the bundled plugins' version, so their files are copied over on every start.
+# Anything else in their folders, such as settings a plugin saves there, is kept.
+log_inf "Installing bundled plugins into [${CONFIG_DIR}/plugins]."
+s6-setuidgid hotio mkdir -p "${CONFIG_DIR}/plugins"
+s6-setuidgid hotio cp -R "${APP_DIR}/plugins/." "${CONFIG_DIR}/plugins/"

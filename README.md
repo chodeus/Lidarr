@@ -39,6 +39,8 @@
   - Settings → Import Lists → Options (advanced): Log Only, Keep and Unmonitor, or Keep and Tag artists that no list holds any more. Off by default; a clean runs only after every list synced without failure and one of them dropped an item. Migration 905.
 - **Exact artist alias matching** — branch [`feat/artist-alias-matching`](https://github.com/chodeus/Lidarr/tree/feat/artist-alias-matching), not submitted
   - A release named by an artist's exact alias (such as "Kanye West" for Ye) maps to that artist before the fuzzy name matching, unless another artist has that exact name or shares the alias.
+- **Artist refresh scan scope** — branch [`fix/artist-refresh-scan-scope`](https://github.com/chodeus/Lidarr/tree/fix/artist-refresh-scan-scope), not submitted
+  - Refreshing selected artists rescans only their folders, not every root folder. A full refresh, or a selected artist that was merged away, still scans the root folders.
 
 ## How the build works
 

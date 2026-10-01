@@ -41,6 +41,8 @@
   - A release named by an artist's exact alias (such as "Kanye West" for Ye) maps to that artist before the fuzzy name matching, unless another artist has that exact name or shares the alias.
 - **Artist refresh scan scope** — branch [`fix/artist-refresh-scan-scope`](https://github.com/chodeus/Lidarr/tree/fix/artist-refresh-scan-scope), not submitted
   - Refreshing selected artists rescans only their folders, not every root folder. A full refresh, or a selected artist that was merged away, still scans the root folders.
+- **Artist aliases in import matching** — branch [`feat/artist-alias-distance`](https://github.com/chodeus/Lidarr/tree/feat/artist-alias-distance), not submitted
+  - Import matching scores a file's artist against the artist's name and every MusicBrainz alias, keeping the closest, so files tagged "Kanye West" match Ye.
 
 ## How the build works
 

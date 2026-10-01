@@ -43,6 +43,8 @@
   - Refreshing selected artists rescans only their folders, not every root folder. A full refresh, or a selected artist that was merged away, still scans the root folders.
 - **Artist aliases in import matching** — branch [`feat/artist-alias-distance`](https://github.com/chodeus/Lidarr/tree/feat/artist-alias-distance), not submitted
   - Import matching scores a file's artist against the artist's name and every MusicBrainz alias, keeping the closest, so files tagged "Kanye West" match Ye.
+- **Featured credit keeps the rest of a track title** — branch [`fix/feat-credit-keeps-version`](https://github.com/chodeus/Lidarr/tree/fix/feat-credit-keeps-version), not submitted
+  - Import matching removes a bracketed "(feat. …)" up to its own closing bracket, so "Song (feat. Guest) (Remixer Remix)" is compared as "Song (Remixer Remix)" instead of "Song".
 
 ## How the build works
 

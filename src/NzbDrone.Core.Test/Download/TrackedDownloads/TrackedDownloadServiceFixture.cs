@@ -4,6 +4,7 @@ using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Download;
+using NzbDrone.Core.Download.History;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.History;
 using NzbDrone.Core.Indexers;
@@ -32,6 +33,63 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
                      AlbumId = 4,
                 }
                 });
+        }
+
+        [Test]
+        public void should_set_release_indexer_from_grab_history()
+        {
+            Mocker.GetMock<IHistoryService>()
+                .Setup(s => s.FindByDownloadId("35238"))
+                .Returns(new List<EntityHistory>
+                {
+                    new EntityHistory
+                    {
+                        DownloadId = "35238",
+                        EventType = EntityHistoryEventType.Grabbed,
+                        SourceTitle = "Audio Artist - Audio Album [2018 - FLAC]",
+                        ArtistId = 5,
+                        AlbumId = 4,
+                        Data = new Dictionary<string, string> { { "indexer", "Test Indexer" }, { "indexerFlags", "0" } }
+                    }
+                });
+
+            Mocker.GetMock<IDownloadHistoryService>()
+                .Setup(s => s.GetLatestDownloadHistoryItem("35238"))
+                .Returns(new DownloadHistory { EventType = DownloadHistoryEventType.DownloadGrabbed, IndexerId = 7 });
+
+            Mocker.GetMock<IParsingService>()
+                  .Setup(s => s.Map(It.IsAny<ParsedAlbumInfo>(), It.IsAny<int>(), It.IsAny<IEnumerable<int>>()))
+                  .Returns<ParsedAlbumInfo, int, IEnumerable<int>>((info, _, _) => new RemoteAlbum
+                  {
+                      Artist = new Artist { Id = 5 },
+                      Albums = new List<Album> { new Album { Id = 4 } },
+                      ParsedAlbumInfo = info
+                  });
+
+            var client = new DownloadClientDefinition
+            {
+                Id = 1,
+                Protocol = nameof(TorrentDownloadProtocol)
+            };
+
+            var item = new DownloadClientItem
+            {
+                Title = "The torrent release folder",
+                DownloadId = "35238",
+                DownloadClientInfo = new DownloadClientItemClientInfo
+                {
+                    Protocol = client.Protocol,
+                    Id = client.Id,
+                    Name = client.Name
+                }
+            };
+
+            var release = Subject.TrackDownload(client, item).RemoteAlbum.Release;
+
+            release.Should().NotBeNull();
+            release.IndexerId.Should().Be(7);
+            release.Indexer.Should().Be("Test Indexer");
+            release.Title.Should().Be("Audio Artist - Audio Album [2018 - FLAC]");
         }
 
         [Test]

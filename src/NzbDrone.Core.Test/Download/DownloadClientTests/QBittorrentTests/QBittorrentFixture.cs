@@ -507,6 +507,50 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.QBittorrentTests
                   .Verify(s => s.AddTorrentFromUrl(It.IsAny<string>(), It.IsAny<TorrentSeedConfiguration>(), It.IsAny<QBittorrentSettings>()), Times.Once());
         }
 
+        private static DownloadClientException ProxyHttpError(System.Net.HttpStatusCode statusCode)
+        {
+            var response = new HttpResponse(new HttpRequest("http://me.local/"), new HttpHeader(), Array.Empty<byte>(), statusCode);
+
+            return new DownloadClientException("Failed to connect to qBittorrent, check your settings.", new HttpException(response));
+        }
+
+        [Test]
+        public void Download_should_reject_magnet_when_qbittorrent_returns_conflict()
+        {
+            Mocker.GetMock<IQBittorrentProxy>()
+                  .Setup(s => s.AddTorrentFromUrl(It.IsAny<string>(), It.IsAny<TorrentSeedConfiguration>(), It.IsAny<QBittorrentSettings>()))
+                  .Throws(ProxyHttpError(System.Net.HttpStatusCode.Conflict));
+
+            var remoteAlbum = CreateRemoteAlbum();
+            remoteAlbum.Release.DownloadUrl = "magnet:?xt=urn:btih:ZPBPA2P6ROZPKRHK44D5OW6NHXU5Z6KR&tr=udp";
+
+            Assert.ThrowsAsync<DownloadClientRejectedReleaseException>(async () => await Subject.Download(remoteAlbum, CreateIndexer()));
+        }
+
+        [Test]
+        public void Download_should_reject_torrent_file_when_qbittorrent_returns_conflict()
+        {
+            Mocker.GetMock<IQBittorrentProxy>()
+                  .Setup(s => s.AddTorrentFromFile(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<TorrentSeedConfiguration>(), It.IsAny<QBittorrentSettings>()))
+                  .Throws(ProxyHttpError(System.Net.HttpStatusCode.Conflict));
+
+            var remoteAlbum = CreateRemoteAlbum();
+
+            Assert.ThrowsAsync<DownloadClientRejectedReleaseException>(async () => await Subject.Download(remoteAlbum, CreateIndexer()));
+        }
+
+        [Test]
+        public void Download_should_keep_other_qbittorrent_errors_as_client_errors()
+        {
+            Mocker.GetMock<IQBittorrentProxy>()
+                  .Setup(s => s.AddTorrentFromFile(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<TorrentSeedConfiguration>(), It.IsAny<QBittorrentSettings>()))
+                  .Throws(ProxyHttpError(System.Net.HttpStatusCode.InternalServerError));
+
+            var remoteAlbum = CreateRemoteAlbum();
+
+            Assert.ThrowsAsync<DownloadClientException>(async () => await Subject.Download(remoteAlbum, CreateIndexer()));
+        }
+
         [Test]
         public async Task Download_should_set_top_priority()
         {

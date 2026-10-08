@@ -38,7 +38,14 @@ namespace NzbDrone.Core.Configuration
         string ScriptImportPath { get; set; }
         bool ImportExtraFiles { get; set; }
         string ExtraFileExtensions { get; set; }
-        string UserRejectedExtensions { get; set; }
+
+        // Default keeps implementations compiled against develop loading
+        string UserRejectedExtensions
+        {
+            get => string.Empty;
+            set { }
+        }
+
         bool WatchLibraryForChanges { get; set; }
         RescanAfterRefreshType RescanAfterRefresh { get; set; }
         AllowFingerprinting AllowFingerprinting { get; set; }

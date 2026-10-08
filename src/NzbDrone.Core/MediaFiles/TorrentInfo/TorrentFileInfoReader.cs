@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using MonoTorrent;
@@ -9,7 +10,9 @@ namespace NzbDrone.Core.MediaFiles.TorrentInfo
     public interface ITorrentFileInfoReader
     {
         string GetHashFromTorrentFile(byte[] fileContents);
-        List<string> GetFileNamesFromTorrentFile(byte[] fileContents);
+
+        // Default keeps implementations compiled against develop loading; the grab-time check skips the torrent when this throws
+        List<string> GetFileNamesFromTorrentFile(byte[] fileContents) => throw new NotSupportedException();
     }
 
     public class TorrentFileInfoReader : ITorrentFileInfoReader

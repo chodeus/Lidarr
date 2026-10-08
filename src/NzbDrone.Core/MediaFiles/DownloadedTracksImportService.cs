@@ -45,7 +45,6 @@ namespace NzbDrone.Core.MediaFiles
         private readonly IEventAggregator _eventAggregator;
         private readonly IRuntimeInfo _runtimeInfo;
         private readonly IConfigService _configService;
-
         private readonly Logger _logger;
 
         public DownloadedTracksImportService(IDiskProvider diskProvider,

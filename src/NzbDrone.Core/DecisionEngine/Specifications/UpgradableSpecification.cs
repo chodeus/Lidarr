@@ -12,7 +12,6 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
     public interface IUpgradableSpecification
     {
         bool IsUpgradable(QualityProfile profile, List<QualityModel> currentQualities, List<CustomFormat> currentCustomFormats, QualityModel newQuality, List<CustomFormat> newCustomFormats);
-        UpgradeableRejectReason GetUpgradeRejectReason(QualityProfile profile, List<QualityModel> currentQualities, List<CustomFormat> currentCustomFormats, QualityModel newQuality, List<CustomFormat> newCustomFormats);
         bool QualityCutoffNotMet(QualityProfile profile, QualityModel currentQuality, QualityModel newQuality = null);
         bool CutoffNotMet(QualityProfile profile, List<QualityModel> currentQualities, List<CustomFormat> currentFormats, QualityModel newQuality = null);
         bool IsRevisionUpgrade(QualityModel currentQuality, QualityModel newQuality);

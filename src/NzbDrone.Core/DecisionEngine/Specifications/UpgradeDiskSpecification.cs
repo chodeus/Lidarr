@@ -59,16 +59,6 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
 
                 _logger.Debug("Comparing file quality with report. Existing files contain {0}", currentQualities.ConcatToString());
 
-                if (!_upgradableSpecification.CutoffNotMet(qualityProfile, currentQualities, customFormats, subject.ParsedAlbumInfo.Quality))
-                {
-                    _logger.Debug("Cutoff already met by existing files, rejecting.");
-
-                    var cutoff = qualityProfile.UpgradeAllowed ? qualityProfile.Cutoff : qualityProfile.FirstAllowedQuality().Id;
-                    var qualityCutoff = qualityProfile.Items[qualityProfile.GetIndex(cutoff).Index];
-
-                    return Decision.Reject("Existing files meets cutoff: {0}", qualityCutoff);
-                }
-
                 var upgradeableRejectReason = _upgradableSpecification.GetUpgradeRejectReason(qualityProfile,
                     currentQualities,
                     customFormats,

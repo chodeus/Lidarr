@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Core.Configuration;
@@ -91,6 +92,13 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
                     new ProfileFormatItem { Format = _formatTwenty, Score = 20 }
                 }
             };
+        }
+
+        [Test]
+        public void should_keep_the_interface_members_plugins_implement()
+        {
+            typeof(IUpgradableSpecification).GetMethods().Select(m => m.Name)
+                .Should().BeEquivalentTo("IsUpgradable", "QualityCutoffNotMet", "CutoffNotMet", "IsRevisionUpgrade", "IsUpgradeAllowed");
         }
 
         [Test]

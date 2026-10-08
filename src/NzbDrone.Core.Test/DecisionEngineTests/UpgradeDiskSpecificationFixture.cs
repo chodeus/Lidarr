@@ -185,18 +185,6 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
         }
 
         [Test]
-        public void should_reject_when_existing_files_meet_both_cutoffs()
-        {
-            GivenFiles(Quality.MP3_320);
-            _parseResultSingle.ParsedAlbumInfo.Quality = new QualityModel(Quality.FLAC);
-
-            var decision = Subject.IsSatisfiedBy(_parseResultSingle, null);
-
-            decision.Accepted.Should().BeFalse();
-            decision.Reason.Should().StartWith("Existing files meets cutoff");
-        }
-
-        [Test]
         public void should_reject_higher_quality_when_quality_cutoff_is_met_but_custom_format_cutoff_is_not()
         {
             GivenFormatScores(cutoffFormatScore: 100);

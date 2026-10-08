@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
@@ -26,8 +25,16 @@ namespace NzbDrone.Core.Download
     public abstract class TorrentClientBase<TSettings> : DownloadClientBase<TSettings>
         where TSettings : IProviderConfig, new()
     {
+        private static readonly List<KeyValuePair<FailDownloads, string>> UnsafeFileRejections = new()
+        {
+            new(FailDownloads.PotentiallyDangerous, "Found potentially dangerous files with extensions"),
+            new(FailDownloads.Executables, "Found executables with extensions"),
+            new(FailDownloads.UserDefinedExtensions, "Found files with user defined rejected extensions")
+        };
+
         protected readonly IHttpClient _httpClient;
         private readonly IBlocklistService _blocklistService;
+
         protected readonly ITorrentFileInfoReader _torrentFileInfoReader;
 
         protected TorrentClientBase(ITorrentFileInfoReader torrentFileInfoReader,
@@ -290,55 +297,11 @@ namespace NzbDrone.Core.Download
 
         private void ValidateFileNames(RemoteAlbum remoteAlbum, List<string> fileNames, HashSet<FailDownloads> failDownloads)
         {
-            var userRejectedExtensions = failDownloads.Contains(FailDownloads.UserDefinedExtensions)
-                ? FileExtensions.ParseUserRejectedExtensions(_configService.UserRejectedExtensions)
-                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var unsafeFiles = FileExtensions.FindUnsafeExtensions(fileNames, _configService.UserRejectedExtensions);
 
-            var dangerousExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var executableExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var userRejected = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var fileName in fileNames)
-            {
-                var extension = Path.GetExtension(fileName);
-
-                if (extension.IsNullOrWhiteSpace())
-                {
-                    continue;
-                }
-
-                if (failDownloads.Contains(FailDownloads.PotentiallyDangerous) &&
-                    FileExtensions.DangerousExtensions.Contains(extension))
-                {
-                    dangerousExtensions.Add(extension);
-                }
-                else if (failDownloads.Contains(FailDownloads.Executables) &&
-                    FileExtensions.ExecutableExtensions.Contains(extension))
-                {
-                    executableExtensions.Add(extension);
-                }
-                else if (userRejectedExtensions.Contains(extension))
-                {
-                    userRejected.Add(extension);
-                }
-            }
-
-            var rejections = new List<string>();
-
-            if (dangerousExtensions.Any())
-            {
-                rejections.Add($"Found potentially dangerous files with extensions: {string.Join(", ", dangerousExtensions)}");
-            }
-
-            if (executableExtensions.Any())
-            {
-                rejections.Add($"Found executables with extensions: {string.Join(", ", executableExtensions)}");
-            }
-
-            if (userRejected.Any())
-            {
-                rejections.Add($"Found files with user defined rejected extensions: {string.Join(", ", userRejected)}");
-            }
+            var rejections = UnsafeFileRejections.Where(r => failDownloads.Contains(r.Key) && unsafeFiles.ContainsKey(r.Key))
+                                                 .Select(r => $"{r.Value}: {string.Join(", ", unsafeFiles[r.Key])}")
+                                                 .ToList();
 
             if (rejections.Count == 0)
             {

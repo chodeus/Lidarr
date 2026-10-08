@@ -114,6 +114,17 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.TorrentClientBaseTests
         }
 
         [Test]
+        public async Task should_not_blocklist_for_a_file_type_the_indexer_does_not_fail()
+        {
+            var remoteAlbum = CreateRemoteAlbum();
+            GivenTorrentFiles("Artist - Album/01 - Track.flac", "Artist - Album/Setup.exe");
+
+            await Subject.Download(remoteAlbum, CreateIndexerWithFailDownloads(true, FailDownloads.PotentiallyDangerous));
+
+            VerifyBlocked(remoteAlbum, 0);
+        }
+
+        [Test]
         public async Task should_not_read_the_file_list_when_the_option_is_off()
         {
             await Subject.Download(CreateRemoteAlbum(), CreateIndexerWithFailDownloads(false, FailDownloads.Executables));

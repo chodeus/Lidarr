@@ -10,6 +10,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
+using NzbDrone.Core.Indexers;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.MediaFiles.TrackImport;
 using NzbDrone.Core.Messaging.Events;
@@ -28,6 +29,13 @@ namespace NzbDrone.Core.MediaFiles
 
     public class DownloadedTracksImportService : IDownloadedTracksImportService
     {
+        private static readonly List<KeyValuePair<FailDownloads, ImportRejection>> UnsafeFileRejections = new()
+        {
+            new(FailDownloads.PotentiallyDangerous, new ImportRejection(ImportRejectionReason.DangerousFile, "Caution: Found potentially dangerous file")),
+            new(FailDownloads.Executables, new ImportRejection(ImportRejectionReason.ExecutableFile, "Caution: Found executable file")),
+            new(FailDownloads.UserDefinedExtensions, new ImportRejection(ImportRejectionReason.UserRejectedExtension, "Caution: Found file with user defined rejected extension"))
+        };
+
         private readonly IDiskProvider _diskProvider;
         private readonly IDiskScanService _diskScanService;
         private readonly IArtistService _artistService;
@@ -37,6 +45,7 @@ namespace NzbDrone.Core.MediaFiles
         private readonly IEventAggregator _eventAggregator;
         private readonly IRuntimeInfo _runtimeInfo;
         private readonly IConfigService _configService;
+
         private readonly Logger _logger;
 
         public DownloadedTracksImportService(IDiskProvider diskProvider,
@@ -360,24 +369,10 @@ namespace NzbDrone.Core.MediaFiles
         {
             var files = _diskProvider.GetFiles(folder, true).ToList();
 
-            var rejections = new List<ImportRejection>();
-
-            if (files.Any(file => FileExtensions.DangerousExtensions.Contains(Path.GetExtension(file))))
-            {
-                rejections.Add(new ImportRejection(ImportRejectionReason.DangerousFile, "Caution: Found potentially dangerous file"));
-            }
-
-            if (files.Any(file => FileExtensions.ExecutableExtensions.Contains(Path.GetExtension(file))))
-            {
-                rejections.Add(new ImportRejection(ImportRejectionReason.ExecutableFile, "Caution: Found executable file"));
-            }
-
-            var userRejectedExtensions = FileExtensions.ParseUserRejectedExtensions(_configService.UserRejectedExtensions);
-
-            if (files.Any(file => userRejectedExtensions.Contains(Path.GetExtension(file))))
-            {
-                rejections.Add(new ImportRejection(ImportRejectionReason.UserRejectedExtension, "Caution: Found file with user defined rejected extension"));
-            }
+            var unsafeFiles = FileExtensions.FindUnsafeExtensions(files, _configService.UserRejectedExtensions);
+            var rejections = UnsafeFileRejections.Where(r => unsafeFiles.ContainsKey(r.Key))
+                                                 .Select(r => r.Value)
+                                                 .ToList();
 
             if (rejections.Any())
             {

@@ -152,6 +152,10 @@ namespace NzbDrone.Core.Download
                     {
                         trackedDownload.Warn(new TrackedDownloadStatusMessage(firstResult.Errors.First(), new List<string>()));
                     }
+                    else if (trackedDownload.State != TrackedDownloadState.DownloadFailedPending)
+                    {
+                        SetStateToImportBlocked(trackedDownload);
+                    }
 
                     return;
                 }

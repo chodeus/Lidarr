@@ -144,6 +144,22 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
         }
 
         [Test]
+        public void should_block_import_when_the_rejected_import_service_warns_instead_of_failing()
+        {
+            GivenFolderRejection();
+
+            Mocker.GetMock<IRejectedImportService>()
+                .Setup(s => s.Process(_trackedDownload, It.IsAny<ImportResult>()))
+                .Callback<TrackedDownload, ImportResult>((td, ir) => td.Warn(new TrackedDownloadStatusMessage(td.DownloadItem.Title, ir.Errors)))
+                .Returns(true);
+
+            Subject.Import(_trackedDownload);
+
+            _trackedDownload.State.Should().Be(TrackedDownloadState.ImportBlocked);
+            _trackedDownload.Status.Should().Be(TrackedDownloadStatus.Warning);
+        }
+
+        [Test]
         public void should_warn_on_a_folder_rejection_the_rejected_import_service_does_not_handle()
         {
             GivenFolderRejection();

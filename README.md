@@ -47,6 +47,10 @@
   - Import matching removes a bracketed "(feat. …)" up to its own closing bracket, so "Song (feat. Guest) (Remixer Remix)" is compared as "Song (Remixer Remix)" instead of "Song".
 - **qBittorrent duplicate torrents** — branch [`fix/qbittorrent-existing-torrent`](https://github.com/chodeus/Lidarr/tree/fix/qbittorrent-existing-torrent), not submitted
   - qBittorrent's 409 for a torrent it already has is a rejected release, not a connection failure, so a manual grab no longer fails with HTTP 500.
+- **ImageSharp advisories** — branch [`fix/imagesharp-advisories`](https://github.com/chodeus/Lidarr/tree/fix/imagesharp-advisories), not submitted
+  - Cover thumbnails decode only JPEG, PNG, WebP, GIF and BMP and skip metadata, so the code behind the five 2026-10-07 ImageSharp 3.1.12 advisories is out of reach; those advisories are suppressed in the NuGet audit. The fixed 4.1.2 needs a paid licence key. Drop this once upstream moves off 3.1.12.
+- **Frontend package advisories** — branch [`chore/frontend-dependency-advisories`](https://github.com/chodeus/Lidarr/tree/chore/frontend-dependency-advisories), not submitted
+  - lodash, moment, qs, immutable, ws and websocket-driver at patched versions, leaving no advisories in the production frontend dependencies. If upstream changes `yarn.lock`, rebase this branch and regenerate those entries.
 
 ## How the build works
 

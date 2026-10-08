@@ -30,7 +30,10 @@
 - **Removing unmatched queue items** — branch [`fix/ignore-unmatched-download`](https://github.com/chodeus/Lidarr/tree/fix/ignore-unmatched-download), not submitted
   - Removing a queue item that never matched an artist (such as "found multiple artists") without blocklisting logs a warning again, instead of failing with an HTTP 500.
 - **Fail downloads with unsafe files** — branch [`feat/fail-downloads`](https://github.com/chodeus/Lidarr/tree/feat/fail-downloads), not submitted
-  - Each indexer gets an advanced Fail Downloads option (Executables, Potentially Dangerous). A download whose folder holds only such files is marked failed, so Lidarr blocklists it and searches again, instead of warning.
+  - Each indexer gets an advanced Fail Downloads option (Executables, Potentially Dangerous, User Defined Extensions). A download whose folder holds only such files is marked failed, so Lidarr blocklists it and searches again, instead of warning.
+  - Settings → Media Management → Additional Rejected File Extensions (advanced) lists the extensions that User Defined Extensions fails. Archive and audio extensions are refused.
+  - Torrent indexers get an advanced Reject Torrent Files with Blocked Extensions option: at grab, a torrent whose file list holds a failed type is blocklisted and never reaches the client. Magnet-only releases are not checked.
+  - Tracked downloads now carry the grab's indexer, which Fail Downloads needs to act at all. A rejection the indexer doesn't fail leaves the download Import Blocked instead of stuck in Importing.
 - **Manual interaction notifications** — branch [`feat/manual-interaction-notification`](https://github.com/chodeus/Lidarr/tree/feat/manual-interaction-notification), not submitted
   - A new On Manual Interaction Required event for connections: it fires once per download when an import is blocked (unparsed, or no artist match). Discord has its own field list; the webhook sends `ManualInteractionRequired`. Migration 904.
 - **Notification links** — branch [`feat/notification-links`](https://github.com/chodeus/Lidarr/tree/feat/notification-links), builds on `feat/manual-interaction-notification`, not submitted

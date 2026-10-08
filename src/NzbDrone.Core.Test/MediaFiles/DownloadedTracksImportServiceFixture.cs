@@ -9,6 +9,8 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Core.Configuration;
+using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.MediaFiles;
@@ -410,6 +412,36 @@ namespace NzbDrone.Core.Test.MediaFiles
         [TestCase(new[] { ".exe", ".lnk" }, new[] { ImportRejectionReason.DangerousFile, ImportRejectionReason.ExecutableFile })]
         public void should_return_rejection_reasons_for_unsafe_files(string[] extensions, ImportRejectionReason[] reasons)
         {
+            var result = ProcessFolderHolding(extensions);
+
+            result.Should().ContainSingle();
+            result.First().ImportDecision.Rejections.Cast<ImportRejection>().Select(r => r.RejectionReason).Should().Equal(reasons);
+        }
+
+        [TestCase("xyz", ".xyz")]
+        [TestCase(".nfo, .XYZ", ".xyz")]
+        public void should_reject_files_with_user_rejected_extensions(string userRejectedExtensions, string extension)
+        {
+            Mocker.GetMock<IConfigService>()
+                .SetupGet(s => s.UserRejectedExtensions)
+                .Returns(userRejectedExtensions);
+
+            var result = ProcessFolderHolding(new[] { extension });
+
+            result.Should().ContainSingle();
+            result.First().ImportDecision.Rejections.Cast<ImportRejection>().Select(r => r.RejectionReason).Should().Equal(ImportRejectionReason.UserRejectedExtension);
+        }
+
+        [Test]
+        public void should_not_reject_unlisted_extensions_when_no_user_rejected_extensions_are_set()
+        {
+            var result = ProcessFolderHolding(new[] { ".xyz" });
+
+            result.SelectMany(r => r.ImportDecision?.Rejections ?? Enumerable.Empty<Rejection>()).OfType<ImportRejection>().Should().BeEmpty();
+        }
+
+        private List<ImportResult> ProcessFolderHolding(string[] extensions)
+        {
             GivenValidArtist();
 
             var path = @"C:\Test\Unsorted\Artist.Title-Album.Title.2017-Lidarr".AsOsAgnostic();
@@ -435,10 +467,7 @@ namespace NzbDrone.Core.Test.MediaFiles
                 .Setup(s => s.GetFiles(It.IsAny<string>(), true))
                 .Returns(extensions.Select(e => _audioFiles.First().Replace(".ext", e)).ToArray());
 
-            var result = Subject.ProcessPath(path);
-
-            result.Should().ContainSingle();
-            result.First().ImportDecision.Rejections.Cast<ImportRejection>().Select(r => r.RejectionReason).Should().Equal(reasons);
+            return Subject.ProcessPath(path);
         }
 
         private void VerifyNoImport()

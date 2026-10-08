@@ -43,6 +43,7 @@ namespace NzbDrone.Core.Test.Download
 
         [TestCase(ImportRejectionReason.ExecutableFile, FailDownloads.Executables)]
         [TestCase(ImportRejectionReason.DangerousFile, FailDownloads.PotentiallyDangerous)]
+        [TestCase(ImportRejectionReason.UserRejectedExtension, FailDownloads.UserDefinedExtensions)]
         public void should_fail_download_when_indexer_fails_that_file_type(ImportRejectionReason reason, FailDownloads failDownloads)
         {
             GivenFailDownloads(failDownloads);
@@ -56,6 +57,7 @@ namespace NzbDrone.Core.Test.Download
 
         [TestCase(ImportRejectionReason.ExecutableFile)]
         [TestCase(ImportRejectionReason.DangerousFile)]
+        [TestCase(ImportRejectionReason.UserRejectedExtension)]
         public void should_warn_when_indexer_does_not_fail_that_file_type(ImportRejectionReason reason)
         {
             Subject.Process(_trackedDownload, Rejected(reason)).Should().BeTrue();

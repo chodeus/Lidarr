@@ -8,6 +8,9 @@ namespace NzbDrone.Core.Indexers
         Executables = 0,
 
         [FieldOption(Label = "Potentially Dangerous")]
-        PotentiallyDangerous = 1
+        PotentiallyDangerous = 1,
+
+        [FieldOption(Label = "User Defined Extensions")]
+        UserDefinedExtensions = 2
     }
 }

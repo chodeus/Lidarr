@@ -314,6 +314,24 @@ class MediaManagement extends Component {
                             />
                           </FormGroup> : null
                       }
+
+                      <FormGroup
+                        advancedSettings={advancedSettings}
+                        isAdvanced={true}
+                      >
+                        <FormLabel>{translate('UserRejectedExtensions')}</FormLabel>
+
+                        <FormInputGroup
+                          type={inputTypes.TEXT}
+                          name="userRejectedExtensions"
+                          helpTexts={[
+                            translate('UserRejectedExtensionsHelpText'),
+                            translate('UserRejectedExtensionsTextsExamples')
+                          ]}
+                          onChange={onInputChange}
+                          {...settings.userRejectedExtensions}
+                        />
+                      </FormGroup>
                     </FieldSet> : null
                 }
 

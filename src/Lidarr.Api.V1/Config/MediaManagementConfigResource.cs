@@ -30,6 +30,7 @@ namespace Lidarr.Api.V1.Config
         public string ScriptImportPath { get; set; }
         public bool ImportExtraFiles { get; set; }
         public string ExtraFileExtensions { get; set; }
+        public string UserRejectedExtensions { get; set; }
     }
 
     public static class MediaManagementConfigResourceMapper
@@ -61,6 +62,7 @@ namespace Lidarr.Api.V1.Config
                 ScriptImportPath = model.ScriptImportPath,
                 ImportExtraFiles = model.ImportExtraFiles,
                 ExtraFileExtensions = model.ExtraFileExtensions,
+                UserRejectedExtensions = model.UserRejectedExtensions,
             };
         }
     }

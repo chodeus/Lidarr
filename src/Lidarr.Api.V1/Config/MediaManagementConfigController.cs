@@ -1,7 +1,9 @@
+using System.Linq;
 using FluentValidation;
 using Lidarr.Http;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Validation;
 using NzbDrone.Core.Validation.Paths;
 
@@ -34,6 +36,25 @@ namespace Lidarr.Api.V1.Config
             SharedValidator.RuleFor(c => c.ChmodFolder).SetValidator(folderChmodValidator).When(c => !string.IsNullOrEmpty(c.ChmodFolder) && (OsInfo.IsLinux || OsInfo.IsOsx));
             SharedValidator.RuleFor(c => c.ScriptImportPath).IsValidPath().When(c => c.UseScriptImport);
             SharedValidator.RuleFor(c => c.MinimumFreeSpaceWhenImporting).GreaterThanOrEqualTo(100);
+
+            SharedValidator.RuleFor(c => c.UserRejectedExtensions).Custom((extensions, context) =>
+            {
+                var userRejectedExtensions = FileExtensions.ParseExtensions(extensions);
+
+                var matchingArchiveExtensions = userRejectedExtensions.Where(ext => FileExtensions.ArchiveExtensions.Contains(ext)).ToList();
+
+                if (matchingArchiveExtensions.Count > 0)
+                {
+                    context.AddFailure($"Rejected extensions may not include valid archive extensions: {string.Join(", ", matchingArchiveExtensions)}");
+                }
+
+                var matchingMediaFileExtensions = userRejectedExtensions.Where(ext => MediaFileExtensions.Extensions.Contains(ext)).ToList();
+
+                if (matchingMediaFileExtensions.Count > 0)
+                {
+                    context.AddFailure($"Rejected extensions may not include valid media file extensions: {string.Join(", ", matchingMediaFileExtensions)}");
+                }
+            });
         }
 
         protected override MediaManagementConfigResource ToResource(IConfigService model)

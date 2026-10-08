@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using NzbDrone.Common.Extensions;
 
 namespace NzbDrone.Core.MediaFiles
 {
-    internal static class FileExtensions
+    public static class FileExtensions
     {
         private static List<string> _archiveExtensions = new List<string>
         {
@@ -43,5 +45,22 @@ namespace NzbDrone.Core.MediaFiles
             ".vbs",
             ".zipx"
         };
+
+        public static List<string> ParseExtensions(string input)
+        {
+            if (input.IsNullOrWhiteSpace())
+            {
+                return new List<string>();
+            }
+
+            return input.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(e => e.Trim(' ', '.').Insert(0, "."))
+                .ToList();
+        }
+
+        public static HashSet<string> ParseUserRejectedExtensions(string input)
+        {
+            return ParseExtensions(input).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
     }
 }

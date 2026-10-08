@@ -242,6 +242,12 @@ namespace NzbDrone.Core.Configuration
             set { SetValue("ExtraFileExtensions", value); }
         }
 
+        public string UserRejectedExtensions
+        {
+            get { return GetValue("UserRejectedExtensions", string.Empty); }
+            set { SetValue("UserRejectedExtensions", value); }
+        }
+
         public bool WatchLibraryForChanges
         {
             get { return GetValueBoolean("WatchLibraryForChanges", true); }

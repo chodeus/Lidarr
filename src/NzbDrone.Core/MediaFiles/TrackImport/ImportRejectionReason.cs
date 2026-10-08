@@ -4,6 +4,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
     {
         Unknown,
         DangerousFile,
-        ExecutableFile
+        ExecutableFile,
+        UserRejectedExtension
     }
 }

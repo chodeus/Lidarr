@@ -15,6 +15,9 @@ namespace Lidarr.Api.V1.Profiles.Quality
         public List<QualityProfileQualityItemResource> Items { get; set; }
         public int MinFormatScore { get; set; }
         public int CutoffFormatScore { get; set; }
+
+        // Clients written against develop omit this field; 1 keeps their saves valid
+        public int MinUpgradeFormatScore { get; set; } = 1;
         public List<ProfileFormatItemResource> FormatItems { get; set; }
     }
 
@@ -56,6 +59,7 @@ namespace Lidarr.Api.V1.Profiles.Quality
                 Items = model.Items.ConvertAll(ToResource),
                 MinFormatScore = model.MinFormatScore,
                 CutoffFormatScore = model.CutoffFormatScore,
+                MinUpgradeFormatScore = model.MinUpgradeFormatScore,
                 FormatItems = model.FormatItems.ConvertAll(ToResource)
             };
         }
@@ -103,6 +107,7 @@ namespace Lidarr.Api.V1.Profiles.Quality
                 Items = resource.Items.ConvertAll(ToModel),
                 MinFormatScore = resource.MinFormatScore,
                 CutoffFormatScore = resource.CutoffFormatScore,
+                MinUpgradeFormatScore = resource.MinUpgradeFormatScore,
                 FormatItems = resource.FormatItems.ConvertAll(ToModel)
             };
         }

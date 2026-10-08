@@ -70,24 +70,34 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
 
                 _logger.Debug("Checking if release is higher quality than queued release. Queued: {0}", remoteAlbum.ParsedAlbumInfo.Quality);
 
-                if (!_upgradableSpecification.IsUpgradable(qualityProfile,
-                                                           new List<QualityModel> { remoteAlbum.ParsedAlbumInfo.Quality },
-                                                           queuedItemCustomFormats,
-                                                           subject.ParsedAlbumInfo.Quality,
-                                                           subject.CustomFormats))
-                {
-                    return Decision.Reject("Release in queue is of equal or higher preference: {0}", remoteAlbum.ParsedAlbumInfo.Quality);
-                }
+                var upgradeableRejectReason = _upgradableSpecification.GetUpgradeRejectReason(qualityProfile,
+                    new List<QualityModel> { remoteAlbum.ParsedAlbumInfo.Quality },
+                    queuedItemCustomFormats,
+                    subject.ParsedAlbumInfo.Quality,
+                    subject.CustomFormats);
 
-                _logger.Debug("Checking if profiles allow upgrading. Queued: {0}", remoteAlbum.ParsedAlbumInfo.Quality);
-
-                if (!_upgradableSpecification.IsUpgradeAllowed(qualityProfile,
-                                                               new List<QualityModel> { remoteAlbum.ParsedAlbumInfo.Quality },
-                                                               queuedItemCustomFormats,
-                                                               subject.ParsedAlbumInfo.Quality,
-                                                               subject.CustomFormats))
+                switch (upgradeableRejectReason)
                 {
-                    return Decision.Reject("Another release is queued and the Quality profile does not allow upgrades");
+                    case UpgradeableRejectReason.BetterQuality:
+                        return Decision.Reject("Release in queue is of equal or higher preference: {0}", remoteAlbum.ParsedAlbumInfo.Quality);
+
+                    case UpgradeableRejectReason.BetterRevision:
+                        return Decision.Reject("Release in queue is of equal or higher revision: {0}", remoteAlbum.ParsedAlbumInfo.Quality.Revision);
+
+                    case UpgradeableRejectReason.QualityCutoff:
+                        return Decision.Reject("Release in queue meets quality cutoff: {0}", qualityProfile.Items[qualityProfile.GetIndex(qualityProfile.Cutoff).Index]);
+
+                    case UpgradeableRejectReason.CustomFormatCutoff:
+                        return Decision.Reject("Release in queue meets Custom Format cutoff: {0}", qualityProfile.CutoffFormatScore);
+
+                    case UpgradeableRejectReason.CustomFormatScore:
+                        return Decision.Reject("Release in queue has an equal or higher Custom Format score: {0}", qualityProfile.CalculateCustomFormatScore(queuedItemCustomFormats));
+
+                    case UpgradeableRejectReason.MinCustomFormatScore:
+                        return Decision.Reject("Release in queue has Custom Format score within Custom Format score increment: {0}", qualityProfile.MinUpgradeFormatScore);
+
+                    case UpgradeableRejectReason.UpgradesNotAllowed:
+                        return Decision.Reject("Release in queue and Quality Profile '{0}' does not allow upgrades", qualityProfile.Name);
                 }
 
                 if (_upgradableSpecification.IsRevisionUpgrade(remoteAlbum.ParsedAlbumInfo.Quality, subject.ParsedAlbumInfo.Quality))

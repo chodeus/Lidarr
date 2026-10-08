@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
@@ -9,6 +10,7 @@ using NzbDrone.Core.DecisionEngine.Specifications;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Profiles;
 using NzbDrone.Core.Profiles.Qualities;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Test.CustomFormats;
@@ -20,6 +22,8 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
 
     public class UpgradeDiskSpecificationFixture : CoreTest<UpgradeDiskSpecification>
     {
+        private readonly CustomFormat _formatTen = new CustomFormat { Id = 1, Name = "Ten" };
+        private readonly CustomFormat _formatTwenty = new CustomFormat { Id = 2, Name = "Twenty" };
         private RemoteAlbum _parseResultMulti;
         private RemoteAlbum _parseResultSingle;
         private TrackFile _firstFile;
@@ -155,6 +159,92 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
             WithFirstFileUpgradable();
             _parseResultSingle.ParsedAlbumInfo.Quality = _secondFile.Quality;
             Subject.IsSatisfiedBy(_parseResultSingle, null).Accepted.Should().BeTrue();
+        }
+
+        private void GivenFormatScores(int cutoffFormatScore, int minUpgradeFormatScore = 1)
+        {
+            var profile = _parseResultSingle.Artist.QualityProfile.Value;
+
+            profile.CutoffFormatScore = cutoffFormatScore;
+            profile.MinUpgradeFormatScore = minUpgradeFormatScore;
+            profile.FormatItems = new List<ProfileFormatItem>
+            {
+                new ProfileFormatItem { Format = _formatTen, Score = 10 },
+                new ProfileFormatItem { Format = _formatTwenty, Score = 20 }
+            };
+        }
+
+        private void GivenFiles(Quality quality, params CustomFormat[] formats)
+        {
+            _firstFile.Quality = new QualityModel(quality);
+            _secondFile.Quality = new QualityModel(quality);
+
+            Mocker.GetMock<ICustomFormatCalculationService>()
+                  .Setup(x => x.ParseCustomFormat(It.IsAny<TrackFile>()))
+                  .Returns(formats.ToList());
+        }
+
+        [Test]
+        public void should_reject_when_existing_files_meet_both_cutoffs()
+        {
+            GivenFiles(Quality.MP3_320);
+            _parseResultSingle.ParsedAlbumInfo.Quality = new QualityModel(Quality.FLAC);
+
+            var decision = Subject.IsSatisfiedBy(_parseResultSingle, null);
+
+            decision.Accepted.Should().BeFalse();
+            decision.Reason.Should().StartWith("Existing files meets cutoff");
+        }
+
+        [Test]
+        public void should_reject_higher_quality_when_quality_cutoff_is_met_but_custom_format_cutoff_is_not()
+        {
+            GivenFormatScores(cutoffFormatScore: 100);
+            GivenFiles(Quality.MP3_320);
+            _parseResultSingle.ParsedAlbumInfo.Quality = new QualityModel(Quality.FLAC);
+
+            var decision = Subject.IsSatisfiedBy(_parseResultSingle, null);
+
+            decision.Accepted.Should().BeFalse();
+            decision.Reason.Should().Contain("meets quality cutoff");
+        }
+
+        [Test]
+        public void should_reject_custom_format_upgrade_when_custom_format_cutoff_is_met()
+        {
+            GivenFormatScores(cutoffFormatScore: 10);
+            GivenFiles(Quality.MP3_256, _formatTen);
+            _parseResultSingle.ParsedAlbumInfo.Quality = new QualityModel(Quality.MP3_256);
+            _parseResultSingle.CustomFormats = new List<CustomFormat> { _formatTwenty };
+
+            var decision = Subject.IsSatisfiedBy(_parseResultSingle, null);
+
+            decision.Accepted.Should().BeFalse();
+            decision.Reason.Should().Contain("meets Custom Format cutoff");
+        }
+
+        [TestCase(11, false)]
+        [TestCase(10, true)]
+        public void should_require_the_minimum_custom_format_score_increment(int minUpgradeFormatScore, bool accepted)
+        {
+            GivenFormatScores(cutoffFormatScore: 100, minUpgradeFormatScore: minUpgradeFormatScore);
+            GivenFiles(Quality.MP3_256, _formatTen);
+            _parseResultSingle.ParsedAlbumInfo.Quality = new QualityModel(Quality.MP3_256);
+            _parseResultSingle.CustomFormats = new List<CustomFormat> { _formatTwenty };
+
+            Subject.IsSatisfiedBy(_parseResultSingle, null).Accepted.Should().Be(accepted);
+        }
+
+        [Test]
+        public void should_reject_custom_format_upgrade_when_upgrades_are_not_allowed()
+        {
+            GivenFormatScores(cutoffFormatScore: 100);
+            GivenFiles(Quality.MP3_256, _formatTen);
+            _parseResultSingle.Artist.QualityProfile.Value.UpgradeAllowed = false;
+            _parseResultSingle.ParsedAlbumInfo.Quality = new QualityModel(Quality.MP3_256);
+            _parseResultSingle.CustomFormats = new List<CustomFormat> { _formatTwenty };
+
+            Subject.IsSatisfiedBy(_parseResultSingle, null).Accepted.Should().BeFalse();
         }
 
         [Test]

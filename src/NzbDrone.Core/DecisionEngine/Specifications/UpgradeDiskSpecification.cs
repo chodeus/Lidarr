@@ -40,6 +40,8 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
 
         public virtual Decision IsSatisfiedBy(RemoteAlbum subject, SearchCriteriaBase searchCriteria)
         {
+            var qualityProfile = subject.Artist.QualityProfile.Value;
+
             foreach (var album in subject.Albums)
             {
                 var tracksMissing = _missingFilesCache.Get(album.Id.ToString(),
@@ -47,20 +49,57 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
                                                            TimeSpan.FromSeconds(30));
                 var trackFiles = _mediaFileService.GetFilesByAlbum(album.Id);
 
-                if (!tracksMissing && trackFiles.Any())
+                if (tracksMissing || !trackFiles.Any())
                 {
-                    var currentQualities = trackFiles.Select(c => c.Quality).Distinct().ToList();
+                    continue;
+                }
 
-                    var customFormats = _formatService.ParseCustomFormat(trackFiles[0]);
+                var currentQualities = trackFiles.Select(c => c.Quality).Distinct().ToList();
+                var customFormats = _formatService.ParseCustomFormat(trackFiles[0]);
 
-                    if (!_upgradableSpecification.IsUpgradable(subject.Artist.QualityProfile,
-                                                               currentQualities,
-                                                               customFormats,
-                                                               subject.ParsedAlbumInfo.Quality,
-                                                               subject.CustomFormats))
-                    {
+                _logger.Debug("Comparing file quality with report. Existing files contain {0}", currentQualities.ConcatToString());
+
+                if (!_upgradableSpecification.CutoffNotMet(qualityProfile, currentQualities, customFormats, subject.ParsedAlbumInfo.Quality))
+                {
+                    _logger.Debug("Cutoff already met by existing files, rejecting.");
+
+                    var cutoff = qualityProfile.UpgradeAllowed ? qualityProfile.Cutoff : qualityProfile.FirstAllowedQuality().Id;
+                    var qualityCutoff = qualityProfile.Items[qualityProfile.GetIndex(cutoff).Index];
+
+                    return Decision.Reject("Existing files meets cutoff: {0}", qualityCutoff);
+                }
+
+                var upgradeableRejectReason = _upgradableSpecification.GetUpgradeRejectReason(qualityProfile,
+                    currentQualities,
+                    customFormats,
+                    subject.ParsedAlbumInfo.Quality,
+                    subject.CustomFormats);
+
+                switch (upgradeableRejectReason)
+                {
+                    case UpgradeableRejectReason.None:
+                        continue;
+
+                    case UpgradeableRejectReason.BetterQuality:
                         return Decision.Reject("Existing files on disk is of equal or higher preference: {0}", currentQualities.ConcatToString());
-                    }
+
+                    case UpgradeableRejectReason.BetterRevision:
+                        return Decision.Reject("Existing files on disk is of equal or higher revision: {0}", currentQualities.ConcatToString());
+
+                    case UpgradeableRejectReason.QualityCutoff:
+                        return Decision.Reject("Existing files on disk meets quality cutoff: {0}", qualityProfile.Items[qualityProfile.GetIndex(qualityProfile.Cutoff).Index]);
+
+                    case UpgradeableRejectReason.CustomFormatCutoff:
+                        return Decision.Reject("Existing files on disk meets Custom Format cutoff: {0}", qualityProfile.CutoffFormatScore);
+
+                    case UpgradeableRejectReason.CustomFormatScore:
+                        return Decision.Reject("Existing files on disk has a equal or higher Custom Format score: {0}", qualityProfile.CalculateCustomFormatScore(customFormats));
+
+                    case UpgradeableRejectReason.MinCustomFormatScore:
+                        return Decision.Reject("Existing files on disk has Custom Format score within Custom Format score increment: {0}", qualityProfile.MinUpgradeFormatScore);
+
+                    case UpgradeableRejectReason.UpgradesNotAllowed:
+                        return Decision.Reject("Existing files on disk and Quality Profile '{0}' does not allow upgrades", qualityProfile.Name);
                 }
             }
 

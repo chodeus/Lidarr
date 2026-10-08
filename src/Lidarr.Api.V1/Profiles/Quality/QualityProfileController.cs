@@ -22,6 +22,7 @@ namespace Lidarr.Api.V1.Profiles.Quality
             _qualityProfileService = qualityProfileService;
             _formatService = formatService;
             SharedValidator.RuleFor(c => c.Name).NotEmpty();
+            SharedValidator.RuleFor(c => c.MinUpgradeFormatScore).GreaterThanOrEqualTo(1);
             SharedValidator.RuleFor(c => c.Cutoff).ValidCutoff();
             SharedValidator.RuleFor(c => c.Items).ValidItems();
 

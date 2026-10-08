@@ -45,6 +45,8 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Specifications
                 QualityProfile = new QualityProfile
                 {
                     Items = Qualities.QualityFixture.GetDefaultQualities(Quality.MP3_256, Quality.MP3_320, Quality.FLAC, Quality.FLAC_24),
+                    Cutoff = Quality.FLAC_24.Id,
+                    CutoffFormatScore = 100,
                     FormatItems = new List<ProfileFormatItem>
                     {
                         new ProfileFormatItem { Format = _formats[0], Score = 50 },

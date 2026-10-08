@@ -45,6 +45,8 @@
   - Import matching scores a file's artist against the artist's name and every MusicBrainz alias, keeping the closest, so files tagged "Kanye West" match Ye.
 - **Featured credit keeps the rest of a track title** — branch [`fix/feat-credit-keeps-version`](https://github.com/chodeus/Lidarr/tree/fix/feat-credit-keeps-version), not submitted
   - Import matching removes a bracketed "(feat. …)" up to its own closing bracket, so "Song (feat. Guest) (Remixer Remix)" is compared as "Song (Remixer Remix)" instead of "Song".
+- **qBittorrent duplicate torrents** — branch [`fix/qbittorrent-existing-torrent`](https://github.com/chodeus/Lidarr/tree/fix/qbittorrent-existing-torrent), not submitted
+  - qBittorrent's 409 for a torrent it already has is a rejected release, not a connection failure, so a manual grab no longer fails with HTTP 500.
 
 ## How the build works
 

@@ -160,6 +160,31 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
         }
 
         [Test]
+        public void should_process_a_folder_rejection_listed_ahead_of_track_rejections()
+        {
+            var folderRejection = new ImportResult(
+                new ImportDecision<LocalTrack>(null, new ImportRejection(ImportRejectionReason.ExecutableFile, "Caution: Found executable file")),
+                "Caution: Found executable file");
+
+            Mocker.GetMock<IDownloadedTracksImportService>()
+                .Setup(v => v.ProcessPath(It.IsAny<string>(), It.IsAny<ImportMode>(), It.IsAny<Artist>(), It.IsAny<DownloadClientItem>()))
+                .Returns(new List<ImportResult>
+                {
+                    folderRejection,
+                    new ImportResult(new ImportDecision<LocalTrack>(new LocalTrack { Path = @"C:\TestPath\01 - Track.flac".AsOsAgnostic() }, new Rejection("Album match is not close enough")), "Album match is not close enough")
+                });
+
+            Mocker.GetMock<IRejectedImportService>()
+                .Setup(s => s.Process(_trackedDownload, folderRejection))
+                .Callback(() => _trackedDownload.Fail())
+                .Returns(true);
+
+            Subject.Import(_trackedDownload);
+
+            _trackedDownload.State.Should().Be(TrackedDownloadState.DownloadFailedPending);
+        }
+
+        [Test]
         public void should_warn_on_a_folder_rejection_the_rejected_import_service_does_not_handle()
         {
             GivenFolderRejection();

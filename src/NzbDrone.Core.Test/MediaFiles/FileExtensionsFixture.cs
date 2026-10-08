@@ -36,6 +36,14 @@ namespace NzbDrone.Core.Test.MediaFiles
                           .Should().BeEmpty();
         }
 
+        [TestCase("Album/file.foo.bar", true)]
+        [TestCase("Album/file.bar", false)]
+        public void should_match_a_compound_user_extension_on_the_file_name(string fileName, bool matches)
+        {
+            FileExtensions.FindUnsafeExtensions(new[] { fileName }, ".foo.bar")
+                          .ContainsKey(FailDownloads.UserDefinedExtensions).Should().Be(matches);
+        }
+
         [Test]
         public void should_trim_whitespace_and_skip_empty_extensions()
         {

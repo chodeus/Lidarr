@@ -272,6 +272,16 @@ namespace NzbDrone.Core.MediaFiles
             {
                 importResults.AddIfNotNull(CheckEmptyResultForIssue(directoryInfo.FullName));
             }
+            else if (importResults.None(r => r.Result == ImportResultType.Imported))
+            {
+                // Fake audio beside an unsafe file must still fail the download: the folder rejection goes first
+                var unsafeFiles = CheckForUnsafeFiles(_diskProvider.GetFiles(directoryInfo.FullName, true).ToList());
+
+                if (unsafeFiles != null)
+                {
+                    importResults.Insert(0, unsafeFiles);
+                }
+            }
 
             return importResults;
         }
@@ -378,18 +388,29 @@ namespace NzbDrone.Core.MediaFiles
             return new ImportResult(new ImportDecision<LocalTrack>(null, new Rejection(message)), message);
         }
 
-        private ImportResult CheckEmptyResultForIssue(string folder)
+        private ImportResult CheckForUnsafeFiles(List<string> files)
         {
-            var files = _diskProvider.GetFiles(folder, true).ToList();
-
             var unsafeFiles = FileExtensions.FindUnsafeExtensions(files, _configService?.UserRejectedExtensions);
             var rejections = UnsafeFileRejections.Where(r => unsafeFiles.ContainsKey(r.Key))
                                                  .Select(r => r.Value)
                                                  .ToList();
 
-            if (rejections.Any())
+            if (rejections.Empty())
             {
-                return new ImportResult(new ImportDecision<LocalTrack>(null, rejections.ToArray()), rejections.Select(r => r.Reason).ToArray());
+                return null;
+            }
+
+            return new ImportResult(new ImportDecision<LocalTrack>(null, rejections.ToArray()), rejections.Select(r => r.Reason).ToArray());
+        }
+
+        private ImportResult CheckEmptyResultForIssue(string folder)
+        {
+            var files = _diskProvider.GetFiles(folder, true).ToList();
+            var unsafeFiles = CheckForUnsafeFiles(files);
+
+            if (unsafeFiles != null)
+            {
+                return unsafeFiles;
             }
 
             if (files.Any(file => FileExtensions.ArchiveExtensions.Contains(Path.GetExtension(file))))

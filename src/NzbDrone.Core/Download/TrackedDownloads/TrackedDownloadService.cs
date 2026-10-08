@@ -200,7 +200,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                     {
                         trackedDownload.RemoteAlbum.Release ??= new ReleaseInfo();
                         trackedDownload.RemoteAlbum.Release.Indexer = trackedDownload.Indexer;
-                        trackedDownload.RemoteAlbum.Release.Title = trackedDownload.RemoteAlbum.ParsedAlbumInfo?.ReleaseTitle;
+                        trackedDownload.RemoteAlbum.Release.Title = grabbedEvent?.SourceTitle ?? trackedDownload.RemoteAlbum.ParsedAlbumInfo?.ReleaseTitle;
 
                         if (Enum.TryParse(grabbedEvent?.Data?.GetValueOrDefault("indexerFlags"), true, out IndexerFlags flags))
                         {

@@ -155,25 +155,22 @@ namespace NzbDrone.Core.Download
                 return;
             }
 
-            if (importResults.Count == 1)
+            var folderRejection = importResults.FirstOrDefault(r => r.Result == ImportResultType.Rejected && r.ImportDecision.Item == null);
+
+            if (folderRejection != null && importResults.None(r => r.Result == ImportResultType.Imported))
             {
-                var firstResult = importResults.First();
+                var processed = _rejectedImportService?.Process(trackedDownload, folderRejection) ?? false;
 
-                if (firstResult.Result == ImportResultType.Rejected && firstResult.ImportDecision.Item == null)
+                if (!processed)
                 {
-                    var processed = _rejectedImportService?.Process(trackedDownload, firstResult) ?? false;
-
-                    if (!processed)
-                    {
-                        trackedDownload.Warn(new TrackedDownloadStatusMessage(firstResult.Errors.First(), new List<string>()));
-                    }
-                    else if (trackedDownload.State != TrackedDownloadState.DownloadFailedPending)
-                    {
-                        SetStateToImportBlocked(trackedDownload);
-                    }
-
-                    return;
+                    trackedDownload.Warn(new TrackedDownloadStatusMessage(folderRejection.Errors.First(), new List<string>()));
                 }
+                else if (trackedDownload.State != TrackedDownloadState.DownloadFailedPending)
+                {
+                    SetStateToImportBlocked(trackedDownload);
+                }
+
+                return;
             }
 
             var statusMessages = new List<TrackedDownloadStatusMessage>

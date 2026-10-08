@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using MonoTorrent;
 using NLog;
 
@@ -32,7 +31,7 @@ namespace NzbDrone.Core.MediaFiles.TorrentInfo
             }
             catch
             {
-                _logger.Trace("Invalid torrent file contents: {0}", Encoding.ASCII.GetString(fileContents));
+                _logger.Trace("Invalid torrent file ({0} bytes)", fileContents.Length);
                 throw;
             }
         }
@@ -45,7 +44,7 @@ namespace NzbDrone.Core.MediaFiles.TorrentInfo
             }
             catch
             {
-                _logger.Trace("Invalid torrent file contents: {0}", Encoding.ASCII.GetString(fileContents));
+                _logger.Trace("Invalid torrent file ({0} bytes)", fileContents.Length);
                 throw;
             }
         }

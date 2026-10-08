@@ -69,26 +69,38 @@ namespace NzbDrone.Core.MediaFiles
 
         public static Dictionary<FailDownloads, HashSet<string>> FindUnsafeExtensions(IEnumerable<string> fileNames, string userRejectedExtensions)
         {
-            var groups = new Dictionary<FailDownloads, HashSet<string>>
-            {
-                [FailDownloads.PotentiallyDangerous] = DangerousExtensions,
-                [FailDownloads.Executables] = ExecutableExtensions,
-                [FailDownloads.UserDefinedExtensions] = ParseUserRejectedExtensions(userRejectedExtensions)
-            };
-
+            var userExtensions = ParseUserRejectedExtensions(userRejectedExtensions);
             var found = new Dictionary<FailDownloads, HashSet<string>>();
 
-            foreach (var extension in fileNames.Select(Path.GetExtension).Where(e => e.IsNotNullOrWhiteSpace()))
+            void Add(FailDownloads type, string extension)
             {
-                foreach (var group in groups.Where(g => g.Value.Contains(extension)))
+                if (!found.TryGetValue(type, out var extensions))
                 {
-                    if (!found.TryGetValue(group.Key, out var extensions))
-                    {
-                        extensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                        found[group.Key] = extensions;
-                    }
+                    extensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    found[type] = extensions;
+                }
 
-                    extensions.Add(extension);
+                extensions.Add(extension);
+            }
+
+            foreach (var fileName in fileNames.Where(f => f.IsNotNullOrWhiteSpace()))
+            {
+                var extension = Path.GetExtension(fileName);
+
+                if (DangerousExtensions.Contains(extension))
+                {
+                    Add(FailDownloads.PotentiallyDangerous, extension);
+                }
+
+                if (ExecutableExtensions.Contains(extension))
+                {
+                    Add(FailDownloads.Executables, extension);
+                }
+
+                // Suffix match so a configured compound extension such as .foo.bar is found too
+                foreach (var userExtension in userExtensions.Where(e => fileName.EndsWith(e, StringComparison.OrdinalIgnoreCase)))
+                {
+                    Add(FailDownloads.UserDefinedExtensions, userExtension);
                 }
             }
 

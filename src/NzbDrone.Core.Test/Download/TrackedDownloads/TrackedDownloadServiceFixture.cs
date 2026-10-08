@@ -62,7 +62,7 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
 
             Mocker.GetMock<IDownloadHistoryService>()
                 .Setup(s => s.GetLatestDownloadHistoryItem("35238"))
-                .Returns(new DownloadHistory { EventType = DownloadHistoryEventType.FileImported, IndexerId = 0 });
+                .Returns(new DownloadHistory { EventType = DownloadHistoryEventType.DownloadImported, IndexerId = 0 });
 
             Mocker.GetMock<IDownloadHistoryService>()
                 .Setup(s => s.GetLatestGrab("35238"))
@@ -112,6 +112,25 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
             release.Should().NotBeNull();
             release.IndexerId.Should().Be(7);
             release.Indexer.Should().Be("Test Indexer");
+            release.Title.Should().Be("Audio Artist - Audio Album [2018 - FLAC]");
+        }
+
+        [Test]
+        public void should_title_the_release_after_the_grab_when_the_client_title_differs()
+        {
+            GivenGrabHistory(true);
+
+            Mocker.GetMock<IParsingService>()
+                  .Setup(s => s.Map(It.IsAny<ParsedAlbumInfo>(), It.IsAny<SearchCriteriaBase>()))
+                  .Returns<ParsedAlbumInfo, SearchCriteriaBase>((info, _) => new RemoteAlbum
+                  {
+                      Artist = new Artist { Id = 5 },
+                      Albums = new List<Album> { new Album { Id = 4 } },
+                      ParsedAlbumInfo = info
+                  });
+
+            var release = GivenTrackedTorrent("Audio Artist - Audio Album [2018 - MP3-320]").RemoteAlbum.Release;
+
             release.Title.Should().Be("Audio Artist - Audio Album [2018 - FLAC]");
         }
 

@@ -1,8 +1,11 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
+using FluentAssertions;
 using Moq;
 using NUnit.Framework;
+using NzbDrone.Common.Http;
 using NzbDrone.Core.Blocklisting;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
@@ -167,6 +170,19 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.TorrentClientBaseTests
 
             VerifyBlocked(remoteAlbum, 1);
             ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public async Task should_fall_back_to_the_magnet_link_when_the_torrent_file_is_gone()
+        {
+            Mocker.GetMock<IHttpClient>()
+                  .Setup(s => s.GetAsync(It.IsAny<HttpRequest>()))
+                  .ThrowsAsync(new HttpException(new HttpResponse(new HttpRequest("http://example.invalid/torrent"), new HttpHeader(), System.Array.Empty<byte>(), HttpStatusCode.NotFound)));
+
+            var hash = await Subject.Download(CreateRemoteAlbumWithMagnetAndTorrentFile(), CreateIndexerWithFailDownloads(true, FailDownloads.Executables));
+
+            hash.Should().NotBeNullOrWhiteSpace();
+            ExceptionVerification.ExpectedErrors(1);
         }
 
         [Test]

@@ -55,7 +55,7 @@ namespace NzbDrone.Core.Download
             {
                 try
                 {
-                    // Import first: a rejected import can fail the download, which is then processed in this pass
+                    // Must stay ahead of the failed check below so a download failed during import is handled in this pass
                     if (enableCompletedDownloadHandling && trackedDownload.State == TrackedDownloadState.ImportPending)
                     {
                         _completedDownloadService.Import(trackedDownload);

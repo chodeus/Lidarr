@@ -1,5 +1,7 @@
 using System.Text;
 using FluentAssertions;
+using NLog;
+using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Core.MediaFiles.TorrentInfo;
 using NzbDrone.Core.Test.Framework;
@@ -42,6 +44,40 @@ namespace NzbDrone.Core.Test.MediaFiles.TorrentInfo
 
             fileNames.Should().HaveCount(2);
             fileNames.Should().Contain(f => f.EndsWith("Setup.exe"));
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_not_log_the_contents_of_an_invalid_torrent(bool readFileNames)
+        {
+            var memory = new MemoryTarget("torrentReaderLog") { Layout = "${message}" };
+            LogManager.Configuration.AddRuleForAllLevels(memory);
+            LogManager.ReconfigExistingLoggers();
+
+            try
+            {
+                var contents = Encoding.UTF8.GetBytes("d8:announce46:http://tracker.invalid/announce?passkey=SECRETe");
+
+                Assert.Catch(() =>
+                {
+                    if (readFileNames)
+                    {
+                        Subject.GetFileNamesFromTorrentFile(contents);
+                    }
+                    else
+                    {
+                        Subject.GetHashFromTorrentFile(contents);
+                    }
+                });
+
+                memory.Logs.Should().NotBeEmpty();
+                memory.Logs.Should().NotContain(l => l.Contains("SECRET"));
+            }
+            finally
+            {
+                LogManager.Configuration.RemoveTarget(memory.Name);
+                LogManager.ReconfigExistingLoggers();
+            }
         }
 
         [Test]

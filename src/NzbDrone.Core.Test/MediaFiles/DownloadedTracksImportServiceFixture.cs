@@ -440,6 +440,42 @@ namespace NzbDrone.Core.Test.MediaFiles
             result.SelectMany(r => r.ImportDecision?.Rejections ?? Enumerable.Empty<Rejection>()).OfType<ImportRejection>().Should().BeEmpty();
         }
 
+        [Test]
+        public void should_put_an_unsafe_file_ahead_of_rejected_audio()
+        {
+            GivenValidArtist();
+
+            var path = @"C:\Test\Unsorted\Artist.Title-Album.Title.2017-Lidarr".AsOsAgnostic();
+            var rejectedTrack = new ImportDecision<LocalTrack>(new LocalTrack { Path = _audioFiles.First() }, new Rejection("Album match is not close enough"));
+
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(s => s.FolderExists(path))
+                .Returns(true);
+
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(s => s.GetDirectoryInfo(It.IsAny<string>()))
+                .Returns(DiskProvider.GetDirectoryInfo(path));
+
+            Mocker.GetMock<IMakeImportDecision>()
+                .Setup(v => v.GetImportDecisions(It.IsAny<List<IFileInfo>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerInfo>(), It.IsAny<ImportDecisionMakerConfig>()))
+                .Returns(new List<ImportDecision<LocalTrack>> { rejectedTrack });
+
+            Mocker.GetMock<IImportApprovedTracks>()
+                .Setup(s => s.Import(It.IsAny<List<ImportDecision<LocalTrack>>>(), true, null, ImportMode.Auto))
+                .Returns(new List<ImportResult> { new ImportResult(rejectedTrack, "Album match is not close enough") });
+
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(s => s.GetFiles(It.IsAny<string>(), true))
+                .Returns(new[] { _audioFiles.First(), _audioFiles.First().Replace(".ext", ".exe") });
+
+            var result = Subject.ProcessPath(path);
+
+            result.Should().HaveCount(2);
+            result[0].ImportDecision.Item.Should().BeNull();
+            result[0].ImportDecision.Rejections.Cast<ImportRejection>().Select(r => r.RejectionReason).Should().Equal(ImportRejectionReason.ExecutableFile);
+            result[1].ImportDecision.Should().BeSameAs(rejectedTrack);
+        }
+
         private List<ImportResult> ProcessFolderHolding(string[] extensions)
         {
             GivenValidArtist();

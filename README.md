@@ -49,6 +49,8 @@
   - qBittorrent's 409 for a torrent it already has is a rejected release, not a connection failure, so a manual grab no longer fails with HTTP 500.
 - **Log cleansing, housekeeping and backup paths** — branch [`fix/log-cleansing-housekeeping-backups`](https://github.com/chodeus/Lidarr/tree/fix/log-cleansing-housekeeping-backups), not submitted
   - The `r=` key in logged RSS URLs is hidden, housekeeping runs only while no other task is running, and copying a file whose path has repeated slashes (backups) no longer fails.
+- **Custom format upgrades and Minimum Upgrade Score** — branch [`feat/custom-format-upgrades`](https://github.com/chodeus/Lidarr/tree/feat/custom-format-upgrades), not submitted
+  - Upgrades stop at the quality cutoff and at the custom format cutoff, each existing track is judged by its own custom formats, and a quality profile can require a minimum custom format score gain before upgrading (default 1).
 - **ImageSharp advisories** — branch [`fix/imagesharp-advisories`](https://github.com/chodeus/Lidarr/tree/fix/imagesharp-advisories), not submitted
   - Cover thumbnails decode only JPEG, PNG, WebP, GIF and BMP and skip metadata, so the code behind the five 2026-10-07 ImageSharp 3.1.12 advisories is out of reach; those advisories are suppressed in the NuGet audit. The fixed 4.1.2 needs a paid licence key. Drop this once upstream moves off 3.1.12.
 - **Frontend package advisories** — branch [`chore/frontend-dependency-advisories`](https://github.com/chodeus/Lidarr/tree/chore/frontend-dependency-advisories), not submitted

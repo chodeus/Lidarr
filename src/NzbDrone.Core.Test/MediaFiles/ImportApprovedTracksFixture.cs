@@ -6,6 +6,7 @@ using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
+using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
@@ -88,6 +89,14 @@ namespace NzbDrone.Core.Test.MediaFiles
             Mocker.GetMock<IMediaFileService>()
                 .Setup(s => s.GetFilesByAlbum(It.IsAny<int>()))
                 .Returns(new List<TrackFile>());
+
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(s => s.GetFilesWithBasePath(It.IsAny<string>()))
+                .Returns(new List<TrackFile>());
+
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(s => s.GetParentFolder(It.IsAny<string>()))
+                .Returns<string>(p => Path.GetDirectoryName(p));
         }
 
         [Test]
@@ -306,6 +315,108 @@ namespace NzbDrone.Core.Test.MediaFiles
             var results = Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First(), duplicate }, false);
 
             results.Should().NotContain(r => r.Result == ImportResultType.Imported);
+        }
+
+        private TrackFile GivenOrphan(string fileName, ParsedTrackInfo tags, int albumId = 0)
+        {
+            var localTrack = _approvedDecisions.First().Item;
+            var orphan = new TrackFile
+            {
+                Id = 9,
+                AlbumId = albumId,
+                Path = Path.Combine(Path.GetDirectoryName(localTrack.Path), fileName),
+                Tracks = new List<Track>()
+            };
+
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(s => s.GetFilesWithBasePath(Path.GetDirectoryName(localTrack.Path)))
+                .Returns(new List<TrackFile> { orphan });
+
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(s => s.FileExists(orphan.Path))
+                .Returns(true);
+
+            Mocker.GetMock<IAudioTagService>()
+                .Setup(s => s.ReadTags(orphan.Path))
+                .Returns(tags);
+
+            return orphan;
+        }
+
+        private ParsedTrackInfo TagsOf(Track track)
+        {
+            return new ParsedTrackInfo { Title = track.Title, TrackNumbers = new[] { track.AbsoluteTrackNumber }, DiscNumber = track.MediumNumber };
+        }
+
+        private void VerifyRecycled(TrackFile orphan, Times times)
+        {
+            Mocker.GetMock<IRecycleBinProvider>().Verify(v => v.DeleteFile(orphan.Path, It.IsAny<string>()), times);
+            Mocker.GetMock<IMediaFileService>().Verify(v => v.Delete(orphan, DeleteMediaFileReason.Upgrade), times);
+        }
+
+        [Test]
+        public void should_recycle_an_unmapped_copy_of_a_track_a_download_replaces()
+        {
+            var orphan = GivenOrphan("Alien Ant Farm - 01 - Pilot [old].flac", TagsOf(_approvedDecisions.First().Item.Tracks.First()));
+
+            Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, true);
+
+            VerifyRecycled(orphan, Times.Once());
+        }
+
+        [Test]
+        public void should_keep_an_unmapped_file_of_another_track()
+        {
+            var tags = TagsOf(_approvedDecisions.First().Item.Tracks.First());
+            tags.Title += " (Extended Mix)";
+            var orphan = GivenOrphan("Alien Ant Farm - 02 - Pilot Extended Mix.flac", tags);
+
+            Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, true);
+
+            VerifyRecycled(orphan, Times.Never());
+        }
+
+        [Test]
+        public void should_keep_an_unmapped_file_of_another_recording_with_the_same_title()
+        {
+            var tags = TagsOf(_approvedDecisions.First().Item.Tracks.First());
+            tags.RecordingMBId = "another-recording";
+            var orphan = GivenOrphan("Alien Ant Farm - 01 - Pilot [live].flac", tags);
+
+            Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, true);
+
+            VerifyRecycled(orphan, Times.Never());
+        }
+
+        [Test]
+        public void should_keep_an_unmapped_copy_in_a_subfolder()
+        {
+            var orphan = GivenOrphan(Path.Combine("Extras", "Alien Ant Farm - 01 - Pilot.flac"), TagsOf(_approvedDecisions.First().Item.Tracks.First()));
+
+            Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, true);
+
+            VerifyRecycled(orphan, Times.Never());
+        }
+
+        [Test]
+        public void should_not_look_for_unmapped_copies_on_a_rescan()
+        {
+            var localTrack = GivenExistingFile();
+            var orphan = GivenOrphan("Alien Ant Farm - 01 - Pilot [old].flac", TagsOf(localTrack.Tracks.First()));
+
+            Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, false);
+
+            VerifyRecycled(orphan, Times.Never());
+        }
+
+        [Test]
+        public void should_leave_a_file_still_on_its_album_to_the_existing_cleanup()
+        {
+            var orphan = GivenOrphan("Alien Ant Farm - 01 - Pilot [old].flac", TagsOf(_approvedDecisions.First().Item.Tracks.First()), albumId: 5);
+
+            Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, true);
+
+            Mocker.GetMock<IRecycleBinProvider>().Verify(v => v.DeleteFile(orphan.Path, It.IsAny<string>()), Times.Never());
         }
 
         [Test]

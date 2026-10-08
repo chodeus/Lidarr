@@ -16,6 +16,7 @@ using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Music.Commands;
 using NzbDrone.Core.Music.Events;
+using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.RootFolders;
@@ -327,6 +328,18 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             _trackService.SetFileIds(filesToAdd.SelectMany(x => x.Tracks.Value).ToList());
             _logger.Debug($"TrackFileIds updated, total {watch.ElapsedMilliseconds}ms");
 
+            if (replaceExisting)
+            {
+                try
+                {
+                    RemoveOrphanedCopies(allImportedTrackFiles);
+                }
+                catch (Exception e)
+                {
+                    _logger.Warn(e, "Couldn't look for unmapped copies of the imported tracks");
+                }
+            }
+
             // now that trackfiles have been inserted and ids generated, publish the import events
             foreach (var trackImportedEvent in trackImportedEvents)
             {
@@ -496,6 +509,68 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                    existingFile.IsUnchanged(localTrack.Size, localTrack.Modified) &&
                    existingFile.Tracks?.Value != null &&
                    existingFile.Tracks.Value.Select(t => t.Id).ToHashSet().SetEquals(localTrack.Tracks.Select(t => t.Id));
+        }
+
+        // Unlinked copies (AlbumId 0) beside the new files are invisible to RemoveExistingTrackFiles, so an upgrade used to leave them behind
+        private void RemoveOrphanedCopies(List<TrackFile> importedFiles)
+        {
+            foreach (var folder in importedFiles.GroupBy(f => Path.GetDirectoryName(f.Path)))
+            {
+                var artist = folder.First().Artist.Value;
+                var importedTracks = folder.SelectMany(f => f.Tracks.Value).ToList();
+
+                var orphans = _mediaFileService.GetFilesWithBasePath(folder.Key)
+                    .Where(f => f.AlbumId == 0 &&
+                                Path.GetDirectoryName(f.Path).PathEquals(folder.Key) &&
+                                folder.All(i => !i.Path.PathEquals(f.Path)) &&
+                                _diskProvider.FileExists(f.Path))
+                    .ToList();
+
+                foreach (var orphan in orphans)
+                {
+                    var tags = _audioTagService.ReadTags(orphan.Path);
+
+                    if (!importedTracks.Any(t => IsSameTrack(tags, t)))
+                    {
+                        continue;
+                    }
+
+                    _logger.Info("Removing unmapped copy of an imported track: {0}", orphan.Path);
+
+                    try
+                    {
+                        var subfolder = _diskProvider.GetParentFolder(artist.Path).GetRelativePath(_diskProvider.GetParentFolder(orphan.Path));
+                        _recycleBinProvider.DeleteFile(orphan.Path, subfolder);
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.Warn(e, "Couldn't remove unmapped copy {0}", orphan.Path);
+                        continue;
+                    }
+
+                    orphan.Artist = artist;
+                    _mediaFileService.Delete(orphan, DeleteMediaFileReason.Upgrade);
+                }
+            }
+        }
+
+        private static bool IsSameTrack(ParsedTrackInfo tags, Track track)
+        {
+            if (tags == null)
+            {
+                return false;
+            }
+
+            if (tags.RecordingMBId.IsNotNullOrWhiteSpace() && track.ForeignRecordingId.IsNotNullOrWhiteSpace())
+            {
+                return tags.RecordingMBId == track.ForeignRecordingId;
+            }
+
+            return (tags.TrackNumbers ?? Array.Empty<int>()).Contains(track.AbsoluteTrackNumber) &&
+                   (tags.DiscNumber == 0 || tags.DiscNumber == track.MediumNumber) &&
+                   tags.Title.IsNotNullOrWhiteSpace() &&
+                   track.Title.IsNotNullOrWhiteSpace() &&
+                   Parser.Parser.NormalizeTitle(tags.Title.CleanTrackTitle()) == Parser.Parser.NormalizeTitle(track.Title.CleanTrackTitle());
         }
 
         private void RemoveExistingTrackFiles(Artist artist, Album album)

@@ -511,13 +511,13 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                    existingFile.Tracks.Value.Select(t => t.Id).ToHashSet().SetEquals(localTrack.Tracks.Select(t => t.Id));
         }
 
-        // Unlinked copies (AlbumId 0) beside the new files are invisible to RemoveExistingTrackFiles, so an upgrade used to leave them behind
+        // RemoveExistingTrackFiles skips unlinked copies (AlbumId 0); only remove one the import at least matches in quality
         private void RemoveOrphanedCopies(List<TrackFile> importedFiles)
         {
             foreach (var folder in importedFiles.GroupBy(f => Path.GetDirectoryName(f.Path)))
             {
                 var artist = folder.First().Artist.Value;
-                var importedTracks = folder.SelectMany(f => f.Tracks.Value).ToList();
+                var qualityComparer = new QualityModelComparer(artist.QualityProfile);
 
                 var orphans = _mediaFileService.GetFilesWithBasePath(folder.Key)
                     .Where(f => f.AlbumId == 0 &&
@@ -529,9 +529,17 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                 foreach (var orphan in orphans)
                 {
                     var tags = _audioTagService.ReadTags(orphan.Path);
+                    var replacements = folder.Where(i => i.Tracks.Value.Any(t => IsSameTrack(tags, t))).ToList();
 
-                    if (!importedTracks.Any(t => IsSameTrack(tags, t)))
+                    if (replacements.Empty())
                     {
+                        continue;
+                    }
+
+                    // Group order counts, or a 16-bit import would replace a 24-bit copy in the same group
+                    if (replacements.All(i => qualityComparer.Compare(i.Quality, orphan.Quality, true) < 0))
+                    {
+                        _logger.Debug("Keeping unmapped copy {0}, its quality {1} beats the import", orphan.Path, orphan.Quality);
                         continue;
                     }
 

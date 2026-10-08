@@ -317,7 +317,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             results.Should().NotContain(r => r.Result == ImportResultType.Imported);
         }
 
-        private TrackFile GivenOrphan(string fileName, ParsedTrackInfo tags, int albumId = 0)
+        private TrackFile GivenOrphan(string fileName, ParsedTrackInfo tags, int albumId = 0, Quality quality = null)
         {
             var localTrack = _approvedDecisions.First().Item;
             var orphan = new TrackFile
@@ -325,6 +325,7 @@ namespace NzbDrone.Core.Test.MediaFiles
                 Id = 9,
                 AlbumId = albumId,
                 Path = Path.Combine(Path.GetDirectoryName(localTrack.Path), fileName),
+                Quality = new QualityModel(quality ?? Quality.MP3_256),
                 Tracks = new List<Track>()
             };
 
@@ -357,7 +358,7 @@ namespace NzbDrone.Core.Test.MediaFiles
         [Test]
         public void should_recycle_an_unmapped_copy_of_a_track_a_download_replaces()
         {
-            var orphan = GivenOrphan("Alien Ant Farm - 01 - Pilot [old].flac", TagsOf(_approvedDecisions.First().Item.Tracks.First()));
+            var orphan = GivenOrphan("Alien Ant Farm - 01 - Pilot [old].mp3", TagsOf(_approvedDecisions.First().Item.Tracks.First()), quality: Quality.MP3_192);
 
             Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, true);
 
@@ -365,11 +366,61 @@ namespace NzbDrone.Core.Test.MediaFiles
         }
 
         [Test]
+        public void should_recycle_an_unmapped_copy_of_the_same_quality()
+        {
+            var orphan = GivenOrphan("Alien Ant Farm - 01 - Pilot [copy].mp3", TagsOf(_approvedDecisions.First().Item.Tracks.First()));
+
+            Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, true);
+
+            VerifyRecycled(orphan, Times.Once());
+        }
+
+        [Test]
+        public void should_keep_an_unmapped_copy_of_a_better_quality()
+        {
+            var orphan = GivenOrphan("Alien Ant Farm - 01 - Pilot.flac", TagsOf(_approvedDecisions.First().Item.Tracks.First()), quality: Quality.FLAC);
+
+            Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, true);
+
+            VerifyRecycled(orphan, Times.Never());
+        }
+
+        [Test]
+        public void should_keep_a_better_unmapped_copy_from_the_same_quality_group()
+        {
+            var localTrack = _approvedDecisions.First().Item;
+            localTrack.Artist.QualityProfile = new QualityProfile
+            {
+                Items = new List<QualityProfileQualityItem>
+                {
+                    new QualityProfileQualityItem
+                    {
+                        Id = 1000,
+                        Name = "Lossless",
+                        Allowed = true,
+                        Items = new List<QualityProfileQualityItem>
+                        {
+                            new QualityProfileQualityItem { Quality = Quality.FLAC, Allowed = true },
+                            new QualityProfileQualityItem { Quality = Quality.FLAC_24, Allowed = true }
+                        }
+                    }
+                }
+            };
+            localTrack.Quality = new QualityModel(Quality.FLAC);
+
+            var orphan = GivenOrphan("Alien Ant Farm - 01 - Pilot [24bit].flac", TagsOf(localTrack.Tracks.First()), quality: Quality.FLAC_24);
+
+            Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, true);
+
+            VerifyRecycled(orphan, Times.Never());
+        }
+
+        [Test]
         public void should_keep_an_unmapped_file_of_another_track()
         {
             var tags = TagsOf(_approvedDecisions.First().Item.Tracks.First());
             tags.Title += " (Extended Mix)";
-            var orphan = GivenOrphan("Alien Ant Farm - 02 - Pilot Extended Mix.flac", tags);
+            var orphan = GivenOrphan("Alien Ant Farm - 02 - Pilot Extended Mix.mp3", tags);
 
             Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, true);
 
@@ -381,7 +432,7 @@ namespace NzbDrone.Core.Test.MediaFiles
         {
             var tags = TagsOf(_approvedDecisions.First().Item.Tracks.First());
             tags.RecordingMBId = "another-recording";
-            var orphan = GivenOrphan("Alien Ant Farm - 01 - Pilot [live].flac", tags);
+            var orphan = GivenOrphan("Alien Ant Farm - 01 - Pilot [live].mp3", tags);
 
             Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, true);
 
@@ -391,7 +442,7 @@ namespace NzbDrone.Core.Test.MediaFiles
         [Test]
         public void should_keep_an_unmapped_copy_in_a_subfolder()
         {
-            var orphan = GivenOrphan(Path.Combine("Extras", "Alien Ant Farm - 01 - Pilot.flac"), TagsOf(_approvedDecisions.First().Item.Tracks.First()));
+            var orphan = GivenOrphan(Path.Combine("Extras", "Alien Ant Farm - 01 - Pilot.mp3"), TagsOf(_approvedDecisions.First().Item.Tracks.First()));
 
             Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, true);
 
@@ -402,7 +453,7 @@ namespace NzbDrone.Core.Test.MediaFiles
         public void should_not_look_for_unmapped_copies_on_a_rescan()
         {
             var localTrack = GivenExistingFile();
-            var orphan = GivenOrphan("Alien Ant Farm - 01 - Pilot [old].flac", TagsOf(localTrack.Tracks.First()));
+            var orphan = GivenOrphan("Alien Ant Farm - 01 - Pilot [old].mp3", TagsOf(localTrack.Tracks.First()));
 
             Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, false);
 
@@ -412,7 +463,7 @@ namespace NzbDrone.Core.Test.MediaFiles
         [Test]
         public void should_leave_a_file_still_on_its_album_to_the_existing_cleanup()
         {
-            var orphan = GivenOrphan("Alien Ant Farm - 01 - Pilot [old].flac", TagsOf(_approvedDecisions.First().Item.Tracks.First()), albumId: 5);
+            var orphan = GivenOrphan("Alien Ant Farm - 01 - Pilot [old].mp3", TagsOf(_approvedDecisions.First().Item.Tracks.First()), albumId: 5);
 
             Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, true);
 

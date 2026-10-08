@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -218,6 +219,93 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             Mocker.GetMock<IMediaFileService>()
                 .Verify(v => v.Delete(It.IsAny<TrackFile>(), DeleteMediaFileReason.ManualOverride), Times.Once());
+        }
+
+        private LocalTrack GivenExistingFile(int index = 0, long size = 1000)
+        {
+            var localTrack = _approvedDecisions[index].Item;
+            localTrack.ExistingFile = true;
+            localTrack.Size = size;
+            localTrack.Modified = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            return localTrack;
+        }
+
+        private void GivenLinkedFile(LocalTrack localTrack, long size, List<Track> tracks)
+        {
+            var trackFile = new TrackFile
+            {
+                Id = 7,
+                Path = localTrack.Path.CleanFilePath(),
+                AlbumId = localTrack.Album.Id,
+                Size = size,
+                Modified = localTrack.Modified,
+                Tracks = tracks
+            };
+
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(s => s.GetFileWithPath(trackFile.Path))
+                .Returns(trackFile);
+        }
+
+        [Test]
+        public void should_skip_an_unchanged_file_already_linked_to_its_tracks()
+        {
+            var localTrack = GivenExistingFile();
+            GivenLinkedFile(localTrack, localTrack.Size, localTrack.Tracks.ToList());
+
+            var results = Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, false);
+
+            results.Should().ContainSingle(r => r.Result == ImportResultType.Skipped);
+            Mocker.GetMock<IMediaFileService>().Verify(v => v.Delete(It.IsAny<TrackFile>(), It.IsAny<DeleteMediaFileReason>()), Times.Never());
+            Mocker.GetMock<IMediaFileService>().Verify(v => v.AddMany(It.Is<List<TrackFile>>(l => l.Any())), Times.Never());
+            Mocker.GetMock<IAudioTagService>().Verify(v => v.WriteTags(It.IsAny<TrackFile>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+        }
+
+        [Test]
+        public void should_reimport_an_existing_file_linked_to_other_tracks()
+        {
+            var localTrack = GivenExistingFile();
+            GivenLinkedFile(localTrack, localTrack.Size, new List<Track> { _approvedDecisions[1].Item.Tracks.First() });
+
+            var results = Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, false);
+
+            results.Should().ContainSingle(r => r.Result == ImportResultType.Imported);
+        }
+
+        [Test]
+        public void should_reimport_an_existing_file_changed_on_disk()
+        {
+            var localTrack = GivenExistingFile();
+            GivenLinkedFile(localTrack, localTrack.Size + 1, localTrack.Tracks.ToList());
+
+            var results = Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, false);
+
+            results.Should().ContainSingle(r => r.Result == ImportResultType.Imported);
+        }
+
+        [Test]
+        public void should_not_link_another_file_to_tracks_an_unchanged_file_already_holds()
+        {
+            var linked = GivenExistingFile(size: 2000);
+            GivenLinkedFile(linked, linked.Size, linked.Tracks.ToList());
+
+            var duplicate = new ImportDecision<LocalTrack>(new LocalTrack
+            {
+                Artist = linked.Artist,
+                Album = linked.Album,
+                Release = linked.Release,
+                Tracks = linked.Tracks.ToList(),
+                Path = Path.Combine(linked.Artist.Path, "Alien Ant Farm - 01 - Pilot [copy].mp3"),
+                Quality = new QualityModel(Quality.MP3_256),
+                Size = 1000,
+                ExistingFile = true,
+                FileTrackInfo = new ParsedTrackInfo()
+            });
+
+            var results = Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First(), duplicate }, false);
+
+            results.Should().NotContain(r => r.Result == ImportResultType.Imported);
         }
 
         [Test]

@@ -165,6 +165,13 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                         continue;
                     }
 
+                    if (IsLinkedAndUnchanged(localTrack))
+                    {
+                        _logger.Debug("Skipping {0}, already linked to these tracks and unchanged on disk", localTrack.Path);
+                        importResults.Add(new ImportResult(importDecision, "Track file is already linked to these tracks"));
+                        continue;
+                    }
+
                     // cache album releases and set artist to speed up firing the TrackImported events
                     // (otherwise they'll be retrieved from the DB for each track)
                     if (!albumReleasesDict.ContainsKey(localTrack.Album.Id))
@@ -472,6 +479,23 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             {
                 decision.Reject(new Rejection("Failed to add missing album", RejectionType.Temporary));
             }
+        }
+
+        // A rescan that identifies an unmapped sibling pulls the album's linked files in too; re-importing them only recreates their rows
+        private bool IsLinkedAndUnchanged(LocalTrack localTrack)
+        {
+            if (!localTrack.ExistingFile || localTrack.Tracks.Empty())
+            {
+                return false;
+            }
+
+            var existingFile = _mediaFileService.GetFileWithPath(localTrack.Path.CleanFilePath());
+
+            return existingFile != null &&
+                   existingFile.AlbumId == localTrack.Album.Id &&
+                   existingFile.IsUnchanged(localTrack.Size, localTrack.Modified) &&
+                   existingFile.Tracks?.Value != null &&
+                   existingFile.Tracks.Value.Select(t => t.Id).ToHashSet().SetEquals(localTrack.Tracks.Select(t => t.Id));
         }
 
         private void RemoveExistingTrackFiles(Artist artist, Album album)

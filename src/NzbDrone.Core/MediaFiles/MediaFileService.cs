@@ -127,8 +127,7 @@ namespace NzbDrone.Core.MediaFiles
             if (filter == FilterFilesType.Known)
             {
                 unwanted = combined
-                    .Where(x => x.DiskFile.Length == x.DbFile.Size &&
-                           Math.Abs((x.DiskFile.LastWriteTimeUtc - x.DbFile.Modified.ToUniversalTime()).TotalSeconds) <= 1)
+                    .Where(x => x.DbFile.IsUnchanged(x.DiskFile.Length, x.DiskFile.LastWriteTimeUtc))
                     .Select(x => x.DiskFile)
                     .ToList();
                 _logger.Trace($"{unwanted.Count} unchanged existing files");
@@ -136,8 +135,7 @@ namespace NzbDrone.Core.MediaFiles
             else if (filter == FilterFilesType.Matched)
             {
                 unwanted = combined
-                    .Where(x => x.DiskFile.Length == x.DbFile.Size &&
-                           Math.Abs((x.DiskFile.LastWriteTimeUtc - x.DbFile.Modified.ToUniversalTime()).TotalSeconds) <= 1 &&
+                    .Where(x => x.DbFile.IsUnchanged(x.DiskFile.Length, x.DiskFile.LastWriteTimeUtc) &&
                            (x.DbFile.Tracks == null || (x.DbFile.Tracks.IsLoaded && x.DbFile.Tracks.Value.Any())))
                     .Select(x => x.DiskFile)
                     .ToList();

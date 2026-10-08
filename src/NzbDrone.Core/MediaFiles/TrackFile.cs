@@ -33,6 +33,11 @@ namespace NzbDrone.Core.MediaFiles
             return string.Format("[{0}] {1}", Id, Path);
         }
 
+        public bool IsUnchanged(long size, DateTime modifiedUtc)
+        {
+            return Size == size && Math.Abs((modifiedUtc - Modified.ToUniversalTime()).TotalSeconds) <= 1;
+        }
+
         public string GetSceneOrFileName()
         {
             if (SceneName.IsNotNullOrWhiteSpace())

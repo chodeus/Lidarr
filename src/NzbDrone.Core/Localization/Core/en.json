@@ -1369,7 +1369,7 @@
   "UsenetDelayHelpText": "Delay in minutes to wait before grabbing a release from Usenet",
   "UserAgentProvidedByTheAppThatCalledTheAPI": "User-Agent provided by the app that called the API",
   "UserRejectedExtensions": "Additional Rejected File Extensions",
-  "UserRejectedExtensionsHelpText": "Comma separated list of files extensions to fail (Fail Downloads also needs to be enabled per indexer)",
+  "UserRejectedExtensionsHelpText": "Comma separated list of file extensions to fail (select User Defined Extensions under Fail Downloads on each indexer that should use them)",
   "UserRejectedExtensionsTextsExamples": "Examples: '.ext, .xyz' or 'ext,xyz'",
   "Username": "Username",
   "UsingExternalUpdateMechanismBranchToUseToUpdateLidarr": "Branch to use to update {appName}",

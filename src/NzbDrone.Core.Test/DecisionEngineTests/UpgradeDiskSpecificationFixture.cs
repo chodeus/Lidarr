@@ -78,7 +78,7 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
             };
 
             Mocker.GetMock<ICustomFormatCalculationService>()
-                  .Setup(x => x.ParseCustomFormat(It.IsAny<TrackFile>()))
+                  .Setup(x => x.ParseCustomFormat(It.IsAny<TrackFile>(), It.IsAny<Artist>()))
                   .Returns(new List<CustomFormat>());
         }
 
@@ -180,7 +180,7 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
             _secondFile.Quality = new QualityModel(quality);
 
             Mocker.GetMock<ICustomFormatCalculationService>()
-                  .Setup(x => x.ParseCustomFormat(It.IsAny<TrackFile>()))
+                  .Setup(x => x.ParseCustomFormat(It.IsAny<TrackFile>(), It.IsAny<Artist>()))
                   .Returns(formats.ToList());
         }
 
@@ -236,10 +236,27 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
         }
 
         [Test]
+        public void should_judge_each_file_by_its_own_custom_formats()
+        {
+            GivenFormatScores(cutoffFormatScore: 100);
+            GivenFiles(Quality.MP3_256);
+            Mocker.GetMock<ICustomFormatCalculationService>()
+                  .Setup(x => x.ParseCustomFormat(_secondFile, It.IsAny<Artist>()))
+                  .Returns(new List<CustomFormat> { _formatTwenty });
+            _parseResultSingle.ParsedAlbumInfo.Quality = new QualityModel(Quality.MP3_256);
+            _parseResultSingle.CustomFormats = new List<CustomFormat> { _formatTen };
+
+            var decision = Subject.IsSatisfiedBy(_parseResultSingle, null);
+
+            decision.Accepted.Should().BeFalse();
+            decision.Reason.Should().Be("Existing files on disk has a equal or higher Custom Format score: 20");
+        }
+
+        [Test]
         public void should_be_false_if_some_tracks_are_upgradable_and_some_are_downgrades()
         {
             Mocker.GetMock<ICustomFormatCalculationService>()
-                  .Setup(s => s.ParseCustomFormat(It.IsAny<TrackFile>()))
+                  .Setup(s => s.ParseCustomFormat(It.IsAny<TrackFile>(), It.IsAny<Artist>()))
                   .Returns(new List<CustomFormat>());
 
             WithFirstFileUpgradable();

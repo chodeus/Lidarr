@@ -36,22 +36,31 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
 
         public UpgradeableRejectReason GetUpgradeRejectReason(QualityProfile qualityProfile, List<QualityModel> currentQualities, List<CustomFormat> currentCustomFormats, QualityModel newQuality, List<CustomFormat> newCustomFormats)
         {
-            var reasons = currentQualities.Select(q => GetUpgradeRejectReason(qualityProfile, q, currentCustomFormats, newQuality, newCustomFormats)).ToList();
+            return GetUpgradeRejectReason(qualityProfile, currentQualities.Select(q => (q, currentCustomFormats)).ToList(), newQuality, newCustomFormats);
+        }
 
-            // A downgrade for any file rejects the release; otherwise upgrading one file is enough
-            var downgrade = reasons.FirstOrDefault(r => r is UpgradeableRejectReason.BetterQuality or UpgradeableRejectReason.BetterRevision);
+        public UpgradeableRejectReason GetUpgradeRejectReason(QualityProfile qualityProfile, List<(QualityModel Quality, List<CustomFormat> CustomFormats)> currentFiles, QualityModel newQuality, List<CustomFormat> newCustomFormats)
+        {
+            var newFormatScore = qualityProfile.CalculateCustomFormatScore(newCustomFormats);
+            var results = currentFiles.Select(f => (Reason: GetUpgradeRejectReason(qualityProfile, f.Quality, f.CustomFormats, newQuality, newCustomFormats),
+                                                    Score: qualityProfile.CalculateCustomFormatScore(f.CustomFormats)))
+                                      .ToList();
 
-            if (downgrade != UpgradeableRejectReason.None)
+            // A downgrade for any file rejects the release, a lower custom format score at the same quality included
+            var downgrade = results.FirstOrDefault(r => r.Reason is UpgradeableRejectReason.BetterQuality or UpgradeableRejectReason.BetterRevision ||
+                                                        (r.Reason == UpgradeableRejectReason.CustomFormatScore && newFormatScore < r.Score));
+
+            if (downgrade.Reason != UpgradeableRejectReason.None)
             {
-                return downgrade;
+                return downgrade.Reason;
             }
 
-            if (reasons.Empty() || reasons.Contains(UpgradeableRejectReason.None))
+            if (results.Empty() || results.Any(r => r.Reason == UpgradeableRejectReason.None))
             {
                 return UpgradeableRejectReason.None;
             }
 
-            return reasons.First();
+            return results.First().Reason;
         }
 
         private UpgradeableRejectReason GetUpgradeRejectReason(QualityProfile qualityProfile, QualityModel currentQuality, List<CustomFormat> currentCustomFormats, QualityModel newQuality, List<CustomFormat> newCustomFormats)

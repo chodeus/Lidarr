@@ -8,6 +8,7 @@ using NzbDrone.Core.DecisionEngine.Specifications;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Profiles;
 using NzbDrone.Core.Profiles.Qualities;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Test.Framework;
@@ -49,7 +50,7 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
                   .Returns(new List<TrackFile> { new TrackFile { Quality = new QualityModel(Quality.MP3_320) } });
 
             Mocker.GetMock<ICustomFormatCalculationService>()
-                  .Setup(x => x.ParseCustomFormat(It.IsAny<TrackFile>()))
+                  .Setup(x => x.ParseCustomFormat(It.IsAny<TrackFile>(), It.IsAny<Artist>()))
                   .Returns(new List<CustomFormat>());
         }
 
@@ -60,6 +61,25 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
 
             decision.Accepted.Should().BeFalse();
             decision.Reason.Should().Be("Existing files meets cutoff: " + _profile.Items[_profile.GetIndex(Quality.MP3_320.Id).Index]);
+        }
+
+        [Test]
+        public void should_accept_when_a_later_file_is_below_the_custom_format_cutoff()
+        {
+            var formatTen = new CustomFormat { Id = 1, Name = "Ten" };
+            var firstFile = new TrackFile { Quality = new QualityModel(Quality.MP3_320) };
+            var secondFile = new TrackFile { Quality = new QualityModel(Quality.MP3_320) };
+            _profile.CutoffFormatScore = 10;
+            _profile.FormatItems = new List<ProfileFormatItem> { new ProfileFormatItem { Format = formatTen, Score = 10 } };
+
+            Mocker.GetMock<IMediaFileService>()
+                  .Setup(c => c.GetFilesByAlbum(It.IsAny<int>()))
+                  .Returns(new List<TrackFile> { firstFile, secondFile });
+            Mocker.GetMock<ICustomFormatCalculationService>()
+                  .Setup(x => x.ParseCustomFormat(firstFile, It.IsAny<Artist>()))
+                  .Returns(new List<CustomFormat> { formatTen });
+
+            Subject.IsSatisfiedBy(_remoteAlbum, null).Accepted.Should().BeTrue();
         }
 
         [Test]

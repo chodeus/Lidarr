@@ -163,6 +163,51 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
         }
 
         [Test]
+        public void should_reject_when_any_file_would_lose_custom_format_score()
+        {
+            Subject.GetUpgradeRejectReason(
+                        GivenProfile(Quality.FLAC, cutoffFormatScore: 100),
+                        new List<(QualityModel, List<CustomFormat>)>
+                        {
+                            (new QualityModel(Quality.MP3_320), new List<CustomFormat> { _formatTwenty }),
+                            (new QualityModel(Quality.MP3_320), new List<CustomFormat>())
+                        },
+                        new QualityModel(Quality.MP3_320),
+                        new List<CustomFormat> { _formatTen })
+                   .Should().Be(UpgradeableRejectReason.CustomFormatScore);
+        }
+
+        [Test]
+        public void should_reject_quality_upgrade_when_a_same_quality_file_would_lose_custom_format_score()
+        {
+            Subject.GetUpgradeRejectReason(
+                        GivenProfile(Quality.FLAC, cutoffFormatScore: 100),
+                        new List<(QualityModel, List<CustomFormat>)>
+                        {
+                            (new QualityModel(Quality.FLAC), new List<CustomFormat> { _formatTwenty }),
+                            (new QualityModel(Quality.MP3_320), new List<CustomFormat>())
+                        },
+                        new QualityModel(Quality.FLAC),
+                        new List<CustomFormat> { _formatTen })
+                   .Should().Be(UpgradeableRejectReason.CustomFormatScore);
+        }
+
+        [Test]
+        public void should_accept_when_other_files_keep_their_custom_format_score()
+        {
+            Subject.GetUpgradeRejectReason(
+                        GivenProfile(Quality.FLAC, cutoffFormatScore: 100),
+                        new List<(QualityModel, List<CustomFormat>)>
+                        {
+                            (new QualityModel(Quality.MP3_320), new List<CustomFormat> { _formatTen }),
+                            (new QualityModel(Quality.MP3_320), new List<CustomFormat>())
+                        },
+                        new QualityModel(Quality.MP3_320),
+                        new List<CustomFormat> { _formatTen })
+                   .Should().Be(UpgradeableRejectReason.None);
+        }
+
+        [Test]
         public void should_return_false_if_proper_and_autoDownloadPropers_is_do_not_prefer()
         {
             GivenAutoDownloadPropers(ProperDownloadTypes.DoNotPrefer);

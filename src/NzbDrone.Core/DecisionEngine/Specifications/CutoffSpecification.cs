@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using NLog;
 using NzbDrone.Common.Cache;
@@ -8,6 +9,7 @@ using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Qualities;
 
 namespace NzbDrone.Core.DecisionEngine.Specifications
 {
@@ -56,12 +58,14 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
 
                     _logger.Debug("Comparing file quality with report. Existing files contain {0}", currentQualities.ConcatToString());
 
-                    var customFormats = _formatService.ParseCustomFormat(trackFiles[0]);
+                    var cutoffNotMet = trackFiles.Select(f => (f.Quality, CustomFormats: _formatService.ParseCustomFormat(f, subject.Artist)))
+                                                 .DistinctBy(f => (f.Quality, qualityProfile.CalculateCustomFormatScore(f.CustomFormats)))
+                                                 .Any(f => _upgradableSpecification.CutoffNotMet(qualityProfile,
+                                                                                                 new List<QualityModel> { f.Quality },
+                                                                                                 f.CustomFormats,
+                                                                                                 subject.ParsedAlbumInfo.Quality));
 
-                    if (!_upgradableSpecification.CutoffNotMet(qualityProfile,
-                                                               currentQualities,
-                                                               customFormats,
-                                                               subject.ParsedAlbumInfo.Quality))
+                    if (!cutoffNotMet)
                     {
                         _logger.Debug("Cutoff already met by existing files, rejecting.");
 

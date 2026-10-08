@@ -19,7 +19,7 @@ namespace NzbDrone.Common.Test.InstrumentationTests
         [TestCase(@"https://baconbits.org/feeds.php?feed=torrents_tv&user=12345&auth=2b51db35e1910123321025a12b9933d2&passkey=mySecret&authkey=2b51db35e1910123321025a12b9933d2")]
         [TestCase(@"http://127.0.0.1:9117/dl/indexername?jackett_apikey=flwjiefewklfjacketmySecretsdfldskjfsdlk&path=we0re9f0sdfbase64sfdkfjsdlfjk&file=The+Torrent+File+Name.torrent")]
         [TestCase(@"http://nzb.su/getnzb/2b51db35e1912ffc138825a12b9933d2.nzb&i=37292&r=2b51db35e1910123321025a12b9933d2")]
-        [TestCase(@"http://nzb.su/rss?t=-2&dl=1&i=37292&r=2b51db35e1910123321025a12b9933d2")]
+        [TestCase(@"http://example.invalid/rss?t=-2&dl=1&i=37292&r=mySecret")]
         [TestCase(@"https://b-hd.me/torrent/download/auto.343756.is1t1pl127p1sfwur8h4kgyhg1wcsn05")]
         [TestCase(@"https://b-hd.me/torrent/download/a-slug-in-the-url.343756.is1t1pl127p1sfwur8h4kgyhg1wcsn05")]
 
@@ -113,6 +113,15 @@ namespace NzbDrone.Common.Test.InstrumentationTests
             cleansedMessage.Should().NotContain("mySecret");
             cleansedMessage.Should().NotContain("123%@%_@!#^#@");
             cleansedMessage.Should().NotContain("01233210");
+        }
+
+        [Test]
+        public void should_keep_fields_after_a_quoted_rss_key()
+        {
+            var cleansedMessage = CleanseLogMessage.Cleanse(@"""link"":""http://example.invalid/rss?t=-2&r=mySecret"",""title"":""Album Title""");
+
+            cleansedMessage.Should().NotContain("mySecret");
+            cleansedMessage.Should().Contain(@"""title"":""Album Title""");
         }
 
         [TestCase(@"[Info] MigrationController: *** Migrating Database=lidarr-main;Host=postgres14;Username=mySecret;Password=mySecret;Port=5432;token=mySecret;Enlist=False&username=mySecret;mypassword=mySecret;mypass=shouldkeep1;test_token=mySecret;password=123%@%_@!#^#@;use_password=mySecret;get_token=shouldkeep2;usetoken=shouldkeep3;passwrd=mySecret;")]

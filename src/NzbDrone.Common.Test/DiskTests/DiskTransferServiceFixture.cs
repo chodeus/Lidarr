@@ -554,6 +554,7 @@ namespace NzbDrone.Common.Test.DiskTests
             File.WriteAllText(from, "Source file");
             var mode = Subject.TransferFile(from, to, TransferMode.Copy);
             mode.Should().Be(TransferMode.Copy);
+            File.ReadAllText(to).Should().Be("Source file");
         }
 
         [Test]

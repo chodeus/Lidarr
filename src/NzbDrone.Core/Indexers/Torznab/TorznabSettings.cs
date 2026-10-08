@@ -58,6 +58,9 @@ namespace NzbDrone.Core.Indexers.Torznab
         [FieldDefinition(9, Type = FieldType.Checkbox, Label = "IndexerSettingsRejectBlocklistedTorrentHashes", HelpText = "IndexerSettingsRejectBlocklistedTorrentHashesHelpText", Advanced = true)]
         public bool RejectBlocklistedTorrentHashesWhileGrabbing { get; set; }
 
+        [FieldDefinition(10, Type = FieldType.Checkbox, Label = "IndexerSettingsRejectTorrentFilesWithBlockedExtensions", HelpText = "IndexerSettingsRejectTorrentFilesWithBlockedExtensionsHelpText", Advanced = true)]
+        public bool RejectTorrentFilesWithBlockedExtensionsWhileGrabbing { get; set; }
+
         public override NzbDroneValidationResult Validate()
         {
             return new NzbDroneValidationResult(Validator.Validate(this));

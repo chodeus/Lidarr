@@ -54,6 +54,9 @@
   - The `r=` key in logged RSS URLs is hidden, housekeeping runs only while no other task is running, and copying a file whose path has repeated slashes (backups) no longer fails.
 - **Custom format upgrades and Minimum Upgrade Score** — branch [`feat/custom-format-upgrades`](https://github.com/chodeus/Lidarr/tree/feat/custom-format-upgrades), not submitted
   - Upgrades stop at the quality cutoff and at the custom format cutoff, each existing track is judged by its own custom formats, and a quality profile can require a minimum custom format score gain before upgrading (default 1).
+- **Unmapped duplicate files** — branch [`fix/unmapped-duplicates`](https://github.com/chodeus/Lidarr/tree/fix/unmapped-duplicates), not submitted
+  - A rescan no longer re-imports a file that is unchanged on disk and already linked to the tracks it matched, so it keeps its date added and tags, and a duplicate copy can't take its place each day.
+  - After a download import, an unmapped copy of an imported track in the same folder is removed (to the recycle bin when one is set), unless its quality beats the import (FLAC 24bit beats FLAC in the Lossless group).
 - **ImageSharp advisories** — branch [`fix/imagesharp-advisories`](https://github.com/chodeus/Lidarr/tree/fix/imagesharp-advisories), not submitted
   - Cover thumbnails decode only JPEG, PNG, WebP, GIF and BMP and skip metadata, so the code behind the five 2026-10-07 ImageSharp 3.1.12 advisories is out of reach; those advisories are suppressed in the NuGet audit. The fixed 4.1.2 needs a paid licence key. Drop this once upstream moves off 3.1.12.
 - **Frontend package advisories** — branch [`chore/frontend-dependency-advisories`](https://github.com/chodeus/Lidarr/tree/chore/frontend-dependency-advisories), not submitted

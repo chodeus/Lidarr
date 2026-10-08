@@ -11,7 +11,7 @@ namespace NzbDrone.Core.MediaFiles.TorrentInfo
     {
         string GetHashFromTorrentFile(byte[] fileContents);
 
-        // Default keeps implementations compiled against develop loading; the grab-time check skips the torrent when this throws
+        // Default keeps implementations compiled against develop loading; when it throws, the grab-time file check is skipped and the grab goes ahead
         List<string> GetFileNamesFromTorrentFile(byte[] fileContents) => throw new NotSupportedException();
     }
 

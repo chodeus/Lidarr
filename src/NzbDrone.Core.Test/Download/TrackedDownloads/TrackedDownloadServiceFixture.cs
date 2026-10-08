@@ -8,6 +8,7 @@ using NzbDrone.Core.Download.History;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.History;
 using NzbDrone.Core.Indexers;
+using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Music.Events;
 using NzbDrone.Core.Parser;
@@ -35,9 +36,15 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
                 });
         }
 
-        [Test]
-        public void should_set_release_indexer_from_grab_history()
+        private void GivenGrabHistory(bool withIndexerFlags)
         {
+            var data = new Dictionary<string, string> { { "indexer", "Test Indexer" } };
+
+            if (withIndexerFlags)
+            {
+                data.Add("indexerFlags", "0");
+            }
+
             Mocker.GetMock<IHistoryService>()
                 .Setup(s => s.FindByDownloadId("35238"))
                 .Returns(new List<EntityHistory>
@@ -49,13 +56,47 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
                         SourceTitle = "Audio Artist - Audio Album [2018 - FLAC]",
                         ArtistId = 5,
                         AlbumId = 4,
-                        Data = new Dictionary<string, string> { { "indexer", "Test Indexer" }, { "indexerFlags", "0" } }
+                        Data = data
                     }
                 });
 
             Mocker.GetMock<IDownloadHistoryService>()
                 .Setup(s => s.GetLatestDownloadHistoryItem("35238"))
+                .Returns(new DownloadHistory { EventType = DownloadHistoryEventType.FileImported, IndexerId = 0 });
+
+            Mocker.GetMock<IDownloadHistoryService>()
+                .Setup(s => s.GetLatestGrab("35238"))
                 .Returns(new DownloadHistory { EventType = DownloadHistoryEventType.DownloadGrabbed, IndexerId = 7 });
+        }
+
+        private TrackedDownload GivenTrackedTorrent(string title = "The torrent release folder")
+        {
+            var client = new DownloadClientDefinition
+            {
+                Id = 1,
+                Protocol = nameof(TorrentDownloadProtocol)
+            };
+
+            var item = new DownloadClientItem
+            {
+                Title = title,
+                DownloadId = "35238",
+                DownloadClientInfo = new DownloadClientItemClientInfo
+                {
+                    Protocol = client.Protocol,
+                    Id = client.Id,
+                    Name = client.Name
+                }
+            };
+
+            return Subject.TrackDownload(client, item);
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_set_release_indexer_from_grab_history(bool withIndexerFlags)
+        {
+            GivenGrabHistory(withIndexerFlags);
 
             Mocker.GetMock<IParsingService>()
                   .Setup(s => s.Map(It.IsAny<ParsedAlbumInfo>(), It.IsAny<int>(), It.IsAny<IEnumerable<int>>()))
@@ -66,30 +107,36 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
                       ParsedAlbumInfo = info
                   });
 
-            var client = new DownloadClientDefinition
-            {
-                Id = 1,
-                Protocol = nameof(TorrentDownloadProtocol)
-            };
-
-            var item = new DownloadClientItem
-            {
-                Title = "The torrent release folder",
-                DownloadId = "35238",
-                DownloadClientInfo = new DownloadClientItemClientInfo
-                {
-                    Protocol = client.Protocol,
-                    Id = client.Id,
-                    Name = client.Name
-                }
-            };
-
-            var release = Subject.TrackDownload(client, item).RemoteAlbum.Release;
+            var release = GivenTrackedTorrent().RemoteAlbum.Release;
 
             release.Should().NotBeNull();
             release.IndexerId.Should().Be(7);
             release.Indexer.Should().Be("Test Indexer");
             release.Title.Should().Be("Audio Artist - Audio Album [2018 - FLAC]");
+        }
+
+        [Test]
+        public void should_keep_the_grabbed_release_when_a_tracked_download_is_remapped()
+        {
+            GivenGrabHistory(true);
+
+            Mocker.GetMock<IParsingService>()
+                  .Setup(s => s.Map(It.IsAny<ParsedAlbumInfo>(), It.IsAny<SearchCriteriaBase>()))
+                  .Returns<ParsedAlbumInfo, SearchCriteriaBase>((info, _) => new RemoteAlbum
+                  {
+                      Artist = new Artist { Id = 5 },
+                      Albums = new List<Album> { new Album { Id = 4 } },
+                      ParsedAlbumInfo = info
+                  });
+
+            GivenTrackedTorrent("Audio Artist - Audio Album [2018 - FLAC]");
+
+            Subject.Handle(new AlbumDeletedEvent(new Album { Id = 4 }, false, false));
+
+            var release = Subject.GetTrackedDownloads().Single().RemoteAlbum.Release;
+
+            release.Should().NotBeNull();
+            release.IndexerId.Should().Be(7);
         }
 
         [Test]

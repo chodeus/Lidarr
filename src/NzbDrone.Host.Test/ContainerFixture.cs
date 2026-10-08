@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using DryIoc;
 using DryIoc.Microsoft.DependencyInjection;
 using FluentAssertions;
@@ -19,6 +20,7 @@ using NzbDrone.Core.Datastore.Extensions;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.Indexers;
+using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.SignalR;
@@ -75,6 +77,15 @@ namespace NzbDrone.App.Test
             var factory = _container.GetRequiredService<IServiceFactory>();
 
             factory.Build<IIndexerFactory>().Should().NotBeNull();
+        }
+
+        [TestCase(typeof(ICompletedDownloadService), "_rejectedImportService")]
+        [TestCase(typeof(IDownloadedTracksImportService), "_configService")]
+        public void should_build_services_with_their_full_constructor(System.Type service, string field)
+        {
+            var instance = _container.GetRequiredService(service);
+
+            instance.GetType().GetField(field, BindingFlags.NonPublic | BindingFlags.Instance).GetValue(instance).Should().NotBeNull();
         }
 
         [Test]

@@ -47,6 +47,20 @@ namespace NzbDrone.Core.MediaFiles
         private readonly IConfigService _configService;
         private readonly Logger _logger;
 
+        // Develop's constructor, kept for plugins built against it; user defined extensions are not checked
+        public DownloadedTracksImportService(IDiskProvider diskProvider,
+                                             IDiskScanService diskScanService,
+                                             IArtistService artistService,
+                                             IParsingService parsingService,
+                                             IMakeImportDecision importDecisionMaker,
+                                             IImportApprovedTracks importApprovedTracks,
+                                             IEventAggregator eventAggregator,
+                                             IRuntimeInfo runtimeInfo,
+                                             Logger logger)
+            : this(diskProvider, diskScanService, artistService, parsingService, importDecisionMaker, importApprovedTracks, eventAggregator, runtimeInfo, null, logger)
+        {
+        }
+
         public DownloadedTracksImportService(IDiskProvider diskProvider,
                                              IDiskScanService diskScanService,
                                              IArtistService artistService,
@@ -368,7 +382,7 @@ namespace NzbDrone.Core.MediaFiles
         {
             var files = _diskProvider.GetFiles(folder, true).ToList();
 
-            var unsafeFiles = FileExtensions.FindUnsafeExtensions(files, _configService.UserRejectedExtensions);
+            var unsafeFiles = FileExtensions.FindUnsafeExtensions(files, _configService?.UserRejectedExtensions);
             var rejections = UnsafeFileRejections.Where(r => unsafeFiles.ContainsKey(r.Key))
                                                  .Select(r => r.Value)
                                                  .ToList();

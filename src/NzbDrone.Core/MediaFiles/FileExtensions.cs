@@ -55,8 +55,10 @@ namespace NzbDrone.Core.MediaFiles
                 return new List<string>();
             }
 
-            return input.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(e => e.Trim(' ', '.').Insert(0, "."))
+            return input.Split(',')
+                .Select(e => e.Trim().Trim('.').Trim())
+                .Where(e => e.Length > 0)
+                .Select(e => "." + e)
                 .ToList();
         }
 
@@ -65,7 +67,6 @@ namespace NzbDrone.Core.MediaFiles
             return ParseExtensions(input).ToHashSet(StringComparer.OrdinalIgnoreCase);
         }
 
-        // The one place that decides which Fail Downloads type a file is: used at grab and at import
         public static Dictionary<FailDownloads, HashSet<string>> FindUnsafeExtensions(IEnumerable<string> fileNames, string userRejectedExtensions)
         {
             var groups = new Dictionary<FailDownloads, HashSet<string>>

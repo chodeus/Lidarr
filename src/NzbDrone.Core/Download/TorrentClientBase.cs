@@ -80,7 +80,8 @@ namespace NzbDrone.Core.Download
                 magnetUrl = torrentInfo.MagnetUrl;
             }
 
-            if (PreferTorrentFile)
+            // The file list can only be checked from a torrent file, so fetch that first while the check is on
+            if (PreferTorrentFile || GetGrabTimeFailDownloads(indexer).Count > 0)
             {
                 if (torrentUrl.IsNotNullOrWhiteSpace())
                 {
@@ -262,20 +263,23 @@ namespace NzbDrone.Core.Download
             return actualHash;
         }
 
-        private void EnsureTorrentDoesNotContainRejectedFiles(RemoteAlbum remoteAlbum, IIndexer indexer, byte[] torrentFile)
+        private HashSet<FailDownloads> GetGrabTimeFailDownloads(IIndexer indexer)
         {
             var indexerSettings = indexer?.Definition?.Settings as ITorrentIndexerSettings;
 
-            if (indexerSettings?.RejectTorrentFilesWithBlockedExtensionsWhileGrabbing != true)
+            if (indexerSettings?.RejectTorrentFilesWithBlockedExtensionsWhileGrabbing != true || indexerSettings.FailDownloads == null)
             {
-                return;
+                return new HashSet<FailDownloads>();
             }
 
-            var failDownloads = indexerSettings.FailDownloads?
-                .Select(f => (FailDownloads)f)
-                .ToHashSet();
+            return indexerSettings.FailDownloads.Select(f => (FailDownloads)f).ToHashSet();
+        }
 
-            if (failDownloads == null || failDownloads.Count == 0)
+        private void EnsureTorrentDoesNotContainRejectedFiles(RemoteAlbum remoteAlbum, IIndexer indexer, byte[] torrentFile)
+        {
+            var failDownloads = GetGrabTimeFailDownloads(indexer);
+
+            if (failDownloads.Count == 0)
             {
                 return;
             }

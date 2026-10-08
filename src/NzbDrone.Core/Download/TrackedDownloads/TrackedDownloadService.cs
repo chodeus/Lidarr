@@ -69,8 +69,15 @@ namespace NzbDrone.Core.Download.TrackedDownloads
         private void UpdateCachedItem(TrackedDownload trackedDownload)
         {
             var parsedAlbumInfo = Parser.Parser.ParseAlbumTitle(trackedDownload.DownloadItem.Title);
+            var release = trackedDownload.RemoteAlbum?.Release;
 
             trackedDownload.RemoteAlbum = parsedAlbumInfo == null ? null : _parsingService.Map(parsedAlbumInfo);
+
+            // Remapping changes the albums, not the grab: Fail Downloads finds the indexer through this release
+            if (trackedDownload.RemoteAlbum != null)
+            {
+                trackedDownload.RemoteAlbum.Release ??= release;
+            }
 
             _aggregationService.Augment(trackedDownload.RemoteAlbum);
         }
@@ -189,17 +196,23 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                         }
                     }
 
-                    if (trackedDownload.RemoteAlbum != null &&
-                        Enum.TryParse(grabbedEvent?.Data?.GetValueOrDefault("indexerFlags"), true, out IndexerFlags flags))
+                    if (trackedDownload.RemoteAlbum != null)
                     {
                         trackedDownload.RemoteAlbum.Release ??= new ReleaseInfo();
                         trackedDownload.RemoteAlbum.Release.Indexer = trackedDownload.Indexer;
                         trackedDownload.RemoteAlbum.Release.Title = trackedDownload.RemoteAlbum.ParsedAlbumInfo?.ReleaseTitle;
-                        trackedDownload.RemoteAlbum.Release.IndexerFlags = flags;
 
-                        if (downloadHistory != null)
+                        if (Enum.TryParse(grabbedEvent?.Data?.GetValueOrDefault("indexerFlags"), true, out IndexerFlags flags))
                         {
-                            trackedDownload.RemoteAlbum.Release.IndexerId = downloadHistory.IndexerId;
+                            trackedDownload.RemoteAlbum.Release.IndexerFlags = flags;
+                        }
+
+                        // Only the grab records the indexer id; later download history entries leave it 0
+                        var grab = _downloadHistoryService.GetLatestGrab(downloadItem.DownloadId);
+
+                        if (grab != null)
+                        {
+                            trackedDownload.RemoteAlbum.Release.IndexerId = grab.IndexerId;
                         }
                     }
                 }

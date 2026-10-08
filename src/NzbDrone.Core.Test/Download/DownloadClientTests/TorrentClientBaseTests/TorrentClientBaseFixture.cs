@@ -142,6 +142,42 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.TorrentClientBaseTests
                   .Verify(s => s.GetFileNamesFromTorrentFile(It.IsAny<byte[]>()), Times.Never());
         }
 
+        private RemoteAlbum CreateRemoteAlbumWithMagnetAndTorrentFile()
+        {
+            var remoteAlbum = CreateRemoteAlbum();
+
+            remoteAlbum.Release = new TorrentInfo
+            {
+                Title = remoteAlbum.Release.Title,
+                DownloadUrl = remoteAlbum.Release.DownloadUrl,
+                DownloadProtocol = remoteAlbum.Release.DownloadProtocol,
+                MagnetUrl = "magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a"
+            };
+
+            return remoteAlbum;
+        }
+
+        [Test]
+        public void should_check_the_torrent_file_ahead_of_a_magnet_link_while_the_option_is_on()
+        {
+            var remoteAlbum = CreateRemoteAlbumWithMagnetAndTorrentFile();
+            GivenTorrentFiles("Artist - Album/01 - Track.flac", "Artist - Album/Setup.exe");
+
+            Assert.ThrowsAsync<ReleaseBlockedException>(async () => await Subject.Download(remoteAlbum, CreateIndexerWithFailDownloads(true, FailDownloads.Executables)));
+
+            VerifyBlocked(remoteAlbum, 1);
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public async Task should_keep_using_the_magnet_link_while_the_option_is_off()
+        {
+            await Subject.Download(CreateRemoteAlbumWithMagnetAndTorrentFile(), CreateIndexerWithFailDownloads(false, FailDownloads.Executables));
+
+            Mocker.GetMock<ITorrentFileInfoReader>()
+                  .Verify(s => s.GetHashFromTorrentFile(It.IsAny<byte[]>()), Times.Never());
+        }
+
         [Test]
         public async Task should_not_read_the_file_list_for_a_magnet_link()
         {

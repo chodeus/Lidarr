@@ -35,5 +35,12 @@ namespace NzbDrone.Core.Test.MediaFiles
             FileExtensions.FindUnsafeExtensions(new[] { "01 - Track.flac", "cover.jpg", "Album.nfo" }, userRejectedExtensions)
                           .Should().BeEmpty();
         }
+
+        [Test]
+        public void should_trim_whitespace_and_skip_empty_extensions()
+        {
+            FileExtensions.ParseExtensions("nfo,\nxyz, .TXT ,, . ,\t")
+                          .Should().Equal(".nfo", ".xyz", ".TXT");
+        }
     }
 }

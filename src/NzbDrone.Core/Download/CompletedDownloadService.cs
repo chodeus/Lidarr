@@ -36,6 +36,19 @@ namespace NzbDrone.Core.Download
         private readonly IRejectedImportService _rejectedImportService;
         private readonly Logger _logger;
 
+        // Develop's constructor, kept for plugins built against it; import rejections only warn, as in develop
+        public CompletedDownloadService(IEventAggregator eventAggregator,
+                                        IHistoryService historyService,
+                                        IProvideImportItemService provideImportItemService,
+                                        IDownloadedTracksImportService downloadedTracksImportService,
+                                        IArtistService artistService,
+                                        IParsingService parsingService,
+                                        ITrackedDownloadAlreadyImported trackedDownloadAlreadyImported,
+                                        Logger logger)
+            : this(eventAggregator, historyService, provideImportItemService, downloadedTracksImportService, artistService, parsingService, trackedDownloadAlreadyImported, null, logger)
+        {
+        }
+
         public CompletedDownloadService(IEventAggregator eventAggregator,
                                         IHistoryService historyService,
                                         IProvideImportItemService provideImportItemService,
@@ -148,7 +161,9 @@ namespace NzbDrone.Core.Download
 
                 if (firstResult.Result == ImportResultType.Rejected && firstResult.ImportDecision.Item == null)
                 {
-                    if (!_rejectedImportService.Process(trackedDownload, firstResult))
+                    var processed = _rejectedImportService?.Process(trackedDownload, firstResult) ?? false;
+
+                    if (!processed)
                     {
                         trackedDownload.Warn(new TrackedDownloadStatusMessage(firstResult.Errors.First(), new List<string>()));
                     }

@@ -1,7 +1,7 @@
 {
   "lidarr_branch": "develop",
   "lidarr_repo": "Lidarr/Lidarr",
-  "lidarr_sha": "8d0f4f0ba1e43f811aaabbdca35c7c94c062be96",
+  "lidarr_sha": "88bf9e8349217f12f3f945e5177883dfd99bc1a8",
   "lidarr_sha__command": "git ls-remote --exit-code \"https://github.com/$(jq -re '.lidarr_repo' < meta.json).git\" \"refs/heads/$(jq -re '.lidarr_branch' < meta.json)\" | cut -f1",
   "pr_branches": "tagging-profiles fix/profile-order-and-tags fix/ambiguous-artist-disambiguation metadata-profile-must-not-contain feat/retry-import-failed feat/smaller-release-upgrades fix/release-imported-to-different-album feat/album-artist-credits fix/ignore-unmatched-download feat/fail-downloads feat/manual-interaction-notification feat/notification-links feat/import-list-clean-library feat/artist-alias-matching fix/artist-refresh-scan-scope feat/artist-alias-distance fix/feat-credit-keeps-version fix/qbittorrent-existing-torrent chore/frontend-dependency-advisories fix/log-cleansing-housekeeping-backups feat/custom-format-upgrades fix/unmapped-duplicates",
   "pr_repo": "chodeus/Lidarr",
@@ -12,7 +12,7 @@
   "upstream_tag": "alpinevpn",
   "upstream_tag_sha": "alpinevpn-826e0fd",
   "upstream_tag_sha__command": "json=$(cat meta.json) && upstream_image=$(jq -re '.upstream_image' <<< \"${json}\") && upstream_image_base=$(basename \"${upstream_image}\") && upstream_tag=$(jq -re '.upstream_tag' <<< \"${json}\") && tags_json=$(curl -fsSL \"https://hotio.dev/containers/${upstream_image_base}-tags.json\") && commit_sha=$(jq -re --arg tag \"${upstream_tag}\" '.[$tag].commit_sha' <<< \"${tags_json}\") && upstream_tag_sha=${upstream_tag}-${commit_sha:0:7} && echo \"${upstream_tag_sha}\"",
-  "version": "3.1.6-8d0f4f0-4f8dd26",
+  "version": "3.1.6-88bf9e8-4f8dd26",
   "version__command": "lidarr_sha=$(jq -re '.lidarr_sha' < meta.json) && pr=$(jq -re '.pr_shas' < meta.json | git hash-object --stdin) && major=$(curl -fsSL \"https://raw.githubusercontent.com/$(jq -re '.lidarr_repo' < meta.json)/${lidarr_sha}/azure-pipelines.yml\" | sed -n \"s/^ *majorVersion: '\\([0-9.]*\\)'.*/\\1/p\") && test -n \"${major}\" && echo \"${major}-${lidarr_sha:0:7}-${pr:0:7}\"",
   "version_branch": "nightly"
 }

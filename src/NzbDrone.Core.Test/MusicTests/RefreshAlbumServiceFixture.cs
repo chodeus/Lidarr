@@ -270,6 +270,31 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
+        public void should_publish_an_update_when_only_the_missing_date_clears()
+        {
+            var album = _albums.First();
+            album.MetadataMissingSince = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            var sameAlbum = new Album();
+            sameAlbum.UseMetadataFrom(album);
+            sameAlbum.UseDbFieldsFrom(album);
+            sameAlbum.ArtistMetadata = album.ArtistMetadata;
+            sameAlbum.AlbumReleases = _releases;
+            sameAlbum.Should().Be(album, "only the missing date may change this refresh");
+            GivenNewAlbumInfo(sameAlbum);
+
+            Mocker.GetMock<IArtistMetadataService>()
+                .Setup(s => s.UpsertMany(It.IsAny<List<ArtistMetadata>>()))
+                .Returns(false);
+
+            Subject.RefreshAlbumInfo(album, null, false);
+
+            album.MetadataMissingSince.Should().BeNull();
+            Mocker.GetMock<IEventAggregator>()
+                .Verify(v => v.PublishEvent(It.IsAny<AlbumUpdatedEvent>()), Times.Once());
+        }
+
+        [Test]
         public void should_publish_an_update_when_marking_an_album_missing()
         {
             Subject.RefreshAlbumInfo(_albums.First(), null, false);

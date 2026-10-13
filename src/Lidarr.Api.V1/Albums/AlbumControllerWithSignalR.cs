@@ -111,8 +111,9 @@ namespace Lidarr.Api.V1.Albums
 
         private void LinkArtistStatistics(List<AlbumResource> resources, List<ArtistStatistics> artistStatistics)
         {
+            var artistIds = resources.Select(r => r.ArtistId).ToHashSet();
             var albumStats = artistStatistics
-                .Where(s => s?.AlbumStatistics != null)
+                .Where(s => s?.AlbumStatistics != null && artistIds.Contains(s.ArtistId))
                 .SelectMany(s => s.AlbumStatistics)
                 .GroupBy(s => (s.ArtistId, s.AlbumId))
                 .ToDictionary(g => g.Key, g => g.First());

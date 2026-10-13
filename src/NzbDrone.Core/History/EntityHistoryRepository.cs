@@ -145,17 +145,7 @@ namespace NzbDrone.Core.History
 
         private SqlBuilder PagedBuilder(int[] qualities)
         {
-            var builder = Builder()
-                .Join<EntityHistory, Artist>((h, a) => h.ArtistId == a.Id)
-                .Join<EntityHistory, Album>((h, a) => h.AlbumId == a.Id)
-                .LeftJoin<EntityHistory, Track>((h, t) => h.TrackId == t.Id);
-
-            if (qualities is { Length: > 0 })
-            {
-                builder.Where($"({BuildQualityWhereClause(qualities)})");
-            }
-
-            return builder;
+            return CountBuilder(qualities).LeftJoin<EntityHistory, Track>((h, t) => h.TrackId == t.Id);
         }
 
         protected override IEnumerable<EntityHistory> PagedQuery(SqlBuilder builder) =>

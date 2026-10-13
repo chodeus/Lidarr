@@ -44,8 +44,10 @@ namespace NzbDrone.Core.Music
         Album FindAlbumByRelease(string albumReleaseId);
         Album FindAlbumByTrackId(int trackId);
         List<Album> GetArtistAlbumsWithFiles(Artist artist);
-        void LoadArtistsAndReleases(List<Album> albums);
-        void LoadReleases(List<Album> albums);
+        void LoadArtistsAndReleases(List<Album> albums)
+        {
+            // A no-op keeps implementations built against develop working; lazy loading still fills these.
+        }
     }
 
     public class AlbumService : IAlbumService,
@@ -433,11 +435,6 @@ namespace NzbDrone.Core.Music
         public void LoadArtistsAndReleases(List<Album> albums)
         {
             _albumRepository.LoadArtistsAndReleases(albums);
-        }
-
-        public void LoadReleases(List<Album> albums)
-        {
-            _albumRepository.LoadReleases(albums);
         }
     }
 }

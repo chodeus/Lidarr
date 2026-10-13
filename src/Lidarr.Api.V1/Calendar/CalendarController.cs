@@ -44,8 +44,7 @@ namespace Lidarr.Api.V1.Calendar
             var startUse = start ?? DateTime.Today;
             var endUse = end ?? DateTime.Today.AddDays(2);
             var albums = _albumService.AlbumsBetweenDates(startUse, endUse, unmonitored);
-            _albumService.LoadArtistsAndReleases(albums);
-            var artistsById = _artistService.GetAllArtists().ToDictionary(a => a.Id);
+            var artists = _artistService.GetAllArtists().ToDictionary(a => a.ArtistMetadataId);
             var parsedTags = new List<int>();
             var result = new List<Album>();
 
@@ -56,10 +55,12 @@ namespace Lidarr.Api.V1.Calendar
 
             foreach (var album in albums)
             {
-                if (!artistsById.TryGetValue(album.ArtistId, out var artist))
+                if (!artists.TryGetValue(album.ArtistMetadataId, out var artist))
                 {
                     continue;
                 }
+
+                album.Artist = artist;
 
                 if (parsedTags.Any() && parsedTags.None(artist.Tags.Contains))
                 {

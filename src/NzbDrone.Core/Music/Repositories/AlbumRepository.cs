@@ -27,8 +27,10 @@ namespace NzbDrone.Core.Music
         Album FindAlbumByRelease(string albumReleaseId);
         Album FindAlbumByTrack(int trackId);
         List<Album> GetArtistAlbumsWithFiles(Artist artist);
-        void LoadArtistsAndReleases(List<Album> albums);
-        void LoadReleases(List<Album> albums);
+        void LoadArtistsAndReleases(List<Album> albums)
+        {
+            // A no-op keeps implementations built against develop working; lazy loading still fills these.
+        }
     }
 
     public class AlbumRepository : BasicRepository<Album>, IAlbumRepository
@@ -102,7 +104,6 @@ namespace NzbDrone.Core.Music
                         .Join<AlbumRelease, Track>((r, t) => r.Id == t.AlbumReleaseId)
                         .LeftJoin<Track, TrackFile>((t, f) => t.TrackFileId == f.Id)
                         .Where<AlbumRelease, Album>((r, a) => r.AlbumId == a.Id)
-                        .Where<Artist, Album>((ar, a) => ar.ArtistMetadataId == a.ArtistMetadataId)
                         .Where<AlbumRelease>(r => r.Monitored == true)
                         .Where<Track, TrackFile>((t, f) => t.TrackFileId == 0 || f.Id == null));
         }
@@ -126,7 +127,6 @@ namespace NzbDrone.Core.Music
                         .Join<AlbumRelease, Track>((r, t) => r.Id == t.AlbumReleaseId)
                         .Join<Track, TrackFile>((t, f) => t.TrackFileId == f.Id)
                         .Where<AlbumRelease, Album>((r, a) => r.AlbumId == a.Id)
-                        .Where<Artist, Album>((ar, a) => ar.ArtistMetadataId == a.ArtistMetadataId)
                         .Where<AlbumRelease>(r => r.Monitored == true)
                         .Where(BuildQualityCutoffWhereClause(qualitiesBelowCutoff)));
         }
@@ -248,7 +248,19 @@ namespace NzbDrone.Core.Music
             LoadReleases(albums);
         }
 
-        public void LoadReleases(List<Album> albums)
+        public List<Album> GetArtistAlbumsWithFiles(Artist artist)
+        {
+            var id = artist.ArtistMetadataId;
+
+            return Query(Builder().Join<Album, AlbumRelease>((a, r) => a.Id == r.AlbumId)
+                         .Join<AlbumRelease, Track>((r, t) => r.Id == t.AlbumReleaseId)
+                         .Join<Track, TrackFile>((t, f) => t.TrackFileId == f.Id)
+                         .Where<Album>(x => x.ArtistMetadataId == id)
+                         .Where<AlbumRelease>(r => r.Monitored == true)
+                         .GroupBy<Album>(x => x.Id));
+        }
+
+        private void LoadReleases(List<Album> albums)
         {
             var withoutReleases = albums.Where(a => a.Id > 0 && (a.AlbumReleases == null || !a.AlbumReleases.IsLoaded)).ToList();
 
@@ -263,18 +275,6 @@ namespace NzbDrone.Core.Music
                     album.AlbumReleases = releases[album.Id].ToList();
                 }
             }
-        }
-
-        public List<Album> GetArtistAlbumsWithFiles(Artist artist)
-        {
-            var id = artist.ArtistMetadataId;
-
-            return Query(Builder().Join<Album, AlbumRelease>((a, r) => a.Id == r.AlbumId)
-                         .Join<AlbumRelease, Track>((r, t) => r.Id == t.AlbumReleaseId)
-                         .Join<Track, TrackFile>((t, f) => t.TrackFileId == f.Id)
-                         .Where<Album>(x => x.ArtistMetadataId == id)
-                         .Where<AlbumRelease>(r => r.Monitored == true)
-                         .GroupBy<Album>(x => x.Id));
         }
     }
 }

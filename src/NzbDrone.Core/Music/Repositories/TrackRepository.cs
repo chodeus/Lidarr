@@ -19,7 +19,10 @@ namespace NzbDrone.Core.Music
         List<Track> TracksWithoutFiles(int albumId);
         void SetFileId(List<Track> tracks);
         void DetachTrackFile(int trackFileId);
-        void LoadReleasesAndArtists(List<Track> tracks);
+        void LoadReleasesAndArtists(List<Track> tracks)
+        {
+            // A no-op keeps implementations built against develop working; lazy loading still fills these.
+        }
     }
 
     public class TrackRepository : BasicRepository<Track>, ITrackRepository

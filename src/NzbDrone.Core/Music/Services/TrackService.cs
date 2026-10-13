@@ -25,7 +25,10 @@ namespace NzbDrone.Core.Music
         void UpdateMany(List<Track> tracks);
         void DeleteMany(List<Track> tracks);
         void SetFileIds(List<Track> tracks);
-        void LoadReleasesAndArtists(List<Track> tracks);
+        void LoadReleasesAndArtists(List<Track> tracks)
+        {
+            // A no-op keeps implementations built against develop working; lazy loading still fills these.
+        }
     }
 
     public class TrackService : ITrackService,

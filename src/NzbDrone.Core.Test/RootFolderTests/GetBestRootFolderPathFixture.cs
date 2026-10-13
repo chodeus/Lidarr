@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
+using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.RootFolders;
 using NzbDrone.Core.Test.Framework;
@@ -15,6 +17,25 @@ namespace NzbDrone.Core.Test.RootFolderTests
             Mocker.GetMock<IRootFolderRepository>()
                 .Setup(s => s.All())
                 .Returns(paths.Select(p => new RootFolder { Path = p }));
+        }
+
+        [Test]
+        public void should_use_the_given_root_folders_without_loading_them()
+        {
+            var rootFolders = new List<RootFolder> { new RootFolder { Path = @"C:\Test\Music".AsOsAgnostic() } };
+
+            Subject.GetBestRootFolderPath(@"C:\Test\Music\Artist Name".AsOsAgnostic(), rootFolders).Should().Be(@"C:\Test\Music".AsOsAgnostic());
+
+            Mocker.GetMock<IRootFolderRepository>().Verify(s => s.All(), Times.Never());
+        }
+
+        [Test]
+        public void should_keep_the_single_path_overload_and_default_the_list_overload()
+        {
+            var type = typeof(IRootFolderService);
+
+            type.GetMethod(nameof(IRootFolderService.GetBestRootFolderPath), new[] { typeof(string) }).Should().NotBeNull();
+            type.GetMethod(nameof(IRootFolderService.GetBestRootFolderPath), new[] { typeof(string), typeof(List<RootFolder>) }).IsAbstract.Should().BeFalse();
         }
 
         [Test]

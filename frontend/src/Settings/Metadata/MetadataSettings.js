@@ -4,6 +4,7 @@ import PageContentBody from 'Components/Page/PageContentBody';
 import SettingsToolbarConnector from 'Settings/SettingsToolbarConnector';
 import translate from 'Utilities/String/translate';
 import MetadatasConnector from './Metadata/MetadatasConnector';
+import MetadataSources from './MetadataSources/MetadataSources';
 
 function MetadataSettings() {
   return (
@@ -13,6 +14,7 @@ function MetadataSettings() {
       />
 
       <PageContentBody>
+        <MetadataSources />
         <MetadatasConnector />
       </PageContentBody>
     </PageContent>

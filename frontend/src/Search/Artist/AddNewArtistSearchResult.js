@@ -80,7 +80,8 @@ class AddNewArtistSearchResult extends Component {
       folder,
       images,
       isExistingArtist,
-      isSmallScreen
+      isSmallScreen,
+      metadataSource
     } = this.props;
 
     const {
@@ -185,6 +186,18 @@ class AddNewArtistSearchResult extends Component {
                   </Label> :
                   null
               }
+
+              {
+                metadataSource ?
+                  <Label
+                    kind={kinds.INFO}
+                    size={sizes.LARGE}
+                    title={translate('MetadataSource')}
+                  >
+                    {metadataSource}
+                  </Label> :
+                  null
+              }
             </div>
 
             <div
@@ -230,7 +243,8 @@ AddNewArtistSearchResult.propTypes = {
   folder: PropTypes.string.isRequired,
   images: PropTypes.arrayOf(PropTypes.object).isRequired,
   isExistingArtist: PropTypes.bool.isRequired,
-  isSmallScreen: PropTypes.bool.isRequired
+  isSmallScreen: PropTypes.bool.isRequired,
+  metadataSource: PropTypes.string
 };
 
 export default AddNewArtistSearchResult;

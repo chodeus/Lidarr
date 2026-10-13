@@ -146,6 +146,7 @@ class AddNewItem extends Component {
                       return (
                         <AddNewArtistSearchResultConnector
                           key={item.id}
+                          metadataSource={item.metadataSource}
                           {...artist}
                         />
                       );
@@ -154,6 +155,7 @@ class AddNewItem extends Component {
                       return (
                         <AddNewAlbumSearchResultConnector
                           key={item.id}
+                          metadataSource={item.metadataSource}
                           isExistingAlbum={'id' in album && album.id !== 0}
                           isExistingArtist={'id' in album.artist && album.artist.id !== 0}
                           {...album}

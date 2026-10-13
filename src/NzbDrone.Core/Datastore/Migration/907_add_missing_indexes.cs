@@ -3,7 +3,7 @@ using NzbDrone.Core.Datastore.Migration.Framework;
 
 namespace NzbDrone.Core.Datastore.Migration
 {
-    [Migration(082)]
+    [Migration(907)]
     public class add_missing_indexes : NzbDroneMigrationBase
     {
         protected override void MainDbUpgrade()

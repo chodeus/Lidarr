@@ -7,7 +7,7 @@ import HeartRating from 'Components/HeartRating';
 import Icon from 'Components/Icon';
 import Label from 'Components/Label';
 import Link from 'Components/Link/Link';
-import { icons, sizes } from 'Helpers/Props';
+import { icons, kinds, sizes } from 'Helpers/Props';
 import dimensions from 'Styles/Variables/dimensions';
 import fonts from 'Styles/Variables/fonts';
 import translate from 'Utilities/String/translate';
@@ -83,7 +83,8 @@ class AddNewAlbumSearchResult extends Component {
       artist,
       isExistingAlbum,
       isExistingArtist,
-      isSmallScreen
+      isSmallScreen,
+      metadataSource
     } = this.props;
 
     const {
@@ -190,6 +191,18 @@ class AddNewAlbumSearchResult extends Component {
                   })
               }
 
+              {
+                metadataSource ?
+                  <Label
+                    kind={kinds.INFO}
+                    size={sizes.LARGE}
+                    title={translate('MetadataSource')}
+                  >
+                    {metadataSource}
+                  </Label> :
+                  null
+              }
+
             </div>
 
             <div
@@ -238,7 +251,8 @@ AddNewAlbumSearchResult.propTypes = {
   releases: PropTypes.arrayOf(PropTypes.object).isRequired,
   isExistingAlbum: PropTypes.bool.isRequired,
   isExistingArtist: PropTypes.bool.isRequired,
-  isSmallScreen: PropTypes.bool.isRequired
+  isSmallScreen: PropTypes.bool.isRequired,
+  metadataSource: PropTypes.string
 };
 
 export default AddNewAlbumSearchResult;

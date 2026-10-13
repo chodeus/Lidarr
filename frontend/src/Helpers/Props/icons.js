@@ -21,6 +21,7 @@ import {
 //
 // Solid
 import {
+  faArrowCircleDown as fasArrowCircleDown,
   faArrowCircleLeft as fasArrowCircleLeft,
   faArrowCircleRight as fasArrowCircleRight,
   faArrowCircleUp as fasArrowCircleUp,
@@ -121,6 +122,7 @@ export const ADD = fasPlus;
 export const ADD_MISSING_ARTISTS = fasSearchPlus;
 export const ALTERNATE_TITLES = farClone;
 export const ADVANCED_SETTINGS = fasCog;
+export const ARROW_DOWN = fasArrowCircleDown;
 export const ARROW_LEFT = fasArrowCircleLeft;
 export const ARROW_RIGHT = fasArrowCircleRight;
 export const ARROW_RIGHT_NO_CIRCLE = fasLongArrowAltRight;

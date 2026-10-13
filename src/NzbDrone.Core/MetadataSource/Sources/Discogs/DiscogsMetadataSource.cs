@@ -4,7 +4,6 @@ using System.Linq;
 using FluentValidation;
 using FluentValidation.Results;
 using NLog;
-using NzbDrone.Common.Cache;
 using NzbDrone.Core.Annotations;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.Music;
@@ -47,21 +46,18 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
         private readonly IArtistService _artistService;
         private readonly IAlbumService _albumService;
         private readonly IMetadataProfileService _metadataProfileService;
-        private readonly ICached<DiscogsFormatKind> _mainReleaseKinds;
         private readonly Logger _logger;
 
         public DiscogsMetadataSource(IDiscogsApi api,
                                      IArtistService artistService,
                                      IAlbumService albumService,
                                      IMetadataProfileService metadataProfileService,
-                                     ICacheManager cacheManager,
                                      Logger logger)
         {
             _api = api;
             _artistService = artistService;
             _albumService = albumService;
             _metadataProfileService = metadataProfileService;
-            _mainReleaseKinds = cacheManager.GetCache<DiscogsFormatKind>(GetType(), "mainReleaseKinds");
             _logger = logger;
         }
 
@@ -252,10 +248,10 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
             return entry.Role == DiscogsApi.BootlegRole ? kind with { ReleaseStatus = ReleaseStatus.Bootleg.Name } : kind;
         }
 
-        // Masters carry no format, so the album type comes from the main release
+        // Masters carry no format, so the album type comes from the main release (kept in the Discogs cache)
         private DiscogsFormatKind MainReleaseKind(long mainReleaseId)
         {
-            return _mainReleaseKinds.Get(mainReleaseId.ToString(), () => DiscogsMapper.Classify(_api.GetRelease(mainReleaseId, Settings.Token)?.Formats), TimeSpan.FromDays(1));
+            return DiscogsMapper.Classify(_api.GetRelease(mainReleaseId, Settings.Token)?.Formats);
         }
 
         private long ParseId(string foreignId, string expectedKind)

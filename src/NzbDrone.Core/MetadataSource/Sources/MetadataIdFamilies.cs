@@ -4,5 +4,6 @@ namespace NzbDrone.Core.MetadataSource.Sources
     public static class MetadataIdFamilies
     {
         public const string MusicBrainz = "MusicBrainz";
+        public const string Deezer = "Deezer";
     }
 }

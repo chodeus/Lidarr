@@ -67,6 +67,13 @@ namespace NzbDrone.App.Test
         }
 
         [Test]
+        public void no_other_lookup_stays_registered()
+        {
+            _container.GetServices<IProvideArtistInfo>().Should().ContainSingle();
+            _container.GetServices<ISearchForNewEntity>().Should().ContainSingle();
+        }
+
+        [Test]
         public void search_labels_come_from_the_instance_that_searched()
         {
             _container.GetRequiredService<IMetadataSourceLabels>().Should().BeSameAs(_container.GetRequiredService<ISearchForNewEntity>());

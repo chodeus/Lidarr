@@ -148,7 +148,7 @@ namespace Lidarr.Api.V1.Artist
             MapCoversToLocal(artistsResources.ToArray());
             LinkNextPreviousAlbums(artistsResources.ToArray());
             LinkArtistStatistics(artistsResources, artistStats.ToDictionary(x => x.ArtistId));
-            LinkRootFolderPath(artistsResources.ToArray());
+            LinkRootFolderPath(artistsResources);
 
             // PopulateAlternateTitles(seriesResources);
             return artistsResources;
@@ -262,7 +262,12 @@ namespace Lidarr.Api.V1.Artist
 
         // resource.AlternateTitles = mappings.Select(v => new AlternateTitleResource { Title = v.Title, SeasonNumber = v.SeasonNumber, SceneSeasonNumber = v.SceneSeasonNumber }).ToList();
         // }
-        private void LinkRootFolderPath(params ArtistResource[] resources)
+        private void LinkRootFolderPath(ArtistResource resource)
+        {
+            resource.RootFolderPath = _rootFolderService.GetBestRootFolderPath(resource.Path);
+        }
+
+        private void LinkRootFolderPath(List<ArtistResource> resources)
         {
             var rootFolders = _rootFolderService.All();
 

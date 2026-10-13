@@ -124,12 +124,14 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistRepositoryTests
             artist.ForeignArtistId.Should().Be("d15721d8-56b4-453d-b506-fc915b14cba2");
         }
 
-        [Test]
-        public void should_not_find_artist_by_an_id_inside_a_longer_old_id()
+        [TestCase("other:12")]
+        [TestCase("other:%")]
+        [TestCase("other:123_")]
+        public void should_find_artist_by_an_exact_old_id_only(string foreignArtistId)
         {
             AddArtist("Placeholder Artist", "other:5678", new List<string> { "other:1234" });
 
-            _artistRepo.FindById("other:12").Should().BeNull();
+            _artistRepo.FindById(foreignArtistId).Should().BeNull();
         }
 
         [Test]

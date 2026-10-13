@@ -522,7 +522,7 @@ namespace NzbDrone.Core.Notifications.Discord
 
             return MusicBrainzIds.IsMusicBrainzId(id)
                 ? new Links { Name = "MusicBrainz", Url = $"https://musicbrainz.org/artist/{id}" }
-                : artist.Metadata.Value.Links?.FirstOrDefault();
+                : artist.Metadata.Value.Links?.FirstOrDefault(l => l.Url.IsNotNullOrWhiteSpace());
         }
 
         private string GetTitle(Artist artist, List<Album> albums)

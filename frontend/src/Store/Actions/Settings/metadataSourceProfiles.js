@@ -69,28 +69,17 @@ export default {
     [FETCH_METADATA_SOURCE_PROFILES]: createFetchHandler(section, '/metadatasourceprofile'),
     [FETCH_METADATA_SOURCE_PROFILE_SCHEMA]: createFetchSchemaHandler(section, '/metadatasourceprofile/schema'),
     [SAVE_METADATA_SOURCE_PROFILE]: createSaveProviderHandler(section, '/metadatasourceprofile'),
-    [DELETE_METADATA_SOURCE_PROFILE]: (getState, payload, dispatch) => {
-      const promise = createRemoveItemHandler(section, '/metadatasourceprofile')(getState, payload, dispatch);
-
-      // Delete renumbers the remaining profiles and reorder finds them by order, so reload them
-      promise.done(() => {
-        dispatch(fetchMetadataSourceProfiles());
-      });
-
-      return promise;
-    },
+    [DELETE_METADATA_SOURCE_PROFILE]: createRemoveItemHandler(section, '/metadatasourceprofile'),
 
     [REORDER_METADATA_SOURCE_PROFILE]: (getState, payload, dispatch) => {
       const { id, moveIndex } = payload;
-      const moveOrder = moveIndex + 1;
-      const profiles = getState().settings.metadataSourceProfiles.items;
-      const moving = _.find(profiles, { id });
+      const ordered = _.sortBy(_.reject(getState().settings.metadataSourceProfiles.items, { id: 1 }), 'order');
 
-      if (moving.order === moveOrder) {
+      if (_.findIndex(ordered, { id }) === moveIndex) {
         return;
       }
 
-      const after = moveIndex > 0 ? _.find(profiles, { order: moveIndex }) : null;
+      const after = moveIndex > 0 ? ordered[moveIndex - 1] : null;
       const afterQueryParam = after ? `afterId=${after.id}` : '';
 
       const promise = createAjaxRequest({

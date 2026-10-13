@@ -49,11 +49,8 @@ namespace NzbDrone.Core.Profiles.MetadataSources
 
         public MetadataSourceProfile Update(MetadataSourceProfile profile)
         {
-            // the seeded default must stay the last-resort match
-            if (profile.Id == DefaultProfileId)
-            {
-                profile.Order = int.MaxValue;
-            }
+            // Order changes only through Reorder and Delete; the seeded default stays the last-resort match
+            profile.Order = profile.Id == DefaultProfileId ? int.MaxValue : _repo.Get(profile.Id).Order;
 
             var result = _repo.Update(profile);
             ClearCaches();

@@ -43,7 +43,6 @@ namespace NzbDrone.Core.MetadataSource.Sources.SkyHookServer
         private readonly IAlbumService _albumService;
         private readonly Logger _logger;
         private readonly IMetadataProfileService _metadataProfileService;
-        private readonly ICacheManager _cacheManager;
 
         private SkyHookProxy _skyHook;
         private string _skyHookUrl;
@@ -52,15 +51,13 @@ namespace NzbDrone.Core.MetadataSource.Sources.SkyHookServer
                                            IArtistService artistService,
                                            IAlbumService albumService,
                                            Logger logger,
-                                           IMetadataProfileService metadataProfileService,
-                                           ICacheManager cacheManager)
+                                           IMetadataProfileService metadataProfileService)
         {
             _httpClient = httpClient;
             _artistService = artistService;
             _albumService = albumService;
             _logger = logger;
             _metadataProfileService = metadataProfileService;
-            _cacheManager = cacheManager;
         }
 
         public override string Name => "SkyHook-compatible server";
@@ -79,6 +76,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.SkyHookServer
             }
         }
 
+        // Own cache: SkyHookProxy keys ChangedAlbums by type, so a shared one would answer with another server's list
         protected override SkyHookProxy SkyHook
         {
             get
@@ -86,7 +84,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.SkyHookServer
                 if (_skyHook == null || _skyHookUrl != Settings.Url)
                 {
                     _skyHookUrl = Settings.Url;
-                    _skyHook = new SkyHookProxy(_httpClient, new ServerRequestBuilder<SkyHookServerMetadataSource>(_skyHookUrl), _artistService, _albumService, _logger, _metadataProfileService, _cacheManager);
+                    _skyHook = new SkyHookProxy(_httpClient, new ServerRequestBuilder<SkyHookServerMetadataSource>(_skyHookUrl), _artistService, _albumService, _logger, _metadataProfileService, new CacheManager());
                 }
 
                 return _skyHook;

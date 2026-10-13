@@ -351,12 +351,7 @@ namespace NzbDrone.Core.MetadataSource.Sources
                 return family == _lastResort.IdFamily ? LastResortRoute() : new Route();
             }
 
-            return new Route
-            {
-                Primary = sources.Where(x => x.Role == MetadataSourceRole.Primary).Select(x => x.Source).ToList(),
-                Fallback = sources.Where(x => x.Role == MetadataSourceRole.Fallback).Select(x => x.Source).ToList(),
-                CombineAll = profile.PrimaryCombination == MetadataSourceCombination.And
-            };
+            return RouteOf(profile, sources);
         }
 
         private Route SearchRoute()
@@ -364,11 +359,11 @@ namespace NzbDrone.Core.MetadataSource.Sources
             var profile = _profileService.GetDefaultProfile();
             var sources = SourcesOf(profile);
 
-            if (sources.Empty())
-            {
-                return LastResortRoute();
-            }
+            return sources.Empty() ? LastResortRoute() : RouteOf(profile, sources);
+        }
 
+        private static Route RouteOf(MetadataSourceProfile profile, List<(MetadataSourceRole Role, IMetadataSource Source)> sources)
+        {
             return new Route
             {
                 Primary = sources.Where(x => x.Role == MetadataSourceRole.Primary).Select(x => x.Source).ToList(),

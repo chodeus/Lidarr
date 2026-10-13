@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using FluentValidation;
 using FluentValidation.Results;
 using NLog;
@@ -37,7 +36,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.SkyHookServer
     }
 
     // Any server that speaks Lidarr's metadata API, such as a MusicBrainz mirror
-    public class SkyHookServerMetadataSource : MetadataSourceBase<SkyHookServerMetadataSourceSettings>
+    public class SkyHookServerMetadataSource : SkyHookMetadataSourceBase<SkyHookServerMetadataSourceSettings>
     {
         private readonly IHttpClient _httpClient;
         private readonly IArtistService _artistService;
@@ -66,10 +65,6 @@ namespace NzbDrone.Core.MetadataSource.Sources.SkyHookServer
 
         public override string Name => "SkyHook-compatible server";
 
-        public override string IdFamily => MetadataIdFamilies.MusicBrainz;
-
-        public override bool CanHandleId(string foreignId) => MusicBrainzIds.IsMusicBrainzId(foreignId);
-
         public override ValidationResult Test()
         {
             try
@@ -84,23 +79,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.SkyHookServer
             }
         }
 
-        public override Artist GetArtistInfo(string foreignArtistId, int metadataProfileId) => SkyHook.GetArtistInfo(foreignArtistId, metadataProfileId);
-
-        public override HashSet<string> GetChangedArtists(DateTime startTime) => SkyHook.GetChangedArtists(startTime);
-
-        public override Tuple<string, Album, List<ArtistMetadata>> GetAlbumInfo(string foreignAlbumId) => SkyHook.GetAlbumInfo(foreignAlbumId);
-
-        public override HashSet<string> GetChangedAlbums(DateTime startTime) => SkyHook.GetChangedAlbums(startTime);
-
-        public override List<Artist> SearchForNewArtist(string title) => SkyHook.SearchForNewArtist(title);
-
-        public override List<Album> SearchForNewAlbum(string title, string artist) => SkyHook.SearchForNewAlbum(title, artist);
-
-        public override List<Album> SearchForNewAlbumByRecordingIds(List<string> recordingIds) => SkyHook.SearchForNewAlbumByRecordingIds(recordingIds);
-
-        public override List<object> SearchForNewEntity(string title) => SkyHook.SearchForNewEntity(title);
-
-        private SkyHookProxy SkyHook
+        protected override SkyHookProxy SkyHook
         {
             get
             {

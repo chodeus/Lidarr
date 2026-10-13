@@ -8,6 +8,7 @@ using NzbDrone.Common.Cache;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.MetadataSource.SkyHook;
 using NzbDrone.Core.MetadataSource.Sources.Lidarr;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Profiles.MetadataSources;
@@ -86,12 +87,12 @@ namespace NzbDrone.Core.MetadataSource.Sources
 
         public List<Artist> SearchForNewArtist(string title)
         {
-            return Search(SearchRoute(), s => s.SearchForNewArtist(title), a => a.ForeignArtistId);
+            return Search(SearchRoute(title), s => s.SearchForNewArtist(title), a => a.ForeignArtistId);
         }
 
         public List<Album> SearchForNewAlbum(string title, string artist)
         {
-            return Search(SearchRoute(), s => s.SearchForNewAlbum(title, artist), a => a.ForeignAlbumId);
+            return Search(SearchRoute(title), s => s.SearchForNewAlbum(title, artist), a => a.ForeignAlbumId);
         }
 
         public List<Album> SearchForNewAlbumByRecordingIds(List<string> recordingIds)
@@ -102,7 +103,7 @@ namespace NzbDrone.Core.MetadataSource.Sources
 
         public List<object> SearchForNewEntity(string title)
         {
-            return Search(SearchRoute(), s => s.SearchForNewEntity(title), EntityKey);
+            return Search(SearchRoute(title), s => s.SearchForNewEntity(title), EntityKey);
         }
 
         public string LabelFor(object result)
@@ -360,12 +361,32 @@ namespace NzbDrone.Core.MetadataSource.Sources
             return RouteOf(profile, sources);
         }
 
-        private Route SearchRoute()
+        private Route SearchRoute(string query)
         {
             var profile = _profileService.GetDefaultProfile();
+            var family = IdFamilyOf(query);
+
+            if (family != null)
+            {
+                return FamilyRoute(profile, family);
+            }
+
             var sources = SourcesOf(profile);
 
             return sources.Empty() ? LastResortRoute() : RouteOf(profile, sources);
+        }
+
+        // An ID search goes only to sources that understand that kind of ID, never to the others as text
+        private string IdFamilyOf(string query)
+        {
+            var id = query?.Trim() ?? string.Empty;
+
+            if (SkyHookProxy.IsMbidQuery(id.ToLowerInvariant()))
+            {
+                return MetadataIdFamilies.MusicBrainz;
+            }
+
+            return EnabledSources().Values.FirstOrDefault(s => s.CanHandleId(id))?.IdFamily;
         }
 
         private static Route RouteOf(MetadataSourceProfile profile, List<(MetadataSourceRole Role, IMetadataSource Source)> sources)

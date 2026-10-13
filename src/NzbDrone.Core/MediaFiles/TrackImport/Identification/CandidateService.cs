@@ -5,6 +5,7 @@ using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.SkyHook;
+using NzbDrone.Core.MetadataSource.Sources;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Parser.Model;
 
@@ -269,9 +270,9 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
                     remoteAlbums = _albumSearchService.SearchForNewAlbum(albumTag, artistTag);
                 }
             }
-            catch (SkyHookException e)
+            catch (Exception e) when (e is SkyHookException or MetadataSourceUnavailableException)
             {
-                _logger.Info(e, "Skipping album due to SkyHook error");
+                _logger.Info(e, "Skipping album due to metadata source error");
                 remoteAlbums = new List<Album>();
             }
 

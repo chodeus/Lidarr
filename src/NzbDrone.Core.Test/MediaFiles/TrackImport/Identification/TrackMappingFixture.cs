@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using FizzWare.NBuilder;
@@ -31,6 +32,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
                .CreateListOfSize(count)
                .All()
                .With(x => x.ArtistMetadata = _artist)
+               .With(x => x.ForeignRecordingId = Guid.NewGuid().ToString())
                .Build()
                .ToList();
         }

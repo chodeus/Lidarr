@@ -51,7 +51,9 @@ namespace NzbDrone.Core.Music
 
             if (artist == null && foreignArtistId.IsNotNullOrWhiteSpace())
             {
-                artist = Query(Builder().Where<ArtistMetadata>(x => x.OldForeignArtistIds.Contains(foreignArtistId))).SingleOrDefault();
+                // Quoted so an ID can't match inside a longer one (the list column is searched with LIKE)
+                var id = "\"" + foreignArtistId + "\"";
+                artist = Query(Builder().Where<ArtistMetadata>(x => x.OldForeignArtistIds.Contains(id))).SingleOrDefault();
             }
 
             return artist;

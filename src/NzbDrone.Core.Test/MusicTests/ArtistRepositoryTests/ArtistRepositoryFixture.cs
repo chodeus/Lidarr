@@ -125,6 +125,14 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistRepositoryTests
         }
 
         [Test]
+        public void should_not_find_artist_by_an_id_inside_a_longer_old_id()
+        {
+            AddArtist("Placeholder Artist", "other:5678", new List<string> { "other:1234" });
+
+            _artistRepo.FindById("other:12").Should().BeNull();
+        }
+
+        [Test]
         public void should_not_find_artist_if_multiple_artists_have_same_name()
         {
             GivenArtists();

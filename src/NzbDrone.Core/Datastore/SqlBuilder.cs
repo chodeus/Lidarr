@@ -64,7 +64,7 @@ namespace NzbDrone.Core.Datastore
             var builder = new SqlBuilder(_databaseType) { Sequence = Sequence };
             subQuery(builder);
 
-            var template = builder.AddTemplate($"SELECT 1 FROM \"{table}\" /**join**/ /**innerjoin**/ /**leftjoin**/ /**where**/");
+            var template = builder.AddTemplate($"SELECT 1 FROM \"{table}\" /**join**/ /**innerjoin**/ /**leftjoin**/ /**rightjoin**/ /**where**/ /**groupby**/ /**having**/");
             var sql = template.RawSql;
 
             Sequence = builder.Sequence;

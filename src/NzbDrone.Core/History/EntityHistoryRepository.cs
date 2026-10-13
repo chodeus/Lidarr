@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Music;
@@ -124,9 +125,19 @@ namespace NzbDrone.Core.History
         public PagingSpec<EntityHistory> GetPaged(PagingSpec<EntityHistory> pagingSpec, int[] qualities)
         {
             pagingSpec.Records = GetPagedRecords(PagedBuilder(qualities), pagingSpec, PagedQuery);
-            pagingSpec.TotalRecords = GetPagedRecordCount(CountBuilder(qualities).SelectCount(), pagingSpec);
+
+            var countBuilder = pagingSpec.FilterExpressions.Any(FiltersOnTrack) ? PagedBuilder(qualities) : CountBuilder(qualities);
+            pagingSpec.TotalRecords = GetPagedRecordCount(countBuilder.SelectCount(), pagingSpec);
 
             return pagingSpec;
+        }
+
+        private static bool FiltersOnTrack(Expression<Func<EntityHistory, bool>> filter)
+        {
+            var finder = new TrackColumnFinder();
+            finder.Visit(filter);
+
+            return finder.Found;
         }
 
         private SqlBuilder CountBuilder(int[] qualities)
@@ -167,6 +178,19 @@ namespace NzbDrone.Core.History
             }
 
             return $"({string.Join(" OR ", clauses)})";
+        }
+
+        // Mirrors WhereBuilder, which takes a column's table from the type it is read from.
+        private sealed class TrackColumnFinder : System.Linq.Expressions.ExpressionVisitor
+        {
+            public bool Found { get; private set; }
+
+            protected override Expression VisitMember(MemberExpression node)
+            {
+                Found |= node.Expression?.Type == typeof(Track);
+
+                return base.VisitMember(node);
+            }
         }
     }
 }

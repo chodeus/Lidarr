@@ -5,5 +5,6 @@ namespace NzbDrone.Core.MetadataSource.Sources
     {
         public const string MusicBrainz = "MusicBrainz";
         public const string Deezer = "Deezer";
+        public const string Discogs = "Discogs";
     }
 }

@@ -67,11 +67,14 @@
   - A token in a metadata server's URL path, such as `/t/<token>/api/v0.4`, is hidden in logs.
 - **Keep what the metadata source no longer has** — branch [`fix/keep-unlisted-metadata`](https://github.com/chodeus/Lidarr/tree/fix/keep-unlisted-metadata), not submitted
   - An artist or album the metadata source no longer has (not found, or no usable releases) is kept and marked instead of deleted, and a health check lists the albums. An album without files that drops out of its artist's list is still removed when the source still has it (excluded by the metadata profile, or moved to another artist). Migration 908.
+- **Metadata source profiles** — branch [`feat/metadata-source-profiles`](https://github.com/chodeus/Lidarr/tree/feat/metadata-source-profiles), builds on `fix/profile-order-and-tags`, not submitted
+  - Settings → Metadata gets a Metadata Sources section: Lidarr's own server and other SkyHook-compatible servers by URL. Settings → Profiles gets metadata source profiles, applied to artists by tag, that set which sources answer first (combined with Or or And) and which are fallbacks. Search uses the default profile and labels each result with its source. A source that is down fails the lookup instead of counting as not found. Migration 909.
 
 ## How the build works
 
 - Each change is its own branch off `develop` in [chodeus/Lidarr](https://github.com/chodeus/Lidarr), so it can be opened as an upstream PR as it is.
 - `meta.json` lists them in `pr_branches`. The hourly `update` workflow records each branch's head in `pr_shas`, and any change to a branch, to upstream `develop` or to the base image triggers a build.
 - `build.sh source` merges the branches into `develop` in the listed order. If one no longer merges, the build fails and names it; rebase that branch onto `develop`.
+- Each branch, except the two open upstream PRs, has a `.github/README.md` with its PR description and CodeRabbit's summary, shown on its branch page. `build.sh source` keeps only the first of those files, so they never clash. Drop that commit before opening a branch as an upstream PR.
 - To add or drop a change, edit `pr_branches`. Drop a change once upstream has merged it.
 - Build-only migrations are numbered from 900 so upstream's own numbers can't collide. Before a change goes upstream, give its migration the next upstream number and correct the live database's `VersionInfo`.

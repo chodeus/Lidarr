@@ -45,6 +45,9 @@ if [[ ${1} == "source" ]]; then
     git clone --quiet --filter=blob:none --no-checkout "https://github.com/${lidarr_repo}.git" _src
     git -C _src fetch --quiet "https://github.com/${pr_repo}.git" "${pr_shas[@]}"
     git -C _src checkout --quiet --detach "${lidarr_sha}"
+    # Each branch describes itself in .github/README.md; keep the first so those never clash.
+    git -C _src config merge.keepfirst.driver true
+    echo ".github/README.md merge=keepfirst" > _src/.git/info/attributes
     # Merged in pr_branches order, so a failure names the branch that stopped fitting.
     for i in "${!pr_branches[@]}"; do
         if ! git -C _src -c user.name=build -c user.email=build@localhost merge --quiet --no-edit "${pr_shas[i]}"; then

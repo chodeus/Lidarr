@@ -130,7 +130,14 @@ namespace NzbDrone.Core.Music
 
             if (remote == null)
             {
-                if (!data.MissingFromSource && ShouldDelete(local))
+                if (data.MissingFromSource)
+                {
+                    _logger.Error($"{typeof(TEntity).Name} {local} is no longer in the metadata source and is kept until you delete it");
+                    MarkMissingFromSource(local);
+                    return false;
+                }
+
+                if (ShouldDelete(local))
                 {
                     _logger.Warn($"{typeof(TEntity).Name} {local} is no longer listed in its metadata and is being deleted");
                     DeleteEntity(local, true);
@@ -138,12 +145,6 @@ namespace NzbDrone.Core.Music
                 }
 
                 _logger.Error($"{typeof(TEntity).Name} {local} was not found, it may have been removed from Metadata sources.");
-
-                if (data.MissingFromSource)
-                {
-                    MarkMissingFromSource(local);
-                }
-
                 return false;
             }
 

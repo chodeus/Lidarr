@@ -147,6 +147,12 @@ namespace NzbDrone.Core.MetadataSource.Sources
 
             if (found.Any())
             {
+                // Refresh treats the album list as complete, so a merge missing a down source would drop its albums
+                if (outage != null)
+                {
+                    ExceptionDispatchInfo.Capture(outage).Throw();
+                }
+
                 return found.Aggregate(merge);
             }
 

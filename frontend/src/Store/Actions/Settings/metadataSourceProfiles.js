@@ -77,7 +77,6 @@ export default {
       const profiles = getState().settings.metadataSourceProfiles.items;
       const moving = _.find(profiles, { id });
 
-      // Don't move if the order hasn't changed
       if (moving.order === moveOrder) {
         return;
       }

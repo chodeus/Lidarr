@@ -30,6 +30,16 @@ namespace NzbDrone.Core.Test.Profiles.MetadataSources
             });
         }
 
+        private IEnumerable<string> ProfilesInOrder()
+        {
+            return Subject.All().OrderBy(p => p.Order).Select(p => p.Name);
+        }
+
+        private IEnumerable<int> OrdersInOrder()
+        {
+            return Subject.All().OrderBy(p => p.Order).Select(p => p.Order);
+        }
+
         [Test]
         public void should_seed_a_default_profile_that_uses_lidarrs_own_server()
         {
@@ -66,6 +76,83 @@ namespace NzbDrone.Core.Test.Profiles.MetadataSources
             GivenProfile("Tagged", 5);
 
             Subject.HasTaggedProfiles().Should().BeTrue();
+        }
+
+        [Test]
+        public void reorder_moves_a_profile_down()
+        {
+            var a = GivenProfile("A", 1);
+            var b = GivenProfile("B", 2);
+            GivenProfile("C", 3);
+
+            Subject.Reorder(a.Id, b.Id);
+
+            ProfilesInOrder().Should().Equal("B", "A", "C", "Default");
+            OrdersInOrder().Should().Equal(1, 2, 3, int.MaxValue);
+        }
+
+        [Test]
+        public void reorder_moves_a_profile_up()
+        {
+            var a = GivenProfile("A", 1);
+            GivenProfile("B", 2);
+            var c = GivenProfile("C", 3);
+
+            Subject.Reorder(c.Id, a.Id);
+
+            ProfilesInOrder().Should().Equal("A", "C", "B", "Default");
+            OrdersInOrder().Should().Equal(1, 2, 3, int.MaxValue);
+        }
+
+        [Test]
+        public void reorder_without_an_after_id_moves_a_profile_to_the_top()
+        {
+            GivenProfile("A", 1);
+            GivenProfile("B", 2);
+            var c = GivenProfile("C", 3);
+
+            Subject.Reorder(c.Id, null);
+
+            ProfilesInOrder().Should().Equal("C", "A", "B", "Default");
+            OrdersInOrder().Should().Equal(1, 2, 3, int.MaxValue);
+        }
+
+        [Test]
+        public void deleting_a_profile_renumbers_the_rest()
+        {
+            GivenProfile("A", 1);
+            var b = GivenProfile("B", 2);
+            GivenProfile("C", 3);
+
+            Subject.Delete(b.Id);
+
+            ProfilesInOrder().Should().Equal("A", "C", "Default");
+            OrdersInOrder().Should().Equal(1, 2, int.MaxValue);
+        }
+
+        [Test]
+        public void update_keeps_the_stored_order()
+        {
+            var a = GivenProfile("A", 1);
+            GivenProfile("B", 2);
+
+            a.Order = 2;
+            a.Name = "Renamed";
+            Subject.Update(a);
+
+            ProfilesInOrder().Should().Equal("Renamed", "B", "Default");
+            OrdersInOrder().Should().Equal(1, 2, int.MaxValue);
+        }
+
+        [Test]
+        public void update_keeps_the_default_profile_last()
+        {
+            var profile = Subject.GetDefaultProfile();
+            profile.Order = 0;
+
+            Subject.Update(profile);
+
+            Subject.Get(MetadataSourceProfileService.DefaultProfileId).Order.Should().Be(int.MaxValue);
         }
 
         [Test]

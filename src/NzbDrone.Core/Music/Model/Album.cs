@@ -97,6 +97,7 @@ namespace NzbDrone.Core.Music
             Monitored = other.Monitored;
             AnyReleaseOk = other.AnyReleaseOk;
             LastInfoSync = other.LastInfoSync;
+            MetadataMissingSince = other.MetadataMissingSince;
             LastSearchTime = other.LastSearchTime;
             Added = other.Added;
             AddOptions = other.AddOptions;

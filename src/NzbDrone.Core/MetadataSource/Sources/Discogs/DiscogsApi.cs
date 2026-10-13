@@ -34,49 +34,57 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
         private static readonly TimeSpan RateWindow = TimeSpan.FromSeconds(60);
         private static readonly TimeSpan MaxRetryAfter = TimeSpan.FromMinutes(2);
 
+        // Releases and masters rarely change; artist and pressing lists grow as new pressings are added
+        private static readonly TimeSpan ReleaseLifetime = TimeSpan.FromDays(30);
+        private static readonly TimeSpan ListLifetime = TimeSpan.FromDays(7);
+
         private readonly IHttpClient _httpClient;
         private readonly IRateLimitService _rateLimitService;
+        private readonly IDiscogsCache _cache;
 
-        public DiscogsApi(IHttpClient httpClient, IRateLimitService rateLimitService)
+        public DiscogsApi(IHttpClient httpClient, IRateLimitService rateLimitService, IDiscogsCache cache)
         {
             _httpClient = httpClient;
             _rateLimitService = rateLimitService;
+            _cache = cache;
         }
 
         public DiscogsArtistResource GetArtist(long id, string token)
         {
-            return Get<DiscogsArtistResource>("artists/" + id, token);
+            var resource = "artists/" + id;
+            return Cached(resource, ListLifetime, () => Get<DiscogsArtistResource>(resource, token));
         }
 
         public List<DiscogsArtistReleaseResource> GetArtistOwnReleases(long id, string token)
         {
             var resource = "artists/" + id + "/releases";
-
-            return ReadOwnReleases(resource, token)
-                ?? GetAll<DiscogsArtistReleasesPageResource, DiscogsArtistReleaseResource>(resource, token, p => p.Releases).Where(IsOwn).ToList();
+            return Cached(resource, ListLifetime, () => ReadOwnReleases(resource, token)
+                ?? GetAll<DiscogsArtistReleasesPageResource, DiscogsArtistReleaseResource>(resource, token, p => p.Releases).Where(IsOwn).ToList());
         }
 
         public List<DiscogsArtistReleaseResource> GetArtistBootlegs(long id, string token)
         {
             var resource = "artists/" + id + "/releases";
-
-            return ReadBootlegs(resource, token)
-                ?? GetAll<DiscogsArtistReleasesPageResource, DiscogsArtistReleaseResource>(resource, token, p => p.Releases).Where(IsBootleg).ToList();
+            return Cached(resource + "#bootlegs", ListLifetime, () => ReadBootlegs(resource, token)
+                ?? GetAll<DiscogsArtistReleasesPageResource, DiscogsArtistReleaseResource>(resource, token, p => p.Releases).Where(IsBootleg).ToList());
         }
 
         public DiscogsMasterResource GetMaster(long id, string token)
         {
-            return Credited(Get<DiscogsMasterResource>("masters/" + id, token), "masters/" + id, m => m.Artists);
+            var resource = "masters/" + id;
+            return Cached(resource, ReleaseLifetime, () => Credited(Get<DiscogsMasterResource>(resource, token), resource, m => m.Artists));
         }
 
         public List<DiscogsVersionResource> GetMasterVersions(long id, string token)
         {
-            return GetAll<DiscogsVersionsPageResource, DiscogsVersionResource>("masters/" + id + "/versions", token, p => p.Versions);
+            var resource = "masters/" + id + "/versions";
+            return Cached(resource, ListLifetime, () => GetAll<DiscogsVersionsPageResource, DiscogsVersionResource>(resource, token, p => p.Versions));
         }
 
         public DiscogsReleaseResource GetRelease(long id, string token)
         {
-            return Credited(Get<DiscogsReleaseResource>("releases/" + id, token), "releases/" + id, r => r.Artists);
+            var resource = "releases/" + id;
+            return Cached(resource, ReleaseLifetime, () => Credited(Get<DiscogsReleaseResource>(resource, token), resource, r => r.Artists));
         }
 
         public List<DiscogsSearchResultResource> Search(string type, string query, string artist, int limit, string token)
@@ -89,6 +97,25 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
             }
 
             return Get<DiscogsSearchPageResource>("database/search", token, parameters.ToArray())?.Results ?? new List<DiscogsSearchResultResource>();
+        }
+
+        // Only real answers are kept: a not-found or an outage is never stored, so it is asked again next time
+        private T Cached<T>(string key, TimeSpan lifetime, Func<T> fetch)
+            where T : class, new()
+        {
+            if (_cache.TryGet<T>(key, out var cached))
+            {
+                return cached;
+            }
+
+            var value = fetch();
+
+            if (value != null)
+            {
+                _cache.Set(key, value, lifetime);
+            }
+
+            return value;
         }
 
         // Discogs lists an artist's own releases before every other credit, so reading stops at the first other one.

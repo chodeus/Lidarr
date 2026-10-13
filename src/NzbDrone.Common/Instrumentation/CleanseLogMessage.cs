@@ -66,7 +66,10 @@ namespace NzbDrone.Common.Instrumentation
             new(@"discord.com/api/webhooks/((?<secret>[\w-]+)/)?(?<secret>[\w-]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase),
 
             // Telegram
-            new(@"api.telegram.org/bot(?<id>[\d]+):(?<secret>[\w-]+)/", RegexOptions.Compiled | RegexOptions.IgnoreCase)
+            new(@"api.telegram.org/bot(?<id>[\d]+):(?<secret>[\w-]+)/", RegexOptions.Compiled | RegexOptions.IgnoreCase),
+
+            // Token path segment before a metadata server's API version; the lookbehind keeps hostnames
+            new(@"(?<!/)/(?<secret>[\w-]{20,})/api/v[0-9]", RegexOptions.Compiled | RegexOptions.IgnoreCase)
         };
 
         private static readonly Regex CleanseRemoteIPRegex = new(@"(?:Auth-\w+(?<!Failure|Unauthorized) ip|from) (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", RegexOptions.Compiled);

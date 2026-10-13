@@ -105,6 +105,10 @@ namespace NzbDrone.Common.Test.InstrumentationTests
         [TestCase(@"https://api.telegram.org/bot1234567890:mySecret/sendmessage: chat_id=123456&parse_mode=HTML&text=<text>")]
         [TestCase(@"https://api.telegram.org/bot1234567890:mySecret/")]
 
+        // Metadata server token in the URL path
+        [TestCase(@"Res: HTTP/2.0 [GET] https://metadata.example.invalid/t/mySecret_0123456789-abcdefghij/api/v0.4/artist/abc: 503.ServiceUnavailable (0 bytes)")]
+        [TestCase(@"https://metadata.example.invalid/mySecret_0123456789-abcdefghij/api/v0.4/search?type=all&query=Artist+Name")]
+
         public void should_clean_message(string message)
         {
             var cleansedMessage = CleanseLogMessage.Cleanse(message);
@@ -115,6 +119,7 @@ namespace NzbDrone.Common.Test.InstrumentationTests
         }
 
         [TestCase(@"[Info] MigrationController: *** Migrating Database=lidarr-main;Host=postgres14;Username=mySecret;Password=mySecret;Port=5432;token=mySecret;Enlist=False&username=mySecret;mypassword=mySecret;mypass=shouldkeep1;test_token=mySecret;password=123%@%_@!#^#@;use_password=mySecret;get_token=shouldkeep2;usetoken=shouldkeep3;passwrd=mySecret;")]
+        [TestCase(@"http://shouldkeep1-docker-host-name/api/v1/system/status then https://metadata.example.invalid/t/mySecret_0123456789-abcdefghij/api/v0.4/artist/shouldkeep2 under /shouldkeep3/api/v1/")]
         public void should_keep_message(string message)
         {
             var cleansedMessage = CleanseLogMessage.Cleanse(message);

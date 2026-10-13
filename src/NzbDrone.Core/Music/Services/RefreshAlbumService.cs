@@ -77,11 +77,12 @@ namespace NzbDrone.Core.Music
         {
             var result = new RemoteData();
 
-            // remove not in remote list and ShouldDelete is true
+            // remove not in remote list and ShouldDelete is true, unless the source no longer has the album at all
             if (remote != null &&
                 !remote.Any(x => x.ForeignAlbumId == local.ForeignAlbumId || x.OldForeignAlbumIds.Contains(local.ForeignAlbumId)) &&
                 ShouldDelete(local))
             {
+                result.MissingFromSource = !SourceHasAlbum(local);
                 return result;
             }
 
@@ -92,12 +93,14 @@ namespace NzbDrone.Core.Music
             }
             catch (AlbumNotFoundException)
             {
+                result.MissingFromSource = true;
                 return result;
             }
 
             if (tuple.Item2.AlbumReleases.Value.Count == 0)
             {
-                _logger.Debug($"{local} has no valid releases, removing.");
+                _logger.Debug($"{local} has no valid releases");
+                result.MissingFromSource = true;
                 return result;
             }
 
@@ -105,6 +108,18 @@ namespace NzbDrone.Core.Music
             result.Entity.Id = local.Id;
             result.Metadata = tuple.Item3;
             return result;
+        }
+
+        private bool SourceHasAlbum(Album local)
+        {
+            try
+            {
+                return _albumInfo.GetAlbumInfo(local.ForeignAlbumId).Item2.AlbumReleases.Value.Any();
+            }
+            catch (AlbumNotFoundException)
+            {
+                return false;
+            }
         }
 
         protected override void EnsureNewParent(Album local, Album remote)
@@ -155,6 +170,17 @@ namespace NzbDrone.Core.Music
                 !_mediaFileService.GetFilesByAlbum(local.Id).Any();
         }
 
+        protected override void MarkMissingFromSource(Album local)
+        {
+            if (local.MetadataMissingSince.HasValue)
+            {
+                return;
+            }
+
+            local.MetadataMissingSince = DateTime.UtcNow;
+            _albumService.UpdateMetadataMissingSince(new List<Album> { local });
+        }
+
         protected override void LogProgress(Album local)
         {
             _logger.ProgressInfo("Updating Info for Album '{0}' [{1}]", local.Title, local.ForeignAlbumId);
@@ -199,6 +225,7 @@ namespace NzbDrone.Core.Music
 
             local.ArtistMetadataId = remote.ArtistMetadata.Value.Id;
             local.LastInfoSync = DateTime.UtcNow;
+            local.MetadataMissingSince = null;
             local.AlbumReleases = new List<AlbumRelease>();
 
             return result;

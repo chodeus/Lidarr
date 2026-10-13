@@ -87,6 +87,8 @@ namespace NzbDrone.Core.Music
             }
             catch (ArtistNotFoundException)
             {
+                result.MissingFromSource = true;
+
                 if (local.Metadata.Value.Status != ArtistStatusType.Deleted)
                 {
                     local.Metadata.Value.Status = ArtistStatusType.Deleted;

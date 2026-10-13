@@ -46,6 +46,7 @@ namespace NzbDrone.Core.Music
         public bool Monitored { get; set; }
         public bool AnyReleaseOk { get; set; }
         public DateTime? LastInfoSync { get; set; }
+        public DateTime? MetadataMissingSince { get; set; }
         public DateTime Added { get; set; }
         [MemberwiseEqualityIgnore]
         public AddAlbumOptions AddOptions { get; set; }

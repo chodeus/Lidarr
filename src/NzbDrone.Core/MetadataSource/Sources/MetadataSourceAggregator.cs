@@ -8,7 +8,6 @@ using NzbDrone.Common.Cache;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.Messaging.Events;
-using NzbDrone.Core.MetadataSource.SkyHook;
 using NzbDrone.Core.MetadataSource.Sources.Lidarr;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Profiles.MetadataSources;
@@ -47,7 +46,7 @@ namespace NzbDrone.Core.MetadataSource.Sources
                                         IMetadataSourceProfileService profileService,
                                         IArtistService artistService,
                                         IAlbumService albumService,
-                                        SkyHookProxy skyHook,
+                                        LidarrMetadataSource lidarr,
                                         ICacheManager cacheManager,
                                         Logger logger)
         {
@@ -55,7 +54,8 @@ namespace NzbDrone.Core.MetadataSource.Sources
             _profileService = profileService;
             _artistService = artistService;
             _albumService = albumService;
-            _lastResort = new LidarrMetadataSource(skyHook) { Definition = new MetadataSourceDefinition { Name = "Lidarr" } };
+            lidarr.Definition ??= new MetadataSourceDefinition { Name = "Lidarr" };
+            _lastResort = lidarr;
             _sourceCache = cacheManager.GetCache<Dictionary<int, IMetadataSource>>(GetType(), "sources");
             _logger = logger;
         }

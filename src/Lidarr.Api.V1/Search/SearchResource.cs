@@ -10,5 +10,6 @@ namespace Lidarr.Api.V1.Search
         public string ForeignId { get; set; }
         public ArtistResource Artist { get; set; }
         public AlbumResource Album { get; set; }
+        public string MetadataSource { get; set; }
     }
 }

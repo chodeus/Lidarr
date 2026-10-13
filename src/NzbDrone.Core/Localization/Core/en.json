@@ -299,7 +299,7 @@
   "DefaultDelayProfileArtist": "This is the default profile. It applies to all artists that don't have an explicit profile.",
   "DefaultLidarrTags": "Default {appName} Tags",
   "DefaultMetadataProfileIdHelpText": "Default Metadata Profile for artists detected in this folder",
-  "DefaultMetadataSourceProfileMessage": "This is the default profile. It applies to all artists that don't have an explicit profile.",
+  "DefaultMetadataSourceProfileMessage": "This is the default profile. It applies to all artists that don't match another profile.",
   "DefaultMonitorOptionHelpText": "Which albums should be monitored on initial add for artists detected in this folder",
   "DefaultQualityProfileIdHelpText": "Default Quality Profile for artists detected in this folder",
   "DefaultTaggingProfileMessage": "This is the default profile. It applies to all artists that don't match another profile.",

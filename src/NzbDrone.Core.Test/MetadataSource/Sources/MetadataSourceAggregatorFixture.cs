@@ -129,6 +129,18 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
         }
 
         [Test]
+        public void and_reports_the_outage_instead_of_merging_without_a_down_source()
+        {
+            _profile.PrimaryCombination = MetadataSourceCombination.And;
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(ArtistWith("album-1"));
+            GivenSource(2, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Throws(new TimeoutException("Source 2 is down"));
+
+            Assert.Throws<TimeoutException>(() => Subject.GetArtistInfo(MusicBrainzId, 1));
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
         public void uses_a_fallback_source_after_the_primary_sources()
         {
             var artist = ArtistWith("album-1");

@@ -178,6 +178,62 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
         }
 
         [Test]
+        public void a_cached_release_is_not_asked_again()
+        {
+            var cached = new DiscogsReleaseResource { Id = 1 };
+            Mocker.GetMock<IDiscogsCache>().Setup(c => c.TryGet("releases/1", out cached)).Returns(true);
+
+            Subject.GetRelease(1, Token).Should().BeSameAs(cached);
+
+            _requests.Should().BeEmpty();
+        }
+
+        [Test]
+        public void a_fetched_release_is_cached_for_a_month()
+        {
+            GivenResponse<DiscogsReleaseResource>(HttpStatusCode.OK, r => CreditedRelease);
+
+            Subject.GetRelease(1, Token);
+
+            Mocker.GetMock<IDiscogsCache>().Verify(c => c.Set("releases/1", It.Is<DiscogsReleaseResource>(r => r.Id == 1), TimeSpan.FromDays(30)), Times.Once());
+        }
+
+        [Test]
+        public void a_not_found_or_an_outage_is_never_cached()
+        {
+            GivenResponse<DiscogsReleaseResource>(HttpStatusCode.NotFound, r => "{\"message\":\"Release not found.\"}");
+            Subject.GetRelease(1, Token);
+
+            GivenResponse<DiscogsReleaseResource>(HttpStatusCode.InternalServerError, r => "{\"message\":\"placeholder\"}");
+            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetRelease(2, Token));
+
+            Mocker.GetMock<IDiscogsCache>().Verify(c => c.Set(It.IsAny<string>(), It.IsAny<DiscogsReleaseResource>(), It.IsAny<TimeSpan>()), Times.Never());
+        }
+
+        [Test]
+        public void own_releases_and_bootlegs_are_cached_apart_for_a_week()
+        {
+            GivenResponse<DiscogsArtistReleasesPageResource>(HttpStatusCode.OK, r => Releases(1, "Main:1", "UnofficialRelease:2"));
+
+            Subject.GetArtistOwnReleases(3, Token);
+            Subject.GetArtistBootlegs(3, Token);
+
+            Mocker.GetMock<IDiscogsCache>().Verify(c => c.Set("artists/3/releases", It.Is<List<DiscogsArtistReleaseResource>>(l => l.Single().Id == 1), TimeSpan.FromDays(7)), Times.Once());
+            Mocker.GetMock<IDiscogsCache>().Verify(c => c.Set("artists/3/releases#bootlegs", It.Is<List<DiscogsArtistReleaseResource>>(l => l.Single().Id == 2), TimeSpan.FromDays(7)), Times.Once());
+        }
+
+        [Test]
+        public void searches_are_not_cached()
+        {
+            GivenResponse<DiscogsSearchPageResource>(HttpStatusCode.OK, r => "{\"results\":[{\"id\":3}]}");
+
+            Subject.Search("artist", "placeholder", null, 5, Token);
+
+            Mocker.GetMock<IDiscogsCache>().Verify(c => c.Set(It.IsAny<string>(), It.IsAny<DiscogsSearchPageResource>(), It.IsAny<TimeSpan>()), Times.Never());
+            Mocker.GetMock<IDiscogsCache>().Verify(c => c.TryGet(It.IsAny<string>(), out It.Ref<DiscogsSearchPageResource>.IsAny), Times.Never());
+        }
+
+        [Test]
         public void artist_releases_are_read_page_by_page()
         {
             GivenResponse<DiscogsArtistReleasesPageResource>(HttpStatusCode.OK, r => r.Url.Query.Contains("page=1&")

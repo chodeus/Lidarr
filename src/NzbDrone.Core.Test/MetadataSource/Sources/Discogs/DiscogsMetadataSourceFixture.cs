@@ -4,7 +4,6 @@ using System.Linq;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
-using NzbDrone.Common.Cache;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MetadataSource.Sources;
 using NzbDrone.Core.MetadataSource.Sources.Discogs;
@@ -26,7 +25,6 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
         public void Setup()
         {
             _settings = new DiscogsMetadataSourceSettings { Token = "placeholder-token" };
-            Mocker.SetConstant<ICacheManager>(Mocker.Resolve<CacheManager>());
             Subject.Definition = new MetadataSourceDefinition { Settings = _settings };
 
             Mocker.GetMock<IMetadataProfileService>().Setup(s => s.Exists(1)).Returns(true);
@@ -123,21 +121,6 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
             var artist = Subject.GetArtistInfo("discogs:artist:3", 1);
 
             artist.Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("discogs:master:10", "discogs:release:15");
-        }
-
-        [Test]
-        public void a_masters_type_is_read_once()
-        {
-            Mocker.GetMock<IDiscogsApi>().Setup(a => a.GetArtistOwnReleases(3, It.IsAny<string>())).Returns(new List<DiscogsArtistReleaseResource>
-            {
-                new() { Id = 10, Type = "master", Role = "Main", Title = "Album", MainRelease = 100 }
-            });
-            Mocker.GetMock<IDiscogsApi>().Setup(a => a.GetRelease(100, It.IsAny<string>())).Returns(Release(100, "CD", "Album"));
-
-            Subject.GetArtistInfo("discogs:artist:3", 1);
-            Subject.GetArtistInfo("discogs:artist:3", 1);
-
-            Mocker.GetMock<IDiscogsApi>().Verify(a => a.GetRelease(100, It.IsAny<string>()), Times.Once());
         }
 
         [Test]

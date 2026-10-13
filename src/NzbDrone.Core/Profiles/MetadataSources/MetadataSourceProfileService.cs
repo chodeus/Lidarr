@@ -24,7 +24,7 @@ namespace NzbDrone.Core.Profiles.MetadataSources
 
     public class MetadataSourceProfileService : IMetadataSourceProfileService, IHandle<ProviderDeletedEvent<IMetadataSource>>
     {
-        public const int DefaultProfileId = 1;
+        public const int DefaultProfileId = ProfileOrder.DefaultProfileId;
 
         private readonly IMetadataSourceProfileRepository _repo;
         private readonly ICached<MetadataSourceProfile> _bestForTagsCache;
@@ -39,7 +39,7 @@ namespace NzbDrone.Core.Profiles.MetadataSources
 
         public MetadataSourceProfile Add(MetadataSourceProfile profile)
         {
-            profile.Order = _repo.Count();
+            profile.Order = ProfileOrder.Next(_repo.All(), p => p.Order);
 
             var result = _repo.Insert(profile);
             ClearCaches();
@@ -62,17 +62,8 @@ namespace NzbDrone.Core.Profiles.MetadataSources
         {
             _repo.Delete(id);
 
-            var all = All().OrderBy(d => d.Order).ToList();
-
-            for (var i = 0; i < all.Count; i++)
-            {
-                if (all[i].Id == DefaultProfileId)
-                {
-                    continue;
-                }
-
-                all[i].Order = i + 1;
-            }
+            var all = All();
+            ProfileOrder.Renumber(all, p => p.Order, (p, order) => p.Order = order);
 
             _repo.UpdateMany(all);
             ClearCaches();
@@ -114,48 +105,13 @@ namespace NzbDrone.Core.Profiles.MetadataSources
 
         public List<MetadataSourceProfile> Reorder(int id, int? afterId)
         {
-            var all = All().OrderBy(d => d.Order).ToList();
+            var all = All();
 
-            var moving = all.SingleOrDefault(d => d.Id == id);
-            var after = afterId.HasValue ? all.SingleOrDefault(d => d.Id == afterId) : null;
-
-            if (moving == null || id == DefaultProfileId || afterId == DefaultProfileId)
+            if (ProfileOrder.Reorder(all, id, afterId, p => p.Order, (p, order) => p.Order = order))
             {
-                return all;
+                _repo.UpdateMany(all);
+                ClearCaches();
             }
-
-            var afterOrder = GetAfterOrder(moving, after);
-            var afterCount = afterOrder + 2;
-            var movingOrder = moving.Order;
-
-            foreach (var profile in all)
-            {
-                if (profile.Id == DefaultProfileId)
-                {
-                    continue;
-                }
-
-                if (profile.Id == id)
-                {
-                    profile.Order = afterOrder + 1;
-                }
-                else if (profile.Id == after?.Id)
-                {
-                    profile.Order = afterOrder;
-                }
-                else if (profile.Order > afterOrder)
-                {
-                    profile.Order = afterCount;
-                    afterCount++;
-                }
-                else if (profile.Order > movingOrder)
-                {
-                    profile.Order--;
-                }
-            }
-
-            _repo.UpdateMany(all);
-            ClearCaches();
 
             return All();
         }
@@ -178,21 +134,6 @@ namespace NzbDrone.Core.Profiles.MetadataSources
         {
             _bestForTagsCache.Clear();
             _taggedCache.Clear();
-        }
-
-        private static int GetAfterOrder(MetadataSourceProfile moving, MetadataSourceProfile after)
-        {
-            if (after == null)
-            {
-                return 0;
-            }
-
-            if (moving.Order < after.Order)
-            {
-                return after.Order - 1;
-            }
-
-            return after.Order;
         }
     }
 }

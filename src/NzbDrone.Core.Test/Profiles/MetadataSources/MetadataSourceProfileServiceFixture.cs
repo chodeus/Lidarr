@@ -118,16 +118,41 @@ namespace NzbDrone.Core.Test.Profiles.MetadataSources
         }
 
         [Test]
-        public void reorder_never_moves_a_profile_around_the_default()
+        public void reorder_after_the_default_moves_a_profile_last()
         {
             var a = GivenProfile("A", 1);
             GivenProfile("B", 2);
+            GivenProfile("C", 3);
 
             Subject.Reorder(a.Id, MetadataSourceProfileService.DefaultProfileId);
+
+            ProfilesInOrder().Should().Equal("B", "C", "A", "Default");
+            OrdersInOrder().Should().Equal(1, 2, 3, int.MaxValue);
+        }
+
+        [Test]
+        public void reorder_never_moves_the_default()
+        {
+            GivenProfile("A", 1);
+            GivenProfile("B", 2);
+
             Subject.Reorder(MetadataSourceProfileService.DefaultProfileId, null);
 
             ProfilesInOrder().Should().Equal("A", "B", "Default");
             OrdersInOrder().Should().Equal(1, 2, int.MaxValue);
+        }
+
+        [Test]
+        public void reorder_onto_itself_changes_nothing()
+        {
+            var a = GivenProfile("A", 1);
+            GivenProfile("B", 2);
+            GivenProfile("C", 3);
+
+            Subject.Reorder(a.Id, a.Id);
+
+            ProfilesInOrder().Should().Equal("A", "B", "C", "Default");
+            OrdersInOrder().Should().Equal(1, 2, 3, int.MaxValue);
         }
 
         [Test]

@@ -6,6 +6,8 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.MediaFiles.TrackImport;
 using NzbDrone.Core.MediaFiles.TrackImport.Identification;
+using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.MetadataSource.Sources;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
@@ -101,6 +103,16 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             var localTracks = GivenLocalTracks(tracks, release);
 
             return new LocalAlbumRelease(localTracks);
+        }
+
+        [Test]
+        public void get_remote_candidates_should_skip_an_unavailable_metadata_source()
+        {
+            Mocker.GetMock<ISearchForNewAlbum>()
+                .Setup(x => x.SearchForNewAlbum(It.IsAny<string>(), It.IsAny<string>()))
+                .Throws(new MetadataSourceUnavailableException("No metadata source can answer"));
+
+            Subject.GetRemoteCandidates(GivenLocalAlbumRelease()).Should().BeEmpty();
         }
 
         [Test]

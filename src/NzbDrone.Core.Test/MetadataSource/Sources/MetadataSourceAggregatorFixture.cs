@@ -277,6 +277,30 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
         }
 
         [Test]
+        public void search_sends_a_musicbrainz_id_only_to_musicbrainz_sources()
+        {
+            var other = GivenSource(1, MetadataSourceRole.Primary, OtherFamily);
+            var artist = ArtistWith();
+            GivenSource(2, MetadataSourceRole.Fallback).Setup(s => s.SearchForNewArtist("mbid:" + MusicBrainzId)).Returns(new List<Artist> { artist });
+
+            Subject.SearchForNewArtist("mbid:" + MusicBrainzId).Should().Equal(artist);
+
+            other.Verify(s => s.SearchForNewArtist(It.IsAny<string>()), Times.Never());
+        }
+
+        [Test]
+        public void search_sends_another_sources_id_only_to_that_source()
+        {
+            var musicBrainz = GivenSource(1, MetadataSourceRole.Primary);
+            var artist = ArtistWith();
+            GivenSource(2, MetadataSourceRole.Fallback, OtherFamily).Setup(s => s.SearchForNewArtist(OtherId)).Returns(new List<Artist> { artist });
+
+            Subject.SearchForNewArtist(OtherId).Should().Equal(artist);
+
+            musicBrainz.Verify(s => s.SearchForNewArtist(It.IsAny<string>()), Times.Never());
+        }
+
+        [Test]
         public void search_reports_the_outage_when_nothing_was_found()
         {
             GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.SearchForNewArtist("Artist Name")).Throws(new TimeoutException("Source 1 is down"));

@@ -430,7 +430,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             }
         }
 
-        private static bool IsMbidQuery(string query)
+        internal static bool IsMbidQuery(string query)
         {
             return query.StartsWith("lidarr:") || query.StartsWith("lidarrid:") || query.StartsWith("mbid:");
         }

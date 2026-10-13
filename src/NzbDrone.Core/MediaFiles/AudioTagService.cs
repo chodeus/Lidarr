@@ -11,6 +11,7 @@ using NzbDrone.Core.MediaFiles.Commands;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.MetadataSource.Sources;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
@@ -97,7 +98,7 @@ namespace NzbDrone.Core.MediaFiles
             return true;
         }
 
-        private AudioTag GetTrackMetadata(TrackFile trackfile, TaggingProfile taggingProfile)
+        private AudioTag GetTrackMetadata(TrackFile trackfile, TaggingProfile taggingProfile, AudioTag fileTags = null)
         {
             try
             {
@@ -182,12 +183,12 @@ namespace NzbDrone.Core.MediaFiles
                     MusicBrainzReleaseCountry = IsoCountries.Find(release.Country.FirstOrDefault())?.TwoLetterCode,
                     MusicBrainzReleaseStatus = release.Status.ToLower(),
                     MusicBrainzReleaseType = album.AlbumType.ToLower(),
-                    MusicBrainzReleaseId = release.ForeignReleaseId,
-                    MusicBrainzArtistId = artist.ForeignArtistId,
-                    MusicBrainzReleaseArtistId = albumartist.ForeignArtistId,
-                    MusicBrainzReleaseGroupId = album.ForeignAlbumId,
-                    MusicBrainzTrackId = track.ForeignRecordingId,
-                    MusicBrainzReleaseTrackId = track.ForeignTrackId,
+                    MusicBrainzReleaseId = MusicBrainzIdOrFiles(release.ForeignReleaseId, fileTags?.MusicBrainzReleaseId),
+                    MusicBrainzArtistId = MusicBrainzIdOrFiles(artist.ForeignArtistId, fileTags?.MusicBrainzArtistId),
+                    MusicBrainzReleaseArtistId = MusicBrainzIdOrFiles(albumartist.ForeignArtistId, fileTags?.MusicBrainzReleaseArtistId),
+                    MusicBrainzReleaseGroupId = MusicBrainzIdOrFiles(album.ForeignAlbumId, fileTags?.MusicBrainzReleaseGroupId),
+                    MusicBrainzTrackId = MusicBrainzIdOrFiles(track.ForeignRecordingId, fileTags?.MusicBrainzTrackId),
+                    MusicBrainzReleaseTrackId = MusicBrainzIdOrFiles(track.ForeignTrackId, fileTags?.MusicBrainzReleaseTrackId),
                     MusicBrainzAlbumComment = album.Disambiguation,
                 };
             }
@@ -196,6 +197,12 @@ namespace NzbDrone.Core.MediaFiles
                 _logger.Error(ex, "Failed to get track metadata for {0}", trackfile.Path);
                 throw;
             }
+        }
+
+        // Another source's ID never goes in a MusicBrainz tag; the file keeps whatever MusicBrainz ID it already has
+        private static string MusicBrainzIdOrFiles(string foreignId, string fileValue)
+        {
+            return MusicBrainzIds.IsMusicBrainzId(foreignId) ? foreignId : fileValue;
         }
 
         private void UpdateTrackfileSizeAndModified(TrackFile trackfile, string path)
@@ -291,7 +298,7 @@ namespace NzbDrone.Core.MediaFiles
             }
 
             var oldTags = ReadAudioTag(path);
-            var newTags = GetTrackMetadata(trackfile, taggingProfile);
+            var newTags = GetTrackMetadata(trackfile, taggingProfile, oldTags);
 
             // We don't overwrite image when new image is null
             if (newTags.ImageFile == null && !taggingProfile.ScrubAudioTags)
@@ -463,7 +470,7 @@ namespace NzbDrone.Core.MediaFiles
                 }
 
                 var oldTags = ReadAudioTag(f.Path);
-                var newTags = GetTrackMetadata(f, taggingProfile);
+                var newTags = GetTrackMetadata(f, taggingProfile, oldTags);
 
                 // We don't overwrite image when new image is null
                 if (newTags.ImageFile == null && !taggingProfile.ScrubAudioTags)

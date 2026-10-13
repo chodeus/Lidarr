@@ -4,6 +4,7 @@ using System.Linq;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation;
+using NzbDrone.Core.MetadataSource.Sources;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
@@ -63,15 +64,18 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
                 dist.AddBool("track_index", TrackIndexIncorrect(localTrack, mbTrack, totalTrackNumber));
             }
 
+            // Tags and fingerprints only carry MusicBrainz IDs, so they can't count against another source's IDs
+            var musicBrainzTrack = MusicBrainzIds.IsMusicBrainzId(mbTrack.ForeignRecordingId);
+
             var recordingId = localTrack.FileTrackInfo.RecordingMBId;
-            if (recordingId.IsNotNullOrWhiteSpace())
+            if (recordingId.IsNotNullOrWhiteSpace() && musicBrainzTrack)
             {
                 dist.AddBool("recording_id", localTrack.FileTrackInfo.RecordingMBId != mbTrack.ForeignRecordingId &&
                              !mbTrack.OldForeignRecordingIds.Contains(localTrack.FileTrackInfo.RecordingMBId));
             }
 
             // for fingerprinted files
-            if (localTrack.AcoustIdResults != null)
+            if (localTrack.AcoustIdResults != null && musicBrainzTrack)
             {
                 dist.AddBool("recording_id", !localTrack.AcoustIdResults.Contains(mbTrack.ForeignRecordingId));
             }
@@ -169,7 +173,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
             }
 
             var mbAlbumId = localTracks.MostCommon(x => x.FileTrackInfo.ReleaseMBId);
-            if (mbAlbumId.IsNotNullOrWhiteSpace())
+            if (mbAlbumId.IsNotNullOrWhiteSpace() && MusicBrainzIds.IsMusicBrainzId(release.ForeignReleaseId))
             {
                 dist.AddBool("album_id", mbAlbumId != release.ForeignReleaseId && !release.OldForeignReleaseIds.Contains(mbAlbumId));
                 Logger.Trace("album_id: {0} vs {1} or {2}; {3}", mbAlbumId, release.ForeignReleaseId, string.Join(", ", release.OldForeignReleaseIds), dist.NormalizedDistance());

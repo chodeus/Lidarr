@@ -11,6 +11,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Extras.Metadata.Files;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.MetadataSource.Sources;
 using NzbDrone.Core.Music;
 
 namespace NzbDrone.Core.Extras.Metadata.Consumers.Xbmc
@@ -121,7 +122,12 @@ namespace NzbDrone.Core.Extras.Metadata.Consumers.Xbmc
                     artistElement.Add(new XElement("rating", artist.Metadata.Value.Ratings.Value));
                 }
 
-                artistElement.Add(new XElement("musicbrainzartistid", artist.Metadata.Value.ForeignArtistId));
+                // Kodi looks these up on MusicBrainz, so another source's IDs are left out
+                if (MusicBrainzIds.IsMusicBrainzId(artist.Metadata.Value.ForeignArtistId))
+                {
+                    artistElement.Add(new XElement("musicbrainzartistid", artist.Metadata.Value.ForeignArtistId));
+                }
+
                 artistElement.Add(new XElement("biography", artist.Metadata.Value.Overview));
                 artistElement.Add(new XElement("outline", artist.Metadata.Value.Overview));
 
@@ -160,8 +166,12 @@ namespace NzbDrone.Core.Extras.Metadata.Consumers.Xbmc
                     albumElement.Add(new XElement("rating", album.Ratings.Value));
                 }
 
-                albumElement.Add(new XElement("musicbrainzreleasegroupid", album.ForeignAlbumId));
-                albumElement.Add(new XElement("musicbrainzalbumid", albumRelease.ForeignReleaseId));
+                if (MusicBrainzIds.IsMusicBrainzId(album.ForeignAlbumId))
+                {
+                    albumElement.Add(new XElement("musicbrainzreleasegroupid", album.ForeignAlbumId));
+                    albumElement.Add(new XElement("musicbrainzalbumid", albumRelease.ForeignReleaseId));
+                }
+
                 albumElement.Add(new XElement("artistdesc", artist.Metadata.Value.Overview));
                 albumElement.Add(new XElement("releasedate", album.ReleaseDate.Value.ToShortDateString()));
                 albumElement.Add(new XElement("label", albumRelease.Label));

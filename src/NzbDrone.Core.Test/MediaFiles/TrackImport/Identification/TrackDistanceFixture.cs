@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using NUnit.Framework;
@@ -54,6 +55,35 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             var localTrack = GivenLocalTrack(track);
 
             DistanceCalculator.TrackDistance(localTrack, track, 1, true).NormalizedDistance().Should().Be(0.0);
+        }
+
+        [TestCase("22222222-2222-2222-2222-222222222222", false)]
+        [TestCase("other:1", true)]
+        public void a_recording_id_from_the_file_counts_only_against_a_musicbrainz_track(string recordingId, bool identical)
+        {
+            var track = GivenTrack("one");
+            track.ForeignRecordingId = recordingId;
+            var localTrack = GivenLocalTrack(track);
+            localTrack.FileTrackInfo.RecordingMBId = "11111111-1111-1111-1111-111111111111";
+
+            var distance = DistanceCalculator.TrackDistance(localTrack, track, 1, true).NormalizedDistance();
+
+            (distance == 0.0).Should().Be(identical);
+        }
+
+        [TestCase("22222222-2222-2222-2222-222222222222", false)]
+        [TestCase("other:1", true)]
+        public void fingerprints_count_only_against_a_musicbrainz_track(string recordingId, bool identical)
+        {
+            var track = GivenTrack("one");
+            track.ForeignRecordingId = recordingId;
+            var localTrack = GivenLocalTrack(track);
+            localTrack.FileTrackInfo.RecordingMBId = null;
+            localTrack.AcoustIdResults = new List<string> { "11111111-1111-1111-1111-111111111111" };
+
+            var distance = DistanceCalculator.TrackDistance(localTrack, track, 1, true).NormalizedDistance();
+
+            (distance == 0.0).Should().Be(identical);
         }
 
         [Test]

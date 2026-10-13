@@ -118,6 +118,19 @@ namespace NzbDrone.Core.Test.Profiles.MetadataSources
         }
 
         [Test]
+        public void reorder_never_moves_a_profile_around_the_default()
+        {
+            var a = GivenProfile("A", 1);
+            GivenProfile("B", 2);
+
+            Subject.Reorder(a.Id, MetadataSourceProfileService.DefaultProfileId);
+            Subject.Reorder(MetadataSourceProfileService.DefaultProfileId, null);
+
+            ProfilesInOrder().Should().Equal("A", "B", "Default");
+            OrdersInOrder().Should().Equal(1, 2, int.MaxValue);
+        }
+
+        [Test]
         public void deleting_a_profile_renumbers_the_rest()
         {
             GivenProfile("A", 1);

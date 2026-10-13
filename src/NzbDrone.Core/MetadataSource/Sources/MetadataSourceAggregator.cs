@@ -269,7 +269,7 @@ namespace NzbDrone.Core.MetadataSource.Sources
                 }
                 catch (Exception ex)
                 {
-                    _logger.Debug(ex, "{0} could not list changes", source.Definition?.Name);
+                    _logger.Info(ex, "{0} could not list changes", source.Definition?.Name);
                     return null;
                 }
 

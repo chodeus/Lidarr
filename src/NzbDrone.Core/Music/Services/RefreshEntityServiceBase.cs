@@ -51,7 +51,7 @@ namespace NzbDrone.Core.Music
             public TEntity Entity { get; set; }
             public List<ArtistMetadata> Metadata { get; set; }
 
-            // The source no longer has the entity: keep and mark it rather than delete on one answer
+            // The source has no usable copy (not found, or no usable releases): keep and mark it rather than delete on one answer
             public bool MissingFromSource { get; set; }
         }
 

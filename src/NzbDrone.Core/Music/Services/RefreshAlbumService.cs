@@ -77,7 +77,7 @@ namespace NzbDrone.Core.Music
         {
             var result = new RemoteData();
 
-            // remove not in remote list and ShouldDelete is true, unless the source no longer has the album at all
+            // remove not in remote list and ShouldDelete is true, unless the source has no usable copy of the album
             if (remote != null &&
                 !remote.Any(x => x.ForeignAlbumId == local.ForeignAlbumId || x.OldForeignAlbumIds.Contains(local.ForeignAlbumId)) &&
                 ShouldDelete(local))

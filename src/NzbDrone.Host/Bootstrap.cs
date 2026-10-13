@@ -29,6 +29,7 @@ using NzbDrone.Common.Options;
 using NzbDrone.Common.Reflection;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Datastore.Extensions;
+using NzbDrone.Core.MetadataSource.Sources;
 using PostgresOptions = NzbDrone.Core.Datastore.PostgresOptions;
 
 namespace NzbDrone.Host
@@ -227,7 +228,8 @@ namespace NzbDrone.Host
                         .SetPluginStatus(usePlugins)
                         .AddNzbDroneLogger()
                         .AddDatabase()
-                        .AddStartupContext(context);
+                        .AddStartupContext(context)
+                        .AddMetadataSources();
 
                     if (logDbEnabled)
                     {

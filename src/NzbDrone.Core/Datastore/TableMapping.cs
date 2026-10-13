@@ -25,6 +25,7 @@ using NzbDrone.Core.Instrumentation;
 using NzbDrone.Core.Jobs;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Messaging.Commands;
+using NzbDrone.Core.MetadataSource.Sources;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Notifications;
 using NzbDrone.Core.Organizer;
@@ -32,6 +33,7 @@ using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Profiles;
 using NzbDrone.Core.Profiles.Delay;
 using NzbDrone.Core.Profiles.Metadata;
+using NzbDrone.Core.Profiles.MetadataSources;
 using NzbDrone.Core.Profiles.Qualities;
 using NzbDrone.Core.Profiles.Releases;
 using NzbDrone.Core.Profiles.Tagging;
@@ -98,6 +100,10 @@ namespace NzbDrone.Core.Datastore
                   .Ignore(i => i.SupportsOnApplicationUpdate);
 
             Mapper.Entity<MetadataDefinition>("Metadata").RegisterModel()
+                  .Ignore(x => x.ImplementationName)
+                  .Ignore(d => d.Tags);
+
+            Mapper.Entity<MetadataSourceDefinition>("MetadataSources").RegisterModel()
                   .Ignore(x => x.ImplementationName)
                   .Ignore(d => d.Tags);
 
@@ -193,6 +199,7 @@ namespace NzbDrone.Core.Datastore
 
             Mapper.Entity<DelayProfile>("DelayProfiles").RegisterModel();
             Mapper.Entity<TaggingProfile>("TaggingProfiles").RegisterModel();
+            Mapper.Entity<MetadataSourceProfile>("MetadataSourceProfiles").RegisterModel();
             Mapper.Entity<User>("Users").RegisterModel();
             Mapper.Entity<CommandModel>("Commands").RegisterModel()
                   .Ignore(c => c.Message);
@@ -228,6 +235,7 @@ namespace NzbDrone.Core.Datastore
             SqlMapper.AddTypeHandler(new EmbeddedDocumentConverter<Dictionary<string, string>>());
             SqlMapper.AddTypeHandler(new EmbeddedDocumentConverter<IDictionary<string, string>>());
             SqlMapper.AddTypeHandler(new EmbeddedDocumentConverter<List<int>>());
+            SqlMapper.AddTypeHandler(new EmbeddedDocumentConverter<List<MetadataSourceProfileItem>>());
             SqlMapper.AddTypeHandler(new EmbeddedDocumentConverter<List<KeyValuePair<string, int>>>());
             SqlMapper.AddTypeHandler(new EmbeddedDocumentConverter<KeyValuePair<string, int>>());
             SqlMapper.AddTypeHandler(new EmbeddedDocumentConverter<List<string>>());

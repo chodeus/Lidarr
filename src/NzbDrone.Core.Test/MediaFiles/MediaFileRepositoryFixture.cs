@@ -175,6 +175,63 @@ namespace NzbDrone.Core.Test.MediaFiles
         }
 
         [Test]
+        public void get_files_by_artist_should_cover_every_album_and_no_other_artist()
+        {
+            var secondAlbum = GivenAlbum(_artist.ArtistMetadataId, "Foreign Album 2");
+
+            var otherMetadata = Db.Insert(Builder<ArtistMetadata>.CreateNew()
+                .With(a => a.Id = 0)
+                .With(a => a.ForeignArtistId = "Foreign Artist 2")
+                .Build());
+            Db.Insert(Builder<Artist>.CreateNew()
+                .With(a => a.Id = 0)
+                .With(a => a.ArtistMetadataId = otherMetadata.Id)
+                .Build());
+            var otherAlbum = GivenAlbum(otherMetadata.Id, "Foreign Album 3");
+
+            GivenFileOnMonitoredRelease(secondAlbum, 1);
+            GivenFileOnMonitoredRelease(otherAlbum, 2);
+
+            var artistFiles = Subject.GetFilesByArtist(_artist.Id);
+
+            artistFiles.Should().HaveCount(5);
+            artistFiles.Select(f => f.AlbumId).Should().Contain(secondAlbum.Id).And.NotContain(otherAlbum.Id);
+        }
+
+        private Album GivenAlbum(int artistMetadataId, string foreignAlbumId)
+        {
+            return Db.Insert(Builder<Album>.CreateNew()
+                .With(a => a.Id = 0)
+                .With(a => a.ForeignAlbumId = foreignAlbumId)
+                .With(a => a.ArtistMetadataId = artistMetadataId)
+                .Build());
+        }
+
+        private void GivenFileOnMonitoredRelease(Album album, int number)
+        {
+            var release = Db.Insert(Builder<AlbumRelease>.CreateNew()
+                .With(r => r.Id = 0)
+                .With(r => r.ForeignReleaseId = $"Foreign Release {number}")
+                .With(r => r.AlbumId = album.Id)
+                .With(r => r.Monitored = true)
+                .Build());
+
+            var file = Db.Insert(Builder<TrackFile>.CreateNew()
+                .With(f => f.Id = 0)
+                .With(f => f.AlbumId = album.Id)
+                .With(f => f.Path = $"/music/Artist Name/Album Title/Track {number}.flac")
+                .With(f => f.Quality = new QualityModel(Quality.MP3_192))
+                .Build());
+
+            Db.Insert(Builder<Track>.CreateNew()
+                .With(t => t.Id = 0)
+                .With(t => t.ForeignTrackId = $"Foreign Track {number}")
+                .With(t => t.AlbumReleaseId = release.Id)
+                .With(t => t.TrackFileId = file.Id)
+                .Build());
+        }
+
+        [Test]
         public void get_files_by_album()
         {
             VerifyData();

@@ -73,9 +73,11 @@ namespace NzbDrone.Core.MediaFiles
 
         public List<TrackFile> GetFilesByArtist(int artistId)
         {
+            // The album filter lets SQLite seek the artist's files; the left joins alone make it scan every file.
             return Query(Builder().LeftJoin<Track, AlbumRelease>((t, r) => t.AlbumReleaseId == r.Id)
                          .Where<AlbumRelease>(r => r.Monitored == true)
-                         .Where<Artist>(a => a.Id == artistId));
+                         .Where<Artist>(a => a.Id == artistId)
+                         .Where(@"""TrackFiles"".""AlbumId"" IN (SELECT ""Albums"".""Id"" FROM ""Albums"" JOIN ""Artists"" ON ""Albums"".""ArtistMetadataId"" = ""Artists"".""ArtistMetadataId"" WHERE ""Artists"".""Id"" = @artistId)", new { artistId }));
         }
 
         public List<TrackFile> GetFilesByAlbum(int albumId)

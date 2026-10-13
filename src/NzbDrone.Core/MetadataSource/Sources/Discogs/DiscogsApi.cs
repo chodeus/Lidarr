@@ -4,6 +4,7 @@ using System.Net;
 using Newtonsoft.Json;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
+using NzbDrone.Common.TPL;
 
 namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 {
@@ -26,12 +27,16 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
         private static readonly TimeSpan TokenRateLimit = TimeSpan.FromMilliseconds(1050);
         private static readonly TimeSpan AnonymousRateLimit = TimeSpan.FromMilliseconds(2500);
+        private static readonly TimeSpan RateWindow = TimeSpan.FromSeconds(60);
+        private static readonly TimeSpan MaxRetryAfter = TimeSpan.FromMinutes(2);
 
         private readonly IHttpClient _httpClient;
+        private readonly IRateLimitService _rateLimitService;
 
-        public DiscogsApi(IHttpClient httpClient)
+        public DiscogsApi(IHttpClient httpClient, IRateLimitService rateLimitService)
         {
             _httpClient = httpClient;
+            _rateLimitService = rateLimitService;
         }
 
         public DiscogsArtistResource GetArtist(long id, string token)
@@ -100,6 +105,43 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
         private T Get<T>(string resource, string token, params (string Key, string Value)[] query)
             where T : new()
         {
+            var response = Send<T>(resource, token, query);
+
+            // Other apps may share the token's limit, so a "too many requests" gets one retry after Discogs's wait
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                Pause(response, RetryAfter(response));
+                response = Send<T>(resource, token, query);
+            }
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                return default;
+            }
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                throw new MetadataSourceUnavailableException("Discogs rejected the personal access token");
+            }
+
+            if (response.HasHttpError)
+            {
+                throw new MetadataSourceUnavailableException("Discogs request for {0} failed with HTTP {1}", resource, (int)response.StatusCode);
+            }
+
+            try
+            {
+                return response.Resource;
+            }
+            catch (JsonException ex)
+            {
+                throw new MetadataSourceUnavailableException("Discogs request for {0} returned an unreadable response: {1}", resource, ex.Message);
+            }
+        }
+
+        private HttpResponse<T> Send<T>(string resource, string token, (string Key, string Value)[] query)
+            where T : new()
+        {
             var builder = new HttpRequestBuilder(BaseUrl).Resource(resource);
 
             foreach (var (key, value) in query)
@@ -128,29 +170,27 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
                 throw new MetadataSourceUnavailableException("Discogs request for {0} failed: {1}", resource, ex.Message);
             }
 
-            if (response.StatusCode == HttpStatusCode.NotFound)
+            // The limit is shared by everything using the token or address, so wait out the window once it runs out
+            if (response.StatusCode != HttpStatusCode.TooManyRequests &&
+                int.TryParse(response.Headers.GetSingleValue("X-Discogs-Ratelimit-Remaining"), out var remaining) && remaining <= 0)
             {
-                return default;
+                Pause(response, RateWindow);
             }
 
-            if (response.StatusCode == HttpStatusCode.Unauthorized)
-            {
-                throw new MetadataSourceUnavailableException("Discogs rejected the personal access token");
-            }
+            return response;
+        }
 
-            if (response.HasHttpError)
-            {
-                throw new MetadataSourceUnavailableException("Discogs request for {0} failed with HTTP {1}", resource, (int)response.StatusCode);
-            }
+        // The rate limiter holds the next request to this host until the pause is over
+        private void Pause(HttpResponse response, TimeSpan pause)
+        {
+            _rateLimitService.WaitAndPulse(response.Request.Url.Host, pause);
+        }
 
-            try
-            {
-                return response.Resource;
-            }
-            catch (JsonException ex)
-            {
-                throw new MetadataSourceUnavailableException("Discogs request for {0} returned an unreadable response: {1}", resource, ex.Message);
-            }
+        private static TimeSpan RetryAfter(HttpResponse response)
+        {
+            return int.TryParse(response.Headers.GetSingleValue("Retry-After"), out var seconds) && seconds > 0
+                ? TimeSpan.FromSeconds(Math.Min(seconds, MaxRetryAfter.TotalSeconds))
+                : RateWindow;
         }
     }
 }

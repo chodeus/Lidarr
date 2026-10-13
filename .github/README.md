@@ -1,0 +1,23 @@
+# New: Fail downloads containing executable or potentially dangerous files per indexer
+
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Reviewed in [#14](https://github.com/chodeus/Lidarr/pull/14).
+
+Ported from Sonarr's per-indexer Fail Downloads option (`FailDownloads`, `CachedIndexerSettingsProvider`, `RejectedImportService`, `TrackedDownload.Fail`, and the potentially dangerous extension list), in Sonarr's names and structure.
+
+- Each of Lidarr's indexers gets an advanced **Fail Downloads** multi-select: Executables, Potentially Dangerous.
+- The folder check in `DownloadedTracksImportService` now returns a typed `ImportRejection` (`ExecutableFile` or `DangerousFile`), and also rejects Sonarr's potentially dangerous extensions (.arj, .lnk, .lzh, .ps1, .scr, .vbs, .zipx).
+- When a download's indexer fails that file type, `RejectedImportService` marks it failed (`DownloadFailedPending`), so the existing failed-download handling blocklists it and searches again. Otherwise it warns, as before.
+
+Differences from Sonarr, both for the custom build:
+- `IIndexerSettings.FailDownloads` has a default implementation (empty). Plugin indexer settings compiled against develop implement `IIndexerSettings` without this member, and would otherwise fail to load.
+- Lidarr rejections are plain `Rejection`s with a text reason, so `ImportRejection` subclasses it with `ImportRejectionReason` rather than Sonarr's generic `Rejection<T>`. `CompletedDownloadService` calls `RejectedImportService` only for a folder-level rejection, the branch that already warned; a single rejected track keeps Lidarr's import-failed handling.
+
+Tests: `RejectedImportServiceFixture` (each option and reason, missing settings, no release, not rejected), `CachedIndexerSettingsProviderFixture` (including settings without the property), the typed reasons in `DownloadedTracksImportServiceFixture`, and both outcomes of the `CompletedDownloadService` hook. Eight mutations, all building, each fail a test.
+
+## Summary by CodeRabbit
+
+* **New Features**
+  * Configure supported indexers to fail downloads containing executable or potentially dangerous files.
+  * During completed-download import, risky files are identified. Depending on indexer settings, affected downloads are marked as failed and removable, or remain pending with a warning.
+* **Bug Fixes**
+  * Import warnings now distinguish between executable files and potentially dangerous files, including shortcuts and scripts.

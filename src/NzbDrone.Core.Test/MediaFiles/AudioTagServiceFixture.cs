@@ -52,6 +52,9 @@ namespace NzbDrone.Core.Test.MediaFiles.AudioTagServiceFixture
             }
         }
 
+        private const string FileMusicBrainzId = "11111111-1111-1111-1111-111111111111";
+        private const string SourceMusicBrainzId = "22222222-2222-2222-2222-222222222222";
+
         private readonly string _testdir = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "Media");
         private string _copiedFile;
         private string _linkedFile;
@@ -427,6 +430,69 @@ namespace NzbDrone.Core.Test.MediaFiles.AudioTagServiceFixture
             var tag = Subject.GetTrackMetadata(file);
 
             tag.Media.Should().NotBeNull();
+        }
+
+        private TrackFile GivenTrackfileWithForeignIds(string filename, string foreignId)
+        {
+            _taggingProfile.SkipHardlinkedFiles = false;
+
+            GivenFileCopy(filename);
+
+            var fileTags = Subject.ReadAudioTag(_copiedFile);
+            fileTags.MusicBrainzReleaseId = FileMusicBrainzId;
+            fileTags.MusicBrainzArtistId = FileMusicBrainzId;
+            fileTags.MusicBrainzReleaseArtistId = FileMusicBrainzId;
+            fileTags.MusicBrainzReleaseGroupId = FileMusicBrainzId;
+            fileTags.MusicBrainzTrackId = FileMusicBrainzId;
+            fileTags.MusicBrainzReleaseTrackId = FileMusicBrainzId;
+            fileTags.Write(_copiedFile);
+
+            var file = GivenPopulatedTrackfile(0);
+            file.Path = _copiedFile;
+
+            var track = file.Tracks.Value[0];
+            track.ForeignRecordingId = foreignId;
+            track.ForeignTrackId = foreignId;
+            track.ArtistMetadata.Value.ForeignArtistId = foreignId;
+            track.AlbumRelease.Value.ForeignReleaseId = foreignId;
+            track.AlbumRelease.Value.Album.Value.ForeignAlbumId = foreignId;
+
+            return file;
+        }
+
+        private void VerifyMusicBrainzIds(TrackFile file, string expected)
+        {
+            var tags = Subject.ReadAudioTag(file.Path);
+
+            tags.Title.Should().Be(file.Tracks.Value[0].Title);
+            tags.MusicBrainzReleaseId.Should().Be(expected);
+            tags.MusicBrainzArtistId.Should().Be(expected);
+            tags.MusicBrainzReleaseArtistId.Should().Be(expected);
+            tags.MusicBrainzReleaseGroupId.Should().Be(expected);
+            tags.MusicBrainzTrackId.Should().Be(expected);
+            tags.MusicBrainzReleaseTrackId.Should().Be(expected);
+        }
+
+        [TestCase("nin.mp3")]
+        [TestCase("nin.flac")]
+        public void write_tags_keeps_the_files_musicbrainz_ids_when_the_source_ids_are_not_musicbrainz_ids(string filename)
+        {
+            var file = GivenTrackfileWithForeignIds(filename, "other:1");
+
+            Subject.WriteTags(file, false, true);
+
+            VerifyMusicBrainzIds(file, FileMusicBrainzId);
+        }
+
+        [TestCase("nin.mp3")]
+        [TestCase("nin.flac")]
+        public void write_tags_writes_the_ids_of_a_musicbrainz_source(string filename)
+        {
+            var file = GivenTrackfileWithForeignIds(filename, SourceMusicBrainzId);
+
+            Subject.WriteTags(file, false, true);
+
+            VerifyMusicBrainzIds(file, SourceMusicBrainzId);
         }
 
         [TestCase("nin.mp3")]

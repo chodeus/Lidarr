@@ -3,6 +3,7 @@ import React from 'react';
 import Label from 'Components/Label';
 import Link from 'Components/Link/Link';
 import { kinds, sizes } from 'Helpers/Props';
+import getMusicBrainzUrl from 'Utilities/getMusicBrainzUrl';
 import styles from './ArtistDetailsLinks.css';
 
 function ArtistDetailsLinks(props) {
@@ -11,21 +12,25 @@ function ArtistDetailsLinks(props) {
     links
   } = props;
 
+  const musicBrainzUrl = getMusicBrainzUrl('artist', foreignArtistId);
+
   return (
     <div className={styles.links}>
 
-      <Link
-        className={styles.link}
-        to={`https://musicbrainz.org/artist/${foreignArtistId}`}
-      >
-        <Label
-          className={styles.linkLabel}
-          kind={kinds.INFO}
-          size={sizes.LARGE}
+      {musicBrainzUrl ? (
+        <Link
+          className={styles.link}
+          to={musicBrainzUrl}
         >
-          Musicbrainz
-        </Label>
-      </Link>
+          <Label
+            className={styles.linkLabel}
+            kind={kinds.INFO}
+            size={sizes.LARGE}
+          >
+            Musicbrainz
+          </Label>
+        </Link>
+      ) : null}
 
       {links.map((link, index) => {
         return (

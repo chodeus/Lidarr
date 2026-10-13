@@ -9,6 +9,7 @@ import Link from 'Components/Link/Link';
 import { icons, kinds, sizes } from 'Helpers/Props';
 import dimensions from 'Styles/Variables/dimensions';
 import fonts from 'Styles/Variables/fonts';
+import getMusicBrainzUrl from 'Utilities/getMusicBrainzUrl';
 import translate from 'Utilities/String/translate';
 import AddNewArtistModal from './AddNewArtistModal';
 import styles from './AddNewArtistSearchResult.css';
@@ -81,8 +82,11 @@ class AddNewArtistSearchResult extends Component {
       images,
       isExistingArtist,
       isSmallScreen,
+      links,
       metadataSource
     } = this.props;
+
+    const externalUrl = getMusicBrainzUrl('artist', foreignArtistId) ?? links?.[0]?.url;
 
     const {
       isNewAddArtistModalOpen
@@ -146,17 +150,19 @@ class AddNewArtistSearchResult extends Component {
                     null
                 }
 
-                <Link
-                  className={styles.mbLink}
-                  to={`https://musicbrainz.org/artist/${foreignArtistId}`}
-                  onPress={this.onMBLinkPress}
-                >
-                  <Icon
-                    className={styles.mbLinkIcon}
-                    name={icons.EXTERNAL_LINK}
-                    size={28}
-                  />
-                </Link>
+                {externalUrl ? (
+                  <Link
+                    className={styles.mbLink}
+                    to={externalUrl}
+                    onPress={this.onMBLinkPress}
+                  >
+                    <Icon
+                      className={styles.mbLinkIcon}
+                      name={icons.EXTERNAL_LINK}
+                      size={28}
+                    />
+                  </Link>
+                ) : null}
               </div>
             </div>
 
@@ -244,6 +250,7 @@ AddNewArtistSearchResult.propTypes = {
   images: PropTypes.arrayOf(PropTypes.object).isRequired,
   isExistingArtist: PropTypes.bool.isRequired,
   isSmallScreen: PropTypes.bool.isRequired,
+  links: PropTypes.arrayOf(PropTypes.object),
   metadataSource: PropTypes.string
 };
 

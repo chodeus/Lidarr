@@ -6,6 +6,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.MetadataSource.Sources;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Notifications.Discord.Payloads;
 using NzbDrone.Core.Validation;
@@ -39,7 +40,7 @@ namespace NzbDrone.Core.Notifications.Discord
                     Name = Settings.Author.IsNullOrWhiteSpace() ? _configFileProvider.InstanceName : Settings.Author,
                     IconUrl = "https://raw.githubusercontent.com/lidarr/Lidarr/develop/Logo/256.png"
                 },
-                Url = $"https://musicbrainz.org/artist/{artist.ForeignArtistId}",
+                Url = ArtistPage(artist)?.Url,
                 Description = "Album Grabbed",
                 Title = GetTitle(artist, albums),
                 Color = (int)DiscordColors.Standard,
@@ -144,7 +145,7 @@ namespace NzbDrone.Core.Notifications.Discord
                     Name = Settings.Author.IsNullOrWhiteSpace() ? _configFileProvider.InstanceName : Settings.Author,
                     IconUrl = "https://raw.githubusercontent.com/lidarr/Lidarr/develop/Logo/256.png"
                 },
-                Url = $"https://musicbrainz.org/artist/{artist.ForeignArtistId}",
+                Url = ArtistPage(artist)?.Url,
                 Description = isUpgrade ? "Album Upgraded" : "Album Imported",
                 Title = GetTitle(artist, new List<Album> { album }),
                 Color = isUpgrade ? (int)DiscordColors.Upgrade : (int)DiscordColors.Success,
@@ -504,10 +505,24 @@ namespace NzbDrone.Core.Notifications.Discord
         private string GetLinksString(Artist artist)
         {
             var links = new List<string>();
+            var page = ArtistPage(artist);
 
-            links.Add($"[MusicBrainz](https://musicbrainz.org/artist/{artist.ForeignArtistId})");
+            if (page != null)
+            {
+                links.Add($"[{page.Name}]({page.Url})");
+            }
 
             return string.Join(" / ", links);
+        }
+
+        // Another source's ID has no MusicBrainz page; that source lists its own page first in the artist's links
+        private static Links ArtistPage(Artist artist)
+        {
+            var id = artist.ForeignArtistId;
+
+            return MusicBrainzIds.IsMusicBrainzId(id)
+                ? new Links { Name = "MusicBrainz", Url = $"https://musicbrainz.org/artist/{id}" }
+                : artist.Metadata.Value.Links?.FirstOrDefault();
         }
 
         private string GetTitle(Artist artist, List<Album> albums)

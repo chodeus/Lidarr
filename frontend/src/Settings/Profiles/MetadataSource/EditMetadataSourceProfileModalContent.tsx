@@ -231,7 +231,7 @@ function EditMetadataSourceProfileModalContent(
                       key={profileItem.metadataSourceId}
                       className={styles.source}
                     >
-                      <div className={styles.sourceName}>
+                      <div className={styles.sourceName} title={source?.name}>
                         {source?.name ?? profileItem.metadataSourceId}
                       </div>
 

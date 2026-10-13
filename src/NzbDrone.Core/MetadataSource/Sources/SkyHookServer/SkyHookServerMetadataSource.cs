@@ -19,6 +19,14 @@ namespace NzbDrone.Core.MetadataSource.Sources.SkyHookServer
         public SkyHookServerMetadataSourceSettingsValidator()
         {
             RuleFor(c => c.Url).NotEmpty().IsValidUrl();
+
+            // The request route is appended to the URL, so a query string would swallow it; put tokens in the path
+            RuleFor(c => c.Url).Must(HasNoQueryOrUserInfo).WithMessage("Must not include a query string or a user name and password");
+        }
+
+        private static bool HasNoQueryOrUserInfo(string url)
+        {
+            return !Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Query.IsNullOrWhiteSpace() && uri.UserInfo.IsNullOrWhiteSpace());
         }
     }
 

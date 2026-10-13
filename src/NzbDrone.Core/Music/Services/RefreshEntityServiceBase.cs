@@ -132,7 +132,7 @@ namespace NzbDrone.Core.Music
             {
                 if (data.MissingFromSource)
                 {
-                    _logger.Error($"{typeof(TEntity).Name} {local} is no longer in the metadata source and is kept until you delete it");
+                    _logger.Error($"{typeof(TEntity).Name} {local} is no longer available from the metadata source (not found, or no usable releases) and is kept until you delete it");
                     MarkMissingFromSource(local);
                     return false;
                 }

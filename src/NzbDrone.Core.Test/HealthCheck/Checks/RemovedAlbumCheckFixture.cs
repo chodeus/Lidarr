@@ -7,6 +7,7 @@ using NzbDrone.Core.HealthCheck;
 using NzbDrone.Core.HealthCheck.Checks;
 using NzbDrone.Core.Localization;
 using NzbDrone.Core.Music;
+using NzbDrone.Core.Music.Events;
 using NzbDrone.Core.Test.Framework;
 
 namespace NzbDrone.Core.Test.HealthCheck.Checks
@@ -27,6 +28,14 @@ namespace NzbDrone.Core.Test.HealthCheck.Checks
             Mocker.GetMock<IAlbumService>()
                   .Setup(s => s.GetAlbumsMissingFromMetadata())
                   .Returns(foreignAlbumIds.Select(id => new Album { Title = "Album Title", ForeignAlbumId = id }).ToList());
+        }
+
+        [Test]
+        public void should_check_again_when_an_album_is_updated()
+        {
+            typeof(RemovedAlbumCheck).GetCustomAttributes(typeof(CheckOnAttribute), true)
+                .Cast<CheckOnAttribute>()
+                .Should().Contain(a => a.EventType == typeof(AlbumUpdatedEvent));
         }
 
         [Test]

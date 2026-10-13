@@ -179,6 +179,7 @@ namespace NzbDrone.Core.Music
 
             local.MetadataMissingSince = DateTime.UtcNow;
             _albumService.UpdateMetadataMissingSince(new List<Album> { local });
+            PublishEntityUpdatedEvent(local);
         }
 
         protected override void LogProgress(Album local)
@@ -203,8 +204,9 @@ namespace NzbDrone.Core.Music
             {
                 result = UpdateResult.UpdateTags;
             }
-            else if (!local.Equals(remote))
+            else if (!local.Equals(remote) || local.MetadataMissingSince.HasValue)
             {
+                // Clearing the missing date is an update too, so the change is published
                 result = UpdateResult.Standard;
             }
             else

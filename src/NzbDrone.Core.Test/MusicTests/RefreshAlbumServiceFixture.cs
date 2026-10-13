@@ -11,8 +11,10 @@ using NzbDrone.Common.Http;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.History;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Music;
+using NzbDrone.Core.Music.Events;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Test.Common;
 
@@ -263,6 +265,19 @@ namespace NzbDrone.Core.Test.MusicTests
 
             Mocker.GetMock<IAlbumService>()
                 .Verify(v => v.UpdateMany(It.Is<List<Album>>(s => s.First().MetadataMissingSince == null)));
+            Mocker.GetMock<IEventAggregator>()
+                .Verify(v => v.PublishEvent(It.IsAny<AlbumUpdatedEvent>()), Times.Once());
+        }
+
+        [Test]
+        public void should_publish_an_update_when_marking_an_album_missing()
+        {
+            Subject.RefreshAlbumInfo(_albums.First(), null, false);
+
+            Mocker.GetMock<IEventAggregator>()
+                .Verify(v => v.PublishEvent(It.IsAny<AlbumUpdatedEvent>()), Times.Once());
+
+            ExceptionVerification.ExpectedErrors(1);
         }
 
         [Test]

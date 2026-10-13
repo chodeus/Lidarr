@@ -7,7 +7,7 @@ using NzbDrone.Core.Music.Events;
 
 namespace NzbDrone.Core.HealthCheck.Checks
 {
-    [CheckOn(typeof(ArtistRefreshCompleteEvent))]
+    [CheckOn(typeof(AlbumUpdatedEvent))]
     [CheckOn(typeof(AlbumDeletedEvent), CheckOnCondition.FailedOnly)]
     [CheckOn(typeof(ArtistsDeletedEvent), CheckOnCondition.FailedOnly)]
     public class RemovedAlbumCheck : HealthCheckBase

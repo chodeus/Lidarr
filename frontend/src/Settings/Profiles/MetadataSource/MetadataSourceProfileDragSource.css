@@ -1,0 +1,17 @@
+.metadataSourceProfileDragSource {
+  padding: 4px 0;
+}
+
+.metadataSourceProfilePlaceholder {
+  width: 100%;
+  height: 30px;
+  border-bottom: 1px dotted #aaa;
+}
+
+.metadataSourceProfilePlaceholderBefore {
+  margin-bottom: 8px;
+}
+
+.metadataSourceProfilePlaceholderAfter {
+  margin-top: 8px;
+}

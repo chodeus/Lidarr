@@ -7,6 +7,7 @@ import SettingsToolbarConnector from 'Settings/SettingsToolbarConnector';
 import translate from 'Utilities/String/translate';
 import DelayProfilesConnector from './Delay/DelayProfilesConnector';
 import MetadataProfilesConnector from './Metadata/MetadataProfilesConnector';
+import MetadataSourceProfiles from './MetadataSource/MetadataSourceProfiles';
 import QualityProfilesConnector from './Quality/QualityProfilesConnector';
 import ReleaseProfilesConnector from './Release/ReleaseProfilesConnector';
 import TaggingProfiles from './Tagging/TaggingProfiles';
@@ -30,6 +31,7 @@ class Profiles extends Component {
           <DndProvider options={HTML5toTouch}>
             <QualityProfilesConnector />
             <MetadataProfilesConnector />
+            <MetadataSourceProfiles />
             <DelayProfilesConnector />
             <ReleaseProfilesConnector />
             <TaggingProfiles />

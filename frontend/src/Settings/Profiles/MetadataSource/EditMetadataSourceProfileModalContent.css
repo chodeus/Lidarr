@@ -1,0 +1,33 @@
+.deleteButton {
+  composes: button from '~Components/Link/Button.css';
+
+  margin-right: auto;
+}
+
+.sources {
+  flex: 1 1 auto;
+}
+
+.source {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
+.sourceName {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sourceRole {
+  flex: 0 0 160px;
+}
+
+.addSource {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

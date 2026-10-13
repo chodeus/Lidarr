@@ -10,6 +10,8 @@ import ImportList from 'typings/ImportList';
 import Indexer from 'typings/Indexer';
 import IndexerFlag from 'typings/IndexerFlag';
 import MetadataProfile from 'typings/MetadataProfile';
+import MetadataSource from 'typings/MetadataSource';
+import MetadataSourceProfile from 'typings/MetadataSourceProfile';
 import Notification from 'typings/Notification';
 import QualityProfile from 'typings/QualityProfile';
 import RootFolder from 'typings/RootFolder';
@@ -48,6 +50,23 @@ export interface MetadataProfilesAppState
   extends AppSectionState<MetadataProfile>,
     AppSectionSchemaState<MetadataProfile> {}
 
+export interface MetadataSourceAppState
+  extends AppSectionState<MetadataSource>,
+    AppSectionDeleteState,
+    AppSectionSaveState {
+  isSchemaFetching: boolean;
+  isSchemaPopulated: boolean;
+  schemaError: Error;
+  schema: MetadataSource[];
+  isTesting: boolean;
+}
+
+export interface MetadataSourceProfilesAppState
+  extends AppSectionState<MetadataSourceProfile>,
+    AppSectionSchemaState<MetadataSourceProfile>,
+    AppSectionDeleteState,
+    AppSectionSaveState {}
+
 export interface CustomFormatAppState
   extends AppSectionState<CustomFormat>,
     AppSectionDeleteState,
@@ -76,6 +95,8 @@ interface SettingsAppState {
   indexerFlags: IndexerFlagSettingsAppState;
   indexers: IndexerAppState;
   metadataProfiles: MetadataProfilesAppState;
+  metadataSourceProfiles: MetadataSourceProfilesAppState;
+  metadataSources: MetadataSourceAppState;
   notifications: NotificationAppState;
   qualityProfiles: QualityProfilesAppState;
   rootFolders: RootFolderAppState;

@@ -83,5 +83,32 @@ namespace NzbDrone.Core.Test.HistoryTests
             mp3.Records.Should().HaveCount(2);
             mp3.TotalRecords.Should().Be(2);
         }
+
+        [Test]
+        public void should_count_paged_history_filtered_on_track()
+        {
+            var artist = Db.Insert(Builder<Artist>.CreateNew().With(a => a.ArtistMetadataId = 1).BuildNew());
+            var album = Db.Insert(Builder<Album>.CreateNew().With(a => a.ArtistMetadataId = 1).BuildNew());
+            var wanted = Db.Insert(Builder<Track>.CreateNew().With(t => t.Title = "Wanted").With(t => t.ForeignTrackId = "wanted").BuildNew());
+            var other = Db.Insert(Builder<Track>.CreateNew().With(t => t.Title = "Other").With(t => t.ForeignTrackId = "other").BuildNew());
+
+            foreach (var trackId in new[] { wanted.Id, wanted.Id, other.Id, 0 })
+            {
+                Subject.Insert(Builder<EntityHistory>.CreateNew()
+                    .With(h => h.ArtistId = artist.Id)
+                    .With(h => h.AlbumId = album.Id)
+                    .With(h => h.TrackId = trackId)
+                    .With(h => h.Quality = new QualityModel(Quality.MP3_320))
+                    .BuildNew());
+            }
+
+            var pagingSpec = new PagingSpec<EntityHistory> { Page = 1, PageSize = 10 };
+            pagingSpec.FilterExpressions.Add(h => h.Track.Title == "Wanted");
+
+            var result = Subject.GetPaged(pagingSpec, null);
+
+            result.Records.Should().HaveCount(2);
+            result.TotalRecords.Should().Be(2);
+        }
     }
 }

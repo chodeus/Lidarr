@@ -19,6 +19,7 @@ namespace NzbDrone.Core.Datastore.Migration
             Create.Index().OnTable("History").OnColumn("EventType").Ascending()
                                              .OnColumn("Date").Ascending();
 
+            // Without planner statistics SQLite drives the Wanted EXISTS subqueries from this index and scans every monitored release per album.
             Delete.Index().OnTable("AlbumReleases").OnColumn("Monitored");
 
             Create.Index().OnTable("Blocklist").OnColumn("ArtistId");

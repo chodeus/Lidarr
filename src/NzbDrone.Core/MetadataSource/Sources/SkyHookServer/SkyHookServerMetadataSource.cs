@@ -107,14 +107,15 @@ namespace NzbDrone.Core.MetadataSource.Sources.SkyHookServer
                 if (_skyHook == null || _skyHookUrl != Settings.Url)
                 {
                     _skyHookUrl = Settings.Url;
-                    _skyHook = new SkyHookProxy(_httpClient, new ServerRequestBuilder(_skyHookUrl), _artistService, _albumService, _logger, _metadataProfileService, _cacheManager);
+                    _skyHook = new SkyHookProxy(_httpClient, new ServerRequestBuilder<SkyHookServerMetadataSource>(_skyHookUrl), _artistService, _albumService, _logger, _metadataProfileService, _cacheManager);
                 }
 
                 return _skyHook;
             }
         }
 
-        private class ServerRequestBuilder : IMetadataRequestBuilder
+        // Generic so the startup scan, which registers every IMetadataRequestBuilder it finds, can't pick it up
+        private class ServerRequestBuilder<TOwner> : IMetadataRequestBuilder
         {
             private readonly IHttpRequestBuilderFactory _factory;
 

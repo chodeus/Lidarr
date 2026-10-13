@@ -5,8 +5,10 @@ using Lidarr.Api.V1.Albums;
 using Lidarr.Api.V1.Artist;
 using Lidarr.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.MetadataSource.Sources;
 using NzbDrone.Core.Organizer;
 
 namespace Lidarr.Api.V1.Search
@@ -17,12 +19,20 @@ namespace Lidarr.Api.V1.Search
         private readonly ISearchForNewEntity _searchProxy;
         private readonly IBuildFileNames _fileNameBuilder;
         private readonly IMapCoversToLocal _coverMapper;
+        private readonly IMetadataSourceLabels _labels;
 
         public SearchController(ISearchForNewEntity searchProxy, IBuildFileNames fileNameBuilder, IMapCoversToLocal coverMapper)
+            : this(searchProxy, fileNameBuilder, coverMapper, null)
+        {
+        }
+
+        [ActivatorUtilitiesConstructor]
+        public SearchController(ISearchForNewEntity searchProxy, IBuildFileNames fileNameBuilder, IMapCoversToLocal coverMapper, IMetadataSourceLabels labels)
         {
             _searchProxy = searchProxy;
             _fileNameBuilder = fileNameBuilder;
             _coverMapper = coverMapper;
+            _labels = labels;
         }
 
         [HttpGet]
@@ -40,6 +50,7 @@ namespace Lidarr.Api.V1.Search
             {
                 var resource = new SearchResource();
                 resource.Id = id++;
+                resource.MetadataSource = _labels?.LabelFor(result);
 
                 if (result is NzbDrone.Core.Music.Artist artist)
                 {

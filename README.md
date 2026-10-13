@@ -59,6 +59,12 @@
   - After a download import, an unmapped copy of an imported track in the same folder is removed (to the recycle bin when one is set), unless its quality beats the import (FLAC 24bit beats FLAC in the Lossless group).
 - **Frontend package advisories** — branch [`chore/frontend-dependency-advisories`](https://github.com/chodeus/Lidarr/tree/chore/frontend-dependency-advisories), not submitted
   - lodash, moment, qs, immutable, ws and websocket-driver at patched versions, leaving no advisories in the production frontend dependencies. If upstream changes `yarn.lock`, rebase this branch and regenerate those entries.
+- **Faster library, Wanted and history queries** — branch [`perf/database-queries`](https://github.com/chodeus/Lidarr/tree/perf/database-queries), not submitted
+  - Artist, album and track lists load their releases, artists and statistics in batches instead of one query per row, the Wanted pages use `EXISTS` subqueries, and history counts skip the Tracks join unless a filter needs it. API output is unchanged. Migration 907 adds missing indexes and drops `IX_AlbumReleases_Monitored`.
+- **Artist track file lookup** — branch [`perf/files-by-artist`](https://github.com/chodeus/Lidarr/tree/perf/files-by-artist), not submitted
+  - Looking up an artist's track files reads only that artist's albums instead of every track file in the library (artist refresh, rename, retag and the track file list).
+- **Metadata server tokens in logs** — branch [`fix/cleanse-metadata-url-tokens`](https://github.com/chodeus/Lidarr/tree/fix/cleanse-metadata-url-tokens), not submitted
+  - A token in a metadata server's URL path, such as `/t/<token>/api/v0.4`, is hidden in logs.
 
 ## How the build works
 

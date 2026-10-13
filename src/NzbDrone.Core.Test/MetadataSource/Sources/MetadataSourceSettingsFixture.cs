@@ -16,6 +16,13 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
             new SkyHookServerMetadataSourceSettings { Url = url }.Validate().IsValid.Should().BeFalse();
         }
 
+        [TestCase("https://metadata.example.invalid/api/v0.4?apikey=placeholder")]
+        [TestCase("https://user:placeholder@metadata.example.invalid/api/v0.4")]
+        public void server_url_must_not_carry_a_query_or_user_info(string url)
+        {
+            new SkyHookServerMetadataSourceSettings { Url = url }.Validate().IsValid.Should().BeFalse();
+        }
+
         [Test]
         public void server_url_can_include_a_path()
         {

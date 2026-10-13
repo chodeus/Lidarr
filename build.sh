@@ -60,7 +60,8 @@ if [[ ${1} == "source" || ${1} == "migrations" ]]; then
     # The live database records migrations by number only, so a PR migration at or below upstream's newest would be skipped or collide.
     migrations=src/NzbDrone.Core/Datastore/Migration
     upstream_max=$(git -C _src ls-tree --name-only "${lidarr_sha}" "${migrations}/" | sed -n 's|.*/\([0-9][0-9]*\)_[^/]*\.cs$|\1|p' | sort -n | tail -n 1)
-    pr_min=$(git -C _src diff --name-only --diff-filter=A "${lidarr_sha}" HEAD -- "${migrations}/" | sed -n 's|.*/\([0-9][0-9]*\)_[^/]*\.cs$|\1|p' | sort -n | sed -n 1p)
+    pr_numbers=$(git -C _src diff --name-only --diff-filter=A "${lidarr_sha}" HEAD -- "${migrations}/" | sed -n 's|.*/\([0-9][0-9]*\)_[^/]*\.cs$|\1|p' | sort -n)
+    pr_min=$(sed -n 1p <<< "${pr_numbers}")
     if [[ -z ${upstream_max} ]]; then
         echo "No migrations found under ${migrations} in ${lidarr_repo}@${lidarr_sha:0:7}." >&2
         exit 1
@@ -68,6 +69,12 @@ if [[ ${1} == "source" || ${1} == "migrations" ]]; then
     # 10# because 082 is not valid octal.
     if [[ -n ${pr_min} ]] && (( 10#${pr_min} <= 10#${upstream_max} )); then
         echo "PR migration ${pr_min} is not above upstream's ${upstream_max}: renumber it and fix the live database's VersionInfo first." >&2
+        exit 1
+    fi
+    # Branches sharing a number merge cleanly, then FluentMigrator refuses to start.
+    duplicates=$(uniq -d <<< "${pr_numbers}" | tr '\n' ' ')
+    if [[ -n ${duplicates// /} ]]; then
+        echo "PR migrations share a number (${duplicates% }): renumber one of them." >&2
         exit 1
     fi
     echo "Migrations: upstream ${lidarr_repo}@${lidarr_sha:0:7} up to ${upstream_max}, PR from ${pr_min:-none}"

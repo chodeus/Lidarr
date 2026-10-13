@@ -1,21 +1,26 @@
-# Fixed: Delay and tagging profile ordering and missing tags
+# Add metadata source profiles
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`tagging-profiles`](https://github.com/chodeus/Lidarr/tree/tagging-profiles). Reviewed in [#12](https://github.com/chodeus/Lidarr/pull/12), [#41](https://github.com/chodeus/Lidarr/pull/41) and [#50](https://github.com/chodeus/Lidarr/pull/50).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`fix/profile-order-and-tags`](https://github.com/chodeus/Lidarr/tree/fix/profile-order-and-tags). Reviewed in [#32](https://github.com/chodeus/Lidarr/pull/32).
 
-Delay and tagging profiles share their ordering code, and both had the same gaps:
-- **Reorder.** Moving a profile after itself, or after the default, left gaps or a duplicate `int.MaxValue`. `Add` numbered new profiles by row count, so a gap produced a duplicate. Delay's `Reorder` also left the best-for-tags cache stale for 30 seconds.
-- **The drag action.** It found the "after" profile by its order number, which fails once there is a gap. The delay action also sent `after=`, which the API ignores (it reads `afterId`), so a dragged delay profile always moved to the top.
-- **Update.** A client could set `Order` directly and bypass `Reorder`.
-- **Missing tags.** A create or update without `tags` threw in `ToModel` and returned a 500.
+- Metadata sources are providers, in a new Metadata Sources section on Settings → Metadata. Built in: Lidarr's own server, and any server that answers like it (URL setting, with Test). Plugins can add sources by implementing `IMetadataSource`.
+- Metadata source profiles (Settings → Profiles) choose the sources per artist by tag, like tagging profiles. Each source is Primary or Fallback. Primaries combine with Or (the first that has the artist) or And (every primary; albums only some of them have are added). The default profile has no tags.
+- Lookups go through the artist's profile. A source that throws anything but not-found counts as down; not-found is reported only when every source said so, otherwise the outage is rethrown. Fallbacks are asked when the primaries are down or don't have the artist. With And, a primary that is down fails the lookup, so a refresh never sees a partial album list.
+- Only sources whose ID kind matches the ID are asked (the built-in sources use MusicBrainz IDs). The primaries in a profile must share one ID kind. An ID no source in the profile can handle goes to Lidarr's server if it is a MusicBrainz ID; otherwise the lookup fails as unavailable.
+- Search uses the default profile. Each result carries the name of the source that returned it, shown as a label on the add-new page.
+- Migration 909 adds `MetadataSources` and `MetadataSourceProfiles`, seeded with Lidarr's server and a default profile that has it as the only primary, so lookups are unchanged until a profile is edited.
+- The five lookup interfaces are registered to the profile-aware lookup after plugins load, so a plugin's own lookup can't bypass the profiles.
+- Deleting a source removes it from every profile.
+- Profile order (add, drag, delete) uses the shared `ProfileOrder` from #12, like delay and tagging profiles; the default profile stays last.
+- Each custom server keeps its own changed-albums cache, so one server's list never answers for another.
+- `SearchController` keeps its 3-argument constructor.
 
-`ProfileOrder` now owns the rules for both services: `Next` for a new profile, `Reorder` (directly after the given profile, first when there is none or it is unknown, last when it is the default, no change for the default or a self-move), and `Renumber` (1..n with the default last). `Update` keeps the stored order and pins the default. `ToModel` treats missing tags as none. Both drag actions pick the "after" profile by position and send `afterId`.
+Tests: lookup routing, Or and And, fallback, outage versus not-found, search fallback and labels, changed-ID lists, profile matching by tag and order, the seeded default, source settings, and the container wiring (profiles win over a plugin's lookup, no other lookup stays registered, the search controller gets the labels). Each rule was broken on purpose and caught by a test.
 
-The unused-tag cleanup also keeps tags that only tagging profiles use, and tags that only a root folder adds by default (develop misses those too). `TagDetails.TaggingProfileIds` starts empty, so a `TagDetails` built by a plugin that sets only develop's lists no longer makes `InUse` throw.
-
-Tests: `ProfileOrderFixture` covers each reorder case, plus Add/Update/cache tests in both service fixtures and a resource test for missing tags (the API test project now references `Lidarr.Api.V1`). Twelve mutations, all of which build, each fail a test. The existing delay reorder tests pass unchanged. Two cleanup tests cover the kept tags; each fails without its fix. `TagDetailsFixture` checks a `TagDetails` with only develop's lists set is not in use, and fails when the list starts unset.
+Checked: Core and Host suites on this branch, with only the known AudioTagService, ImportListService and UpgradeMediaFileService failures; the settings screens (add, test, save, delete), profile editing and search labels in a local run.
 
 ## Summary by CodeRabbit
 
-* **Bug Fixes**
-  * Delay and tagging profiles now maintain consistent ordering when profiles are added, updated, deleted, or reordered. The default profile remains last, and unchanged reorder requests no longer alter the list.
-  * Profiles with missing tag data now load with no tags instead of failing during conversion.
+* **New Features**
+  * Added configurable metadata sources, including support for custom server URLs, connection testing, and enable/disable controls.
+  * Added metadata source profiles with tags, primary or fallback sources, configurable search behavior, and drag-and-drop reordering.
+  * Search results now show the metadata source when that information is available.

@@ -119,7 +119,7 @@ namespace NzbDrone.Core.Profiles.MetadataSources
             var moving = all.SingleOrDefault(d => d.Id == id);
             var after = afterId.HasValue ? all.SingleOrDefault(d => d.Id == afterId) : null;
 
-            if (moving == null)
+            if (moving == null || id == DefaultProfileId || afterId == DefaultProfileId)
             {
                 return all;
             }

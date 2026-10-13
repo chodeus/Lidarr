@@ -69,7 +69,16 @@ export default {
     [FETCH_METADATA_SOURCE_PROFILES]: createFetchHandler(section, '/metadatasourceprofile'),
     [FETCH_METADATA_SOURCE_PROFILE_SCHEMA]: createFetchSchemaHandler(section, '/metadatasourceprofile/schema'),
     [SAVE_METADATA_SOURCE_PROFILE]: createSaveProviderHandler(section, '/metadatasourceprofile'),
-    [DELETE_METADATA_SOURCE_PROFILE]: createRemoveItemHandler(section, '/metadatasourceprofile'),
+    [DELETE_METADATA_SOURCE_PROFILE]: (getState, payload, dispatch) => {
+      const promise = createRemoveItemHandler(section, '/metadatasourceprofile')(getState, payload, dispatch);
+
+      // Delete renumbers the remaining profiles and reorder finds them by order, so reload them
+      promise.done(() => {
+        dispatch(fetchMetadataSourceProfiles());
+      });
+
+      return promise;
+    },
 
     [REORDER_METADATA_SOURCE_PROFILE]: (getState, payload, dispatch) => {
       const { id, moveIndex } = payload;

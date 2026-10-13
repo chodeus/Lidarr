@@ -30,6 +30,19 @@ namespace NzbDrone.Core.Test.RootFolderTests
         }
 
         [Test]
+        public void should_not_share_cached_results_between_given_and_stored_root_folders()
+        {
+            GivenRootFolders(@"C:\Test\Music".AsOsAgnostic());
+
+            var artistPath = @"C:\Test\Music\Sub\Artist Name".AsOsAgnostic();
+            var given = new List<RootFolder> { new RootFolder { Path = @"C:\Test\Music\Sub".AsOsAgnostic() } };
+
+            Subject.GetBestRootFolderPath(artistPath, given).Should().Be(@"C:\Test\Music\Sub".AsOsAgnostic());
+            Subject.GetBestRootFolderPath(artistPath).Should().Be(@"C:\Test\Music".AsOsAgnostic());
+            Subject.GetBestRootFolderPath(artistPath, given).Should().Be(@"C:\Test\Music\Sub".AsOsAgnostic());
+        }
+
+        [Test]
         public void should_keep_the_single_path_overload_and_default_the_list_overload()
         {
             var type = typeof(IRootFolderService);

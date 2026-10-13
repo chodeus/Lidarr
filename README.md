@@ -65,6 +65,8 @@
   - Looking up an artist's track files reads only that artist's albums instead of every track file in the library (artist refresh, rename, retag and the track file list).
 - **Metadata server tokens in logs** — branch [`fix/cleanse-metadata-url-tokens`](https://github.com/chodeus/Lidarr/tree/fix/cleanse-metadata-url-tokens), not submitted
   - A token in a metadata server's URL path, such as `/t/<token>/api/v0.4`, is hidden in logs.
+- **Keep what the metadata source no longer has** — branch [`fix/keep-unlisted-metadata`](https://github.com/chodeus/Lidarr/tree/fix/keep-unlisted-metadata), not submitted
+  - An artist or album the metadata source no longer has (not found, or no usable releases) is kept and marked instead of deleted, and a health check lists the albums. An album without files that drops out of its artist's list is still removed when the source still has it (excluded by the metadata profile, or moved to another artist). Migration 908.
 
 ## How the build works
 

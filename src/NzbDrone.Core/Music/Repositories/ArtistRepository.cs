@@ -51,9 +51,10 @@ namespace NzbDrone.Core.Music
 
             if (artist == null && foreignArtistId.IsNotNullOrWhiteSpace())
             {
-                // Quoted so an ID can't match inside a longer one (the list column is searched with LIKE)
+                // The list column is searched with LIKE, which matches partial IDs and wildcards, so only an exact element counts
                 var id = "\"" + foreignArtistId + "\"";
-                artist = Query(Builder().Where<ArtistMetadata>(x => x.OldForeignArtistIds.Contains(id))).SingleOrDefault();
+                artist = Query(Builder().Where<ArtistMetadata>(x => x.OldForeignArtistIds.Contains(id)))
+                    .SingleOrDefault(a => a.Metadata.Value.OldForeignArtistIds.Contains(foreignArtistId));
             }
 
             return artist;

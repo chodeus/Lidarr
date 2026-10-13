@@ -56,7 +56,7 @@ namespace NzbDrone.Core.Test.NotificationTests.Discord
         [Test]
         public void grab_links_another_sources_artist_to_its_own_page()
         {
-            var embed = GivenGrab("other:1", new List<Links> { new Links { Name = "Source", Url = "https://source.example.invalid/artist/1" } });
+            var embed = GivenGrab("other:1", new List<Links> { new Links { Name = "Empty" }, new Links { Name = "Source", Url = "https://source.example.invalid/artist/1" } });
 
             embed.Url.Should().Be("https://source.example.invalid/artist/1");
             embed.Fields.Should().ContainSingle(f => f.Value == "[Source](https://source.example.invalid/artist/1)");

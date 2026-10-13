@@ -45,5 +45,22 @@ namespace NzbDrone.Core.Test.Datastore
             parameters.Get<int>("Clause6_P1").Should().Be(0);
             parameters.Get<int>("Clause8_P1").Should().Be(5);
         }
+
+        [TestCase(DatabaseType.SQLite)]
+        [TestCase(DatabaseType.PostgreSQL)]
+        public void where_exists_should_render_every_subquery_clause(DatabaseType databaseType)
+        {
+            var template = new SqlBuilder(databaseType)
+                .WhereExists<AlbumRelease>(s => s
+                    .RightJoin("\"Tracks\" ON (\"AlbumReleases\".\"Id\" = \"Tracks\".\"AlbumReleaseId\")")
+                    .Where<AlbumRelease, Album>((r, a) => r.AlbumId == a.Id)
+                    .GroupBy("\"AlbumReleases\".\"AlbumId\"")
+                    .Having("COUNT(*) > 1"))
+                .AddTemplate("SELECT \"Albums\".* FROM \"Albums\" /**where**/");
+
+            template.RawSql.Should().Contain("RIGHT JOIN \"Tracks\"");
+            template.RawSql.Should().Contain("GROUP BY \"AlbumReleases\".\"AlbumId\"");
+            template.RawSql.Should().Contain("HAVING COUNT(*) > 1");
+        }
     }
 }

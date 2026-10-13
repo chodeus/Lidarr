@@ -76,5 +76,22 @@ namespace NzbDrone.Core.Test.MusicTests.TrackRepositoryTests
             batched.Count(t => t.Artist.Value == null).Should().Be(1);
             batched.Count(t => t.AlbumId > 0).Should().Be(2);
         }
+
+        [Test]
+        public void should_keep_releases_and_artists_that_are_already_loaded()
+        {
+            var tracks = Subject.All().OrderBy(t => t.Id).ToList();
+            var release = new AlbumRelease { Id = 12345 };
+            var artist = new Artist { Id = 12345 };
+            tracks[0].AlbumRelease = release;
+            tracks[0].Artist = artist;
+
+            Subject.LoadReleasesAndArtists(tracks);
+
+            tracks[0].AlbumRelease.Value.Should().BeSameAs(release);
+            tracks[0].Artist.Value.Should().BeSameAs(artist);
+            tracks[1].AlbumRelease.Value.Should().NotBeNull();
+            tracks[1].Artist.Value.Should().NotBeNull();
+        }
     }
 }

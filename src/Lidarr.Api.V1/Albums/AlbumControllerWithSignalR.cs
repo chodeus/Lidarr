@@ -56,7 +56,12 @@ namespace Lidarr.Api.V1.Albums
             return resource;
         }
 
-        protected List<AlbumResource> MapToResource(List<Album> albums, bool includeArtist, bool perArtistStatistics = false)
+        protected List<AlbumResource> MapToResource(List<Album> albums, bool includeArtist)
+        {
+            return MapToResource(albums, includeArtist, false);
+        }
+
+        private List<AlbumResource> MapToResource(List<Album> albums, bool includeArtist, bool perArtistStatistics)
         {
             _albumService.LoadArtistsAndReleases(albums);
 

@@ -24,7 +24,8 @@ namespace NzbDrone.Core.RootFolders
         RootFolder Get(int id, bool timeout);
         List<RootFolder> AllForTag(int tagId);
         RootFolder GetBestRootFolder(string path);
-        string GetBestRootFolderPath(string path, List<RootFolder> rootFolders = null);
+        string GetBestRootFolderPath(string path);
+        string GetBestRootFolderPath(string path, List<RootFolder> rootFolders) => GetBestRootFolderPath(path);
     }
 
     public class RootFolderService : IRootFolderService
@@ -154,7 +155,12 @@ namespace NzbDrone.Core.RootFolders
             return GetBestRootFolder(path, All());
         }
 
-        public string GetBestRootFolderPath(string path, List<RootFolder> rootFolders = null)
+        public string GetBestRootFolderPath(string path)
+        {
+            return GetBestRootFolderPath(path, null);
+        }
+
+        public string GetBestRootFolderPath(string path, List<RootFolder> rootFolders)
         {
             return _cache.Get(path, () => GetBestRootFolderPathInternal(path, rootFolders ?? All()), TimeSpan.FromDays(1));
         }

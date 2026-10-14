@@ -196,7 +196,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
                 .ToList();
         }
 
-        // The main release first, then the pressings most people own, up to the setting (0 = all)
+        // The main release and the most-owned pressings are the likeliest to match the files people have
         private List<long> Pressings(DiscogsMasterResource master)
         {
             var limit = Settings.PressingsPerAlbum;

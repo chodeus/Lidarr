@@ -40,7 +40,6 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
     public class DiscogsMetadataSource : MetadataSourceBase<DiscogsMetadataSourceSettings>
     {
-        private const string Main = "Main";
         private const int ArtistSearchLimit = 10;
         private const int AlbumSearchLimit = 5;
 
@@ -96,9 +95,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
             artist.CleanName = Parser.Parser.CleanArtistName(artist.Metadata.Value.Name);
             artist.SortName = Parser.Parser.NormalizeTitle(artist.Metadata.Value.Name);
 
-            // Only the artist's own releases; credits on other artists' records are left out
-            artist.Albums = _api.GetArtistReleases(id, Settings.Token)
-                .Where(entry => entry.Role == Main)
+            artist.Albums = _api.GetArtistOwnReleases(id, Settings.Token)
                 .Select(entry => (Entry: entry, Kind: entry.Type == DiscogsMapper.Master ? MainReleaseKind(entry.MainRelease) : DiscogsMapper.Classify(entry.Format)))
                 .Where(x => x.Kind.IsAudio && filter.Allows(x.Kind.PrimaryType, x.Kind.SecondaryTypes.Select(t => t.Name).ToList(), new[] { x.Kind.ReleaseStatus }))
                 .Select(x => DiscogsMapper.MapAlbum(x.Entry, x.Kind))

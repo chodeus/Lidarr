@@ -152,5 +152,33 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
 
             _requests.Should().HaveCount(2);
         }
+
+        [Test]
+        public void a_missing_first_page_means_discogs_is_unavailable()
+        {
+            GivenResponse<DiscogsVersionsPageResource>(HttpStatusCode.NotFound, r => "{\"message\":\"Master not found.\"}");
+
+            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetMasterVersions(3, Token));
+        }
+
+        [Test]
+        public void a_missing_later_page_means_discogs_is_unavailable()
+        {
+            GivenResponses<DiscogsArtistReleasesPageResource>(
+                (HttpStatusCode.OK, new HttpHeader(), r => "{\"pagination\":{\"page\":1,\"pages\":2},\"releases\":[{\"id\":1}]}"),
+                (HttpStatusCode.NotFound, new HttpHeader(), r => "{\"message\":\"Artist not found.\"}"));
+
+            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetArtistReleases(3, Token));
+        }
+
+        [Test]
+        public void a_list_past_the_page_limit_fails_after_its_first_page()
+        {
+            GivenResponse<DiscogsArtistReleasesPageResource>(HttpStatusCode.OK, r => "{\"pagination\":{\"page\":1,\"pages\":101},\"releases\":[{\"id\":1}]}");
+
+            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetArtistReleases(3, Token));
+
+            _requests.Should().HaveCount(1);
+        }
     }
 }

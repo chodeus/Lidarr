@@ -47,6 +47,14 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
         [TestCase("CD, EP, Promo, Unofficial Release", "EP", "Bootleg", "CD", true)]
         [TestCase("VHS, Promo", "Album", "Promotion", "Unknown", false)]
         [TestCase("Floppy, 3,5\"", "Album", "Official", "Unknown", false)]
+        [TestCase("DVD-V, PAL", "Album", "Official", "Unknown", false)]
+        [TestCase("Box + 6xDVD-V, NTSC", "Album", "Official", "Unknown", false)]
+        [TestCase("VHS, Promo + CD, Single", "Single", "Promotion", "CD", true)]
+        [TestCase("6xCD, Album + Box, Comp", "Album", "Official", "CD", true)]
+        [TestCase("CD + DVD-V + Unofficial", "Album", "Bootleg", "CD", true)]
+        [TestCase("12\", TP", "Album", "Promotion", "12\"", true)]
+        [TestCase("7\", W/Lbl", "Album", "Promotion", "7\"", true)]
+        [TestCase("CD, Maxi", "Single", "Official", "CD", true)]
         public void classifies_an_artist_list_format(string format, string primaryType, string status, string mediaFormat, bool isAudio)
         {
             var kind = DiscogsMapper.Classify(format);
@@ -55,6 +63,37 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
             kind.ReleaseStatus.Should().Be(status);
             kind.MediaFormat.Should().Be(mediaFormat);
             kind.IsAudio.Should().Be(isAudio);
+        }
+
+        [TestCase("CD, Comp")]
+        [TestCase("LP, Album, RE + LP, Album, RE + Comp, Ltd")]
+        public void the_artist_list_shortens_compilation(string format)
+        {
+            DiscogsMapper.Classify(format).SecondaryTypes.Should().ContainSingle(t => t.Name == "Compilation");
+        }
+
+        [TestCase("DVD", "DVD-Audio", true, "DVD-Audio")]
+        [TestCase("Blu-ray", "Blu-ray Audio", true, "Blu-ray Audio")]
+        [TestCase("DVD", "DVD-Video", false, "Unknown")]
+        public void audio_descriptions_make_video_media_audio(string name, string description, bool isAudio, string mediaFormat)
+        {
+            var kind = DiscogsMapper.Classify(new List<DiscogsFormatResource> { new() { Name = name, Descriptions = new List<string> { description, "Album" } } });
+
+            kind.IsAudio.Should().Be(isAudio);
+            kind.MediaFormat.Should().Be(mediaFormat);
+        }
+
+        [TestCase("DVD-Audio, Album", true)]
+        [TestCase("DVD-Video, Album", false)]
+        public void a_version_is_classified_by_its_descriptions_too(string format, bool isAudio)
+        {
+            DiscogsMapper.Classify(new DiscogsVersionResource { MajorFormats = new List<string> { "DVD" }, Format = format }).IsAudio.Should().Be(isAudio);
+        }
+
+        [Test]
+        public void a_box_is_not_the_media_format()
+        {
+            DiscogsMapper.Classify(new List<DiscogsFormatResource> { new() { Name = "Box Set" }, new() { Name = "CD" } }).MediaFormat.Should().Be("CD");
         }
 
         [Test]
@@ -117,7 +156,7 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
             };
             var artists = new Dictionary<string, ArtistMetadata> { ["discogs:artist:3"] = DiscogsMapper.MapArtist(release.Artists[0]) };
 
-            var mapped = DiscogsMapper.MapRelease(release, artists, true);
+            var mapped = DiscogsMapper.MapRelease(release, artists);
 
             mapped.ReleaseDate.Should().Be(new DateTime(1997, 6, 1));
             mapped.Label.Should().Equal("Placeholder Label");
@@ -127,6 +166,38 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
                 ("discogs:release:7:1", "A1", 1, 180000),
                 ("discogs:release:7:2", "C1", 2, 0));
             artists["discogs:artist:3"].Name.Should().Be("Placeholder Artist");
+        }
+
+        [Test]
+        public void a_works_tracks_are_read_from_its_index()
+        {
+            var release = new DiscogsReleaseResource
+            {
+                Id = 8,
+                Title = "Placeholder Works",
+                Artists = new List<DiscogsArtistCreditResource> { new() { Id = 3, Name = "Placeholder Artist" } },
+                Tracklist = new List<DiscogsTrackResource>
+                {
+                    new()
+                    {
+                        Position = "", Type = "index", Title = "Placeholder Work", Artists = new List<DiscogsArtistCreditResource> { new() { Id = 5, Name = "Placeholder Ensemble" } },
+                        SubTracks = new List<DiscogsTrackResource>
+                        {
+                            new() { Position = "A", Type = "track", Title = "First", Artists = new List<DiscogsArtistCreditResource> { new() { Id = 4, Name = "Placeholder Soloist" } } },
+                            new() { Position = "B", Type = "track", Title = "Second" }
+                        }
+                    },
+                    new() { Position = "C", Type = "track", Title = "Third" }
+                }
+            };
+            var artists = DiscogsMapper.Credits(release).DistinctBy(a => a.Id).Select(DiscogsMapper.MapArtist).ToDictionary(a => a.ForeignArtistId);
+
+            var mapped = DiscogsMapper.MapRelease(release, artists);
+
+            mapped.Tracks.Value.Select(t => (t.Title, t.TrackNumber, t.ArtistMetadata.Value.ForeignArtistId)).Should().Equal(
+                ("Placeholder Work: First", "A", "discogs:artist:4"),
+                ("Placeholder Work: Second", "B", "discogs:artist:5"),
+                ("Third", "C", "discogs:artist:3"));
         }
     }
 }

@@ -283,7 +283,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
             // The limit is shared by everything using the token or address, so wait out the window once it runs out
             if (response.StatusCode != HttpStatusCode.TooManyRequests &&
-                int.TryParse(response.Headers.GetSingleValue("X-Discogs-Ratelimit-Remaining"), out var remaining) && remaining <= 0)
+                int.TryParse(FirstHeader(response, "X-Discogs-Ratelimit-Remaining"), out var remaining) && remaining <= 0)
             {
                 Pause(response, RateWindow);
             }
@@ -299,9 +299,15 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
         private static TimeSpan RetryAfter(HttpResponse response)
         {
-            return int.TryParse(response.Headers.GetSingleValue("Retry-After"), out var seconds) && seconds > 0
+            return int.TryParse(FirstHeader(response, "Retry-After"), out var seconds) && seconds > 0
                 ? TimeSpan.FromSeconds(Math.Min(seconds, MaxRetryAfter.TotalSeconds))
                 : RateWindow;
+        }
+
+        // A proxy may repeat a header, which GetSingleValue refuses
+        private static string FirstHeader(HttpResponse response, string name)
+        {
+            return response.Headers.GetValues(name)?.FirstOrDefault();
         }
     }
 }

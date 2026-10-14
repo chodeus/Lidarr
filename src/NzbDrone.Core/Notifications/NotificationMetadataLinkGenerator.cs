@@ -1,5 +1,5 @@
+using System;
 using System.Collections.Generic;
-using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Music;
 
 namespace NzbDrone.Core.Notifications
@@ -21,19 +21,25 @@ namespace NzbDrone.Core.Notifications
             {
                 var linkType = (MetadataLinkType)link;
 
-                if (linkType == MetadataLinkType.MusicBrainzArtist && artistId.IsNotNullOrWhiteSpace())
+                if (linkType == MetadataLinkType.MusicBrainzArtist && IsMusicBrainzId(artistId))
                 {
                     links.Add(new NotificationMetadataLink(MetadataLinkType.MusicBrainzArtist, "MusicBrainz Artist", $"https://musicbrainz.org/artist/{artistId}"));
                 }
 
                 // Only a message about one album has an album page to link
-                if (linkType == MetadataLinkType.MusicBrainzAlbum && albums is { Count: 1 } && albums[0].ForeignAlbumId.IsNotNullOrWhiteSpace())
+                if (linkType == MetadataLinkType.MusicBrainzAlbum && albums is { Count: 1 } && IsMusicBrainzId(albums[0].ForeignAlbumId))
                 {
                     links.Add(new NotificationMetadataLink(MetadataLinkType.MusicBrainzAlbum, "MusicBrainz Album", $"https://musicbrainz.org/release-group/{albums[0].ForeignAlbumId}"));
                 }
             }
 
             return links;
+        }
+
+        // Other metadata sources' IDs have no MusicBrainz page
+        private static bool IsMusicBrainzId(string id)
+        {
+            return Guid.TryParseExact(id, "D", out _);
         }
     }
 }

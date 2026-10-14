@@ -20,8 +20,8 @@ namespace NzbDrone.Core.Test.NotificationTests.MetadataLinks
         [SetUp]
         public void Setup()
         {
-            _artist = new Artist { Metadata = new LazyLoaded<ArtistMetadata>(new ArtistMetadata { ForeignArtistId = "artist-mbid" }) };
-            _album = new Album { ForeignAlbumId = "album-mbid" };
+            _artist = new Artist { Metadata = new LazyLoaded<ArtistMetadata>(new ArtistMetadata { ForeignArtistId = "11111111-1111-1111-1111-111111111111" }) };
+            _album = new Album { ForeignAlbumId = "22222222-2222-2222-2222-222222222222" };
         }
 
         [Test]
@@ -30,8 +30,8 @@ namespace NzbDrone.Core.Test.NotificationTests.MetadataLinks
             var links = NotificationMetadataLinkGenerator.GenerateLinks(_artist, new List<Album> { _album }, AllLinks);
 
             links.Select(l => l.Link).Should().Equal(
-                "https://musicbrainz.org/artist/artist-mbid",
-                "https://musicbrainz.org/release-group/album-mbid");
+                "https://musicbrainz.org/artist/11111111-1111-1111-1111-111111111111",
+                "https://musicbrainz.org/release-group/22222222-2222-2222-2222-222222222222");
         }
 
         [Test]
@@ -48,6 +48,14 @@ namespace NzbDrone.Core.Test.NotificationTests.MetadataLinks
             var links = NotificationMetadataLinkGenerator.GenerateLinks(_artist, new List<Album> { _album }, new[] { (int)MetadataLinkType.MusicBrainzAlbum });
 
             links.Should().ContainSingle().Which.Type.Should().Be(MetadataLinkType.MusicBrainzAlbum);
+        }
+
+        [Test]
+        public void should_not_link_another_sources_ids()
+        {
+            var artist = new Artist { Metadata = new LazyLoaded<ArtistMetadata>(new ArtistMetadata { ForeignArtistId = "other:1" }) };
+
+            NotificationMetadataLinkGenerator.GenerateLinks(artist, new List<Album> { new Album { ForeignAlbumId = "other:2" } }, AllLinks).Should().BeEmpty();
         }
 
         [Test]

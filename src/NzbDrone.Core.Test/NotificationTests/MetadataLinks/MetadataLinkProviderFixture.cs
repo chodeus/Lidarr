@@ -29,7 +29,7 @@ namespace NzbDrone.Core.Test.NotificationTests.MetadataLinks
 
             _links = new List<NotificationMetadataLink>
             {
-                new NotificationMetadataLink(MetadataLinkType.MusicBrainzArtist, "MusicBrainz Artist", "https://musicbrainz.org/artist/artist-mbid")
+                new NotificationMetadataLink(MetadataLinkType.MusicBrainzArtist, "MusicBrainz Artist", "https://musicbrainz.org/artist/11111111-1111-1111-1111-111111111111")
             };
 
             Mocker.GetMock<IHttpClient>()
@@ -48,7 +48,7 @@ namespace NzbDrone.Core.Test.NotificationTests.MetadataLinks
         {
             Mocker.Resolve<TelegramProxy>().SendNotification("Title", "Message", _links, new TelegramSettings());
 
-            Body.Should().Contain("<a href=\"https://musicbrainz.org/artist/artist-mbid\">MusicBrainz Artist</a>");
+            Body.Should().Contain("<a href=\"https://musicbrainz.org/artist/11111111-1111-1111-1111-111111111111\">MusicBrainz Artist</a>");
         }
 
         [Test]
@@ -56,7 +56,7 @@ namespace NzbDrone.Core.Test.NotificationTests.MetadataLinks
         {
             Mocker.Resolve<PushcutProxy>().SendNotification("Title", "Message", _links, new PushcutSettings());
 
-            Body.Should().Contain("\"actions\": [").And.Contain("\"url\": \"https://musicbrainz.org/artist/artist-mbid\"");
+            Body.Should().Contain("\"actions\": [").And.Contain("\"url\": \"https://musicbrainz.org/artist/11111111-1111-1111-1111-111111111111\"");
         }
 
         [Test]
@@ -80,7 +80,7 @@ namespace NzbDrone.Core.Test.NotificationTests.MetadataLinks
             return new AlbumDownloadMessage
             {
                 Message = "Import failed",
-                Artist = new Artist { Metadata = new LazyLoaded<ArtistMetadata>(new ArtistMetadata { ForeignArtistId = "artist-mbid" }) }
+                Artist = new Artist { Metadata = new LazyLoaded<ArtistMetadata>(new ArtistMetadata { ForeignArtistId = "11111111-1111-1111-1111-111111111111" }) }
             };
         }
 
@@ -98,7 +98,7 @@ namespace NzbDrone.Core.Test.NotificationTests.MetadataLinks
 
             telegram.OnImportFailure(ImportFailure());
 
-            links.Should().ContainSingle(l => l.Link == "https://musicbrainz.org/artist/artist-mbid");
+            links.Should().ContainSingle(l => l.Link == "https://musicbrainz.org/artist/11111111-1111-1111-1111-111111111111");
         }
 
         [Test]
@@ -115,7 +115,7 @@ namespace NzbDrone.Core.Test.NotificationTests.MetadataLinks
 
             pushcut.OnImportFailure(ImportFailure());
 
-            links.Should().ContainSingle(l => l.Link == "https://musicbrainz.org/artist/artist-mbid");
+            links.Should().ContainSingle(l => l.Link == "https://musicbrainz.org/artist/11111111-1111-1111-1111-111111111111");
         }
 
         [Test]
@@ -140,12 +140,12 @@ namespace NzbDrone.Core.Test.NotificationTests.MetadataLinks
             gotify.OnGrab(new GrabMessage
             {
                 Message = "Grabbed",
-                Artist = new Artist { Metadata = new LazyLoaded<ArtistMetadata>(new ArtistMetadata { ForeignArtistId = "artist-mbid" }) },
-                RemoteAlbum = new RemoteAlbum { Albums = new List<Album> { new Album { ForeignAlbumId = "album-mbid" } } }
+                Artist = new Artist { Metadata = new LazyLoaded<ArtistMetadata>(new ArtistMetadata { ForeignArtistId = "11111111-1111-1111-1111-111111111111" }) },
+                RemoteAlbum = new RemoteAlbum { Albums = new List<Album> { new Album { ForeignAlbumId = "22222222-2222-2222-2222-222222222222" } } }
             });
 
-            payload.Message.Should().Contain("(https://musicbrainz.org/artist/artist-mbid)").And.Contain("(https://musicbrainz.org/release-group/album-mbid)");
-            payload.Extras.ClientNotification.Click.Url.Should().Be("https://musicbrainz.org/release-group/album-mbid");
+            payload.Message.Should().Contain("(https://musicbrainz.org/artist/11111111-1111-1111-1111-111111111111)").And.Contain("(https://musicbrainz.org/release-group/22222222-2222-2222-2222-222222222222)");
+            payload.Extras.ClientNotification.Click.Url.Should().Be("https://musicbrainz.org/release-group/22222222-2222-2222-2222-222222222222");
             payload.Extras.ClientDisplay.ContentType.Should().Be("text/markdown");
         }
     }

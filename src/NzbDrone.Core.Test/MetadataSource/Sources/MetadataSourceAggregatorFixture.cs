@@ -9,6 +9,7 @@ using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MetadataSource.Sources;
 using NzbDrone.Core.MetadataSource.Sources.Lidarr;
 using NzbDrone.Core.Music;
+using NzbDrone.Core.Profiles.Metadata;
 using NzbDrone.Core.Profiles.MetadataSources;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Core.ThingiProvider.Events;
@@ -25,6 +26,7 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
         private const string OtherLink = "https://other.example.invalid/artist/";
 
         private MetadataSourceProfile _profile;
+        private MetadataProfile _metadataProfile;
         private List<IMetadataSource> _sources;
         private Mock<LidarrMetadataSource> _lidarr;
 
@@ -41,6 +43,10 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
 
             Mocker.GetMock<IMetadataSourceProfileService>().Setup(s => s.GetDefaultProfile()).Returns(() => _profile);
             Mocker.GetMock<IMetadataSourceFactory>().Setup(s => s.GetAvailableProviders()).Returns(() => _sources.ToList());
+
+            _metadataProfile = MetadataProfileAlbumFilterFixture.AlbumsOnlyProfile();
+            Mocker.GetMock<IMetadataProfileService>().Setup(s => s.Exists(It.IsAny<int>())).Returns(true);
+            Mocker.GetMock<IMetadataProfileService>().Setup(s => s.Get(It.IsAny<int>())).Returns(() => _metadataProfile);
         }
 
         private Mock<IMetadataSource> GivenSource(int id, MetadataSourceRole role, string family = MetadataIdFamilies.MusicBrainz, MetadataSourceProfile profile = null)
@@ -66,6 +72,17 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
                 Metadata = new ArtistMetadata { ForeignArtistId = MusicBrainzId, Name = "Artist Name" },
                 Albums = albumIds.Select(id => new Album { ForeignAlbumId = id, Title = "Album Title", OldForeignAlbumIds = new List<string>() }).ToList()
             };
+        }
+
+        [Test]
+        public void albums_matching_a_must_not_contain_term_are_left_out()
+        {
+            _metadataProfile.Ignored = new List<string> { "live" };
+            var artist = ArtistWith("album-1", "album-2");
+            artist.Albums.Value[1].Title = "Album Title (Live)";
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(artist);
+
+            Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("album-1");
         }
 
         [Test]

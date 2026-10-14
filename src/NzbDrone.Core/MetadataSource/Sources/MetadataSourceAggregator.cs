@@ -11,7 +11,9 @@ using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource.SkyHook;
 using NzbDrone.Core.MetadataSource.Sources.Lidarr;
 using NzbDrone.Core.Music;
+using NzbDrone.Core.Profiles.Metadata;
 using NzbDrone.Core.Profiles.MetadataSources;
+using NzbDrone.Core.Profiles.Releases;
 using NzbDrone.Core.ThingiProvider.Events;
 
 namespace NzbDrone.Core.MetadataSource.Sources
@@ -41,12 +43,15 @@ namespace NzbDrone.Core.MetadataSource.Sources
         // Shared by name, so the instance that handles provider events clears the one that answers lookups
         private readonly ICached<Dictionary<int, IMetadataSource>> _sourceCache;
         private readonly ConditionalWeakTable<object, string> _labels = new();
+        private readonly IMetadataProfileService _metadataProfileService;
+        private readonly TermMatcherService _termMatcher;
         private readonly Logger _logger;
 
         public MetadataSourceAggregator(IMetadataSourceFactory sourceFactory,
                                         IMetadataSourceProfileService profileService,
                                         IArtistService artistService,
                                         IAlbumService albumService,
+                                        IMetadataProfileService metadataProfileService,
                                         LidarrMetadataSource lidarr,
                                         ICacheManager cacheManager,
                                         Logger logger)
@@ -55,6 +60,10 @@ namespace NzbDrone.Core.MetadataSource.Sources
             _profileService = profileService;
             _artistService = artistService;
             _albumService = albumService;
+            _metadataProfileService = metadataProfileService;
+
+            // Built like SkyHookProxy's, whose whole-word match isn't on ITermMatcherService
+            _termMatcher = new TermMatcherService(cacheManager);
             lidarr.Definition ??= new MetadataSourceDefinition { Name = "Lidarr" };
             _lastResort = lidarr;
             _sourceCache = cacheManager.GetCache<Dictionary<int, IMetadataSource>>(GetType(), "sources");
@@ -78,7 +87,7 @@ namespace NzbDrone.Core.MetadataSource.Sources
 
             AddSupplements(profile, artist, lidarrId, metadataProfileId, answered);
 
-            return artist;
+            return WithoutIgnoredAlbums(artist, metadataProfileId);
         }
 
         public HashSet<string> GetChangedArtists(DateTime startTime)
@@ -330,6 +339,15 @@ namespace NzbDrone.Core.MetadataSource.Sources
             }
 
             return changed;
+        }
+
+        // Applied after every source, so Must Not Contain covers sources whose own filters don't know it
+        private Artist WithoutIgnoredAlbums(Artist artist, int metadataProfileId)
+        {
+            var filter = MetadataProfileAlbumFilter.For(_metadataProfileService, metadataProfileId);
+            artist.Albums = artist.Albums.Value.Where(album => filter.AllowsTitle(album.Title, _termMatcher)).ToList();
+
+            return artist;
         }
 
         private static Artist MergeAlbums(Artist first, Artist other)

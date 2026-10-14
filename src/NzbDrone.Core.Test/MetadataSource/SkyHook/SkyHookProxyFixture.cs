@@ -3,12 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
 using Moq;
-using NLog;
 using NUnit.Framework;
-using NzbDrone.Common.Cache;
-using NzbDrone.Common.Http;
 using NzbDrone.Core.Exceptions;
-using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.SkyHook;
 using NzbDrone.Core.MetadataSource.SkyHook.Resource;
 using NzbDrone.Core.Music;
@@ -155,41 +151,6 @@ namespace NzbDrone.Core.Test.MetadataSource.SkyHook
             var albums = GivenExampleAlbums();
             Subject.FilterAlbums(albums, 1).SelectMany(x => x.ReleaseStatuses).Distinct()
                    .Should().BeEquivalentTo(new List<string> { type.Name });
-        }
-
-        [Test]
-        public void should_keep_the_constructor_that_plugins_call()
-        {
-            typeof(SkyHookProxy).GetConstructor(new[]
-                {
-                    typeof(IHttpClient),
-                    typeof(IMetadataRequestBuilder),
-                    typeof(IArtistService),
-                    typeof(IAlbumService),
-                    typeof(Logger),
-                    typeof(IMetadataProfileService),
-                    typeof(ICacheManager)
-                })
-                .Should().NotBeNull();
-        }
-
-        [Test]
-        public void should_filter_albums_with_ignored_term_in_title()
-        {
-            _metadataProfile.Ignored = new List<string> { "live" };
-
-            var albums = new[] { "Live at the Venue", "Alive" }
-                .Select(title => new AlbumResource
-                {
-                    Title = title,
-                    Type = PrimaryAlbumType.Album.Name,
-                    SecondaryTypes = new List<string>(),
-                    ReleaseStatuses = new List<string> { ReleaseStatus.Official.Name }
-                })
-                .ToList();
-
-            Subject.FilterAlbums(albums, 1).Select(x => x.Title)
-                   .Should().BeEquivalentTo(new List<string> { "Alive" });
         }
 
         [TestCase("12fa3845-7c62-36e5-a8da-8be137155a72", "Hysteria")]

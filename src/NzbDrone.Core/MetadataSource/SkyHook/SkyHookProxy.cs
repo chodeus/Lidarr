@@ -12,7 +12,6 @@ using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MetadataSource.SkyHook.Resource;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Profiles.Metadata;
-using NzbDrone.Core.Profiles.Releases;
 
 namespace NzbDrone.Core.MetadataSource.SkyHook
 {
@@ -24,7 +23,6 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
         private readonly IAlbumService _albumService;
         private readonly IMetadataRequestBuilder _requestBuilder;
         private readonly IMetadataProfileService _metadataProfileService;
-        private readonly TermMatcherService _termMatcherService;
         private readonly ICached<HashSet<string>> _cache;
 
         private static readonly List<string> NonAudioMedia = new List<string> { "DVD", "DVD-Video", "Blu-ray", "HD-DVD", "VCD", "SVCD", "UMD", "VHS" };
@@ -45,9 +43,6 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             _albumService = albumService;
             _cache = cacheManager.GetCache<HashSet<string>>(GetType());
             _logger = logger;
-
-            // Built here rather than injected: plugins call this develop constructor directly
-            _termMatcherService = new TermMatcherService(cacheManager);
         }
 
         public HashSet<string> GetChangedArtists(DateTime startTime)
@@ -141,16 +136,9 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
 
         public IEnumerable<AlbumResource> FilterAlbums(IEnumerable<AlbumResource> albums, int metadataProfileId)
         {
-            var metadataProfile = _metadataProfileService.Exists(metadataProfileId) ? _metadataProfileService.Get(metadataProfileId) : _metadataProfileService.All().First();
-            var primaryTypes = new HashSet<string>(metadataProfile.PrimaryAlbumTypes.Where(s => s.Allowed).Select(s => s.PrimaryAlbumType.Name));
-            var secondaryTypes = new HashSet<string>(metadataProfile.SecondaryAlbumTypes.Where(s => s.Allowed).Select(s => s.SecondaryAlbumType.Name));
-            var releaseStatuses = new HashSet<string>(metadataProfile.ReleaseStatuses.Where(s => s.Allowed).Select(s => s.ReleaseStatus.Name));
+            var filter = MetadataProfileAlbumFilter.For(_metadataProfileService, metadataProfileId);
 
-            return albums.Where(album => primaryTypes.Contains(album.Type) &&
-                                ((!album.SecondaryTypes.Any() && secondaryTypes.Contains("Studio")) ||
-                                 album.SecondaryTypes.Any(x => secondaryTypes.Contains(x))) &&
-                                album.ReleaseStatuses.Any(x => releaseStatuses.Contains(x)) &&
-                                !metadataProfile.Ignored.Any(x => _termMatcherService.IsWholeWordMatch(x, album.Title)));
+            return albums.Where(album => filter.Allows(album.Type, album.SecondaryTypes, album.ReleaseStatuses));
         }
 
         public Tuple<string, Album, List<ArtistMetadata>> GetAlbumInfo(string foreignAlbumId)

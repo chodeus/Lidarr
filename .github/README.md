@@ -1,19 +1,19 @@
-# Keep Discogs answers in a disk cache beside the database
+# Add a supplementary role that only adds albums the artist lacks
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`feat/discogs-metadata-source`](https://github.com/chodeus/Lidarr/tree/feat/discogs-metadata-source). Reviewed in [#36](https://github.com/chodeus/Lidarr/pull/36).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`feat/discogs-disk-cache`](https://github.com/chodeus/Lidarr/tree/feat/discogs-disk-cache). Reviewed in [#37](https://github.com/chodeus/Lidarr/pull/37).
 
-- Discogs answers are kept in `discogs-cache.db` beside the database (not in `lidarr.db`, so backups don't grow). Values are the trimmed resources Lidarr reads, as gzip JSON, about 0.6 KB per release.
-- Releases and masters are kept 30 days; artists, artist discographies and pressing lists 7 days. Searches are never cached, and a not-found or an outage is never stored. A list page without pagination or a page count, or an artist, master or release without an ID, counts as Discogs being down, so it is never stored. Keys carry a fingerprint of the Discogs resource fields, so a build that adds or drops a field never reads entries an older build wrote.
-- A housekeeping task removes expired entries. A cache that can't be opened or read is skipped with a warning; the lookup goes to Discogs. A cache file deleted while Lidarr runs is made again on the next lookup.
-- The source's one-day in-memory cache of album types is gone; the disk cache covers it.
+- A third source role, Supplementary, that only adds albums the artist doesn't have and never changes other sources' albums.
+- The supplement finds the artist through the primary artist's links (MusicBrainz lists Discogs and Deezer artist pages) via a new `IMetadataSource.IdFromLink`; there is no name search. A supplement of the same ID kind uses the artist's own ID. No link means the supplement adds nothing.
+- A supplement with other IDs matches albums by ID (merged IDs too) or by title: cleaned titles equal within a year, or one an edition ("Deluxe", "Remastered", "Collector's Edition" and similar) of the other's title, from any year. A same-kind supplement and the And combination match by ID only, merged IDs included, since the same title under another ID is another album. Before, the And merge missed an album merged into one an earlier source lists.
+- Album refresh adds a new artist when a source names a different album artist, so a supplementary album would have moved to the supplement's copy of the artist. The album lookup now keeps the album, and its tracks by that artist, with the artist it was added to whenever the ID kinds differ.
+- A supplement with other IDs that is down keeps the albums it added before, so a refresh removes nothing. A same-kind supplement can't tell its albums from the primary's, so its outage fails the lookup, as a down source does in an And merge. Supplementary sources answer for their own IDs when no other source can, and stay out of search. One that answered for the artist is not asked again for its albums.
+- The album owner is only read from the database when a profile has tags or uses a supplementary source.
 
-Tests: round trip, expiry, housekeeping, entries written for other resource fields, a deleted cache file, an unusable cache, a list page without a page count, a list of no pages, an answer without an ID, cache hits, the key and lifetime of each cached lookup, what is and isn't stored, and searches. Each rule was broken on purpose and caught by a test. Checked live: the first lookup took 677 ms, the cached one 2 ms.
+Tests: adding only missing albums, same-kind supplements, a supplement that answered for the artist, no link, not found, a supplement that is down (both kinds), answering its own IDs, keeping the owner, leaving same-kind albums alone, skipping the owner lookup, the profile flag, the matching rules (by ID and merged ID too), the And merge with merged IDs, and the Deezer and Discogs link readers. Each rule was broken on purpose and caught by a test.
 
 ## Summary by CodeRabbit
 
 * **New Features**
-  * Discogs metadata lookups are cached to reduce repeat requests. Cache entries expire automatically, with different lifetimes for different types of metadata.
-* **Bug Fixes**
-  * Unavailable or unsuccessful lookups aren’t cached, so later requests can try again.
-  * Expired or incompatible cached data is ignored, and cleanup preserves unexpired entries.
-  * Discogs list requests now report unavailable results when pagination information is missing, rather than treating the list as complete.
+  * Added a **Supplementary** role for metadata sources in profile settings. Supplementary sources can add albums missing from the artist’s existing metadata without replacing existing albums.
+  * Album details from supplementary sources are checked to avoid adding duplicate albums or editions, and existing ownership and guest track information is preserved.
+  * Deezer and Discogs artist links can now be recognized when looking up artists across metadata sources.

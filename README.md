@@ -72,7 +72,9 @@
   - Deezer as a built-in source for metadata source profiles, from Deezer's public API (no account): artists, albums with their tracks, and search by name, by `deezer:<id>` or by artist and title. A Deezer error or an incomplete list counts as Deezer being down, never as "no albums".
 - **Discogs metadata source** — branch [`feat/discogs-metadata-source`](https://github.com/chodeus/Lidarr/tree/feat/discogs-metadata-source), builds on `feat/deezer-metadata-source`, not submitted
   - Discogs as a built-in source for metadata source profiles, from Discogs's public API with an optional personal access token: an artist's own releases (bootlegs only when the metadata profile allows them), albums with their main release and most-owned pressings (Pressings Per Album, default 25), and search. A Discogs error or a partial list counts as Discogs being down, never as "no albums".
-- **Must Not Contain terms for metadata profiles** — branch [`metadata-profile-must-not-contain`](https://github.com/chodeus/Lidarr/tree/metadata-profile-must-not-contain), builds on `feat/discogs-metadata-source`, not submitted
+- **Discogs disk cache** — branch [`feat/discogs-disk-cache`](https://github.com/chodeus/Lidarr/tree/feat/discogs-disk-cache), builds on `feat/discogs-metadata-source`, not submitted
+  - Discogs answers are kept in `discogs-cache.db` beside the database: releases and masters for 30 days, artists, discographies and pressing lists for 7 days. Searches, not-founds and outages are never stored, and housekeeping removes expired entries.
+- **Must Not Contain terms for metadata profiles** — branch [`metadata-profile-must-not-contain`](https://github.com/chodeus/Lidarr/tree/metadata-profile-must-not-contain), builds on `feat/discogs-disk-cache`, not submitted
   - Whole-word terms or regexes that keep matching albums (such as live recordings) out of an artist's albums on refresh, whichever metadata source they come from. Albums with files or added by hand stay.
   - Migration 900.
 

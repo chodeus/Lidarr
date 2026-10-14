@@ -23,7 +23,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
     {
         private const string BaseUrl = "https://api.discogs.com";
         private const int PageSize = 100;
-        private const int MaxPages = 50;
+        private const int MaxPages = 100;
 
         private static readonly TimeSpan TokenRateLimit = TimeSpan.FromMilliseconds(1050);
         private static readonly TimeSpan AnonymousRateLimit = TimeSpan.FromMilliseconds(2500);
@@ -76,6 +76,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
             return Get<DiscogsSearchPageResource>("database/search", token, parameters.ToArray())?.Results ?? new List<DiscogsSearchResultResource>();
         }
 
+        // Never a partial list: refresh would take it as complete and drop what is missing
         private List<TItem> GetAll<TPage, TItem>(string resource, string token, Func<TPage, List<TItem>> items)
             where TPage : DiscogsPageResource, new()
         {
@@ -83,22 +84,24 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
             for (var page = 1; page <= MaxPages; page++)
             {
-                var result = Get<TPage>(resource, token, ("page", page.ToString()), ("per_page", PageSize.ToString()));
+                var result = Get<TPage>(resource, token, ("page", page.ToString()), ("per_page", PageSize.ToString()))
+                    ?? throw new MetadataSourceUnavailableException("Discogs request for {0} failed: page {1} was not found", resource, page);
 
-                if (result == null)
+                // Checked on the first page, so a list too long to read costs one request
+                if (result.Pagination?.Pages > MaxPages)
                 {
-                    return page == 1 ? null : all;
+                    throw new MetadataSourceUnavailableException("Discogs lists {0} pages for {1}, more than the {2} this source reads", result.Pagination.Pages, resource, MaxPages);
                 }
 
                 all.AddRange(items(result));
 
                 if (result.Pagination == null || page >= result.Pagination.Pages)
                 {
-                    break;
+                    return all;
                 }
             }
 
-            return all;
+            throw new MetadataSourceUnavailableException("Discogs request for {0} failed: more than {1} pages", resource, MaxPages);
         }
 
         // Null for a genuine not-found; anything else that goes wrong means Discogs is unavailable

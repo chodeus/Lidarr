@@ -97,7 +97,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
             artist.SortName = Parser.Parser.NormalizeTitle(artist.Metadata.Value.Name);
 
             // Only the artist's own releases; credits on other artists' records are left out
-            artist.Albums = (_api.GetArtistReleases(id, Settings.Token) ?? new List<DiscogsArtistReleaseResource>())
+            artist.Albums = _api.GetArtistReleases(id, Settings.Token)
                 .Where(entry => entry.Role == Main)
                 .Select(entry => (Entry: entry, Kind: entry.Type == DiscogsMapper.Master ? MainReleaseKind(entry.MainRelease) : DiscogsMapper.Classify(entry.Format)))
                 .Where(x => x.Kind.IsAudio && filter.Allows(x.Kind.PrimaryType, x.Kind.SecondaryTypes.Select(t => t.Name).ToList(), new[] { x.Kind.ReleaseStatus }))
@@ -209,7 +209,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
                 return new List<long> { master.MainRelease };
             }
 
-            var others = (_api.GetMasterVersions(master.Id, Settings.Token) ?? new List<DiscogsVersionResource>())
+            var others = _api.GetMasterVersions(master.Id, Settings.Token)
                 .Where(v => v.Id != master.MainRelease && DiscogsMapper.Classify(v.MajorFormats ?? new List<string>(), new List<string>()).IsAudio)
                 .OrderByDescending(v => v.Stats?.Community?.InCollection ?? 0)
                 .Select(v => v.Id);

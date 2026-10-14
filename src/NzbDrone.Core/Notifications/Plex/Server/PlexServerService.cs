@@ -97,7 +97,9 @@ namespace NzbDrone.Core.Notifications.Plex.Server
             var rootFolderPath = _rootFolderService.GetBestRootFolderPath(artist.Path);
             var artistRelativePath = rootFolderPath.GetRelativePath(artist.Path);
 
-            // Try to update a matching section location before falling back to updating all section locations.
+            // Try to update every matching section location before falling back to updating all section locations.
+            var matched = false;
+
             foreach (var section in sections)
             {
                 foreach (var location in section.Locations)
@@ -117,9 +119,15 @@ namespace NzbDrone.Core.Notifications.Plex.Server
                         _logger.Debug("Updating matching section location, {0}", location.Path);
                         UpdateSectionPath(artistRelativePath, section, location, settings);
 
-                        return;
+                        matched = true;
+                        break;
                     }
                 }
+            }
+
+            if (matched)
+            {
+                return;
             }
 
             _logger.Debug("Unable to find matching section location, updating all Music sections");

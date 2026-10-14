@@ -62,7 +62,7 @@ namespace NzbDrone.Core.MetadataSource.Sources
             _albumService = albumService;
             _metadataProfileService = metadataProfileService;
 
-            // Built like SkyHookProxy's, whose whole-word match isn't on ITermMatcherService
+            // Built here because the whole-word match isn't on ITermMatcherService
             _termMatcher = new TermMatcherService(cacheManager);
             lidarr.Definition ??= new MetadataSourceDefinition { Name = "Lidarr" };
             _lastResort = lidarr;

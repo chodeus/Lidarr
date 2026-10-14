@@ -78,8 +78,10 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
         public void albums_matching_a_must_not_contain_term_are_left_out()
         {
             _metadataProfile.Ignored = new List<string> { "live" };
-            var artist = ArtistWith("album-1", "album-2");
+            var artist = ArtistWith("album-1", "album-2", "album-3");
+            artist.Albums.Value[0].Title = "Alive";
             artist.Albums.Value[1].Title = "Album Title (Live)";
+            artist.Albums.Value[2].Title = "Live at the Venue";
             GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(artist);
 
             Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("album-1");

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
 using FluentValidation;
 using FluentValidation.Results;
 using NLog;
@@ -42,6 +44,8 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
         private const int ArtistSearchLimit = 10;
         private const int AlbumSearchLimit = 5;
 
+        private static readonly Regex ArtistLink = new Regex(@"^https?://(?:www\.)?discogs\.com/(?:[a-z]{2}/)?artist/(\d+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
         private readonly IDiscogsApi _api;
         private readonly IArtistService _artistService;
         private readonly IAlbumService _albumService;
@@ -66,6 +70,13 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
         public override string IdFamily => MetadataIdFamilies.Discogs;
 
         public override bool CanHandleId(string foreignId) => DiscogsMapper.TryParseId(foreignId, out _, out _);
+
+        public override string IdFromLink(string url)
+        {
+            var match = ArtistLink.Match(url ?? string.Empty);
+
+            return match.Success && long.TryParse(match.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var id) ? DiscogsMapper.ArtistId(id) : null;
+        }
 
         public override ValidationResult Test()
         {

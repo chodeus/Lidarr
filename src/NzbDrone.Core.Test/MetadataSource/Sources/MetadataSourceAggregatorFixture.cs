@@ -22,6 +22,7 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
         private const string MusicBrainzId = "11111111-1111-1111-1111-111111111111";
         private const string OtherFamily = "Other";
         private const string OtherId = "other:1";
+        private const string OtherLink = "https://other.example.invalid/artist/";
 
         private MetadataSourceProfile _profile;
         private List<IMetadataSource> _sources;
@@ -49,6 +50,8 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
             source.SetupGet(s => s.IdFamily).Returns(family);
             source.Setup(s => s.CanHandleId(It.IsAny<string>()))
                   .Returns<string>(foreignId => family == MetadataIdFamilies.MusicBrainz ? MusicBrainzIds.IsMusicBrainzId(foreignId) : foreignId.StartsWith("other:"));
+            source.Setup(s => s.IdFromLink(It.IsAny<string>()))
+                  .Returns<string>(url => family != MetadataIdFamilies.MusicBrainz && url.StartsWith(OtherLink) ? string.Concat("other:", url.AsSpan(OtherLink.Length)) : null);
 
             _sources.Add(source.Object);
             (profile ?? _profile).Items.Add(new MetadataSourceProfileItem { MetadataSourceId = id, Role = role });
@@ -138,6 +141,164 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
             Assert.Throws<TimeoutException>(() => Subject.GetArtistInfo(MusicBrainzId, 1));
 
             ExceptionVerification.ExpectedWarns(1);
+        }
+
+        private static Album NamedAlbum(string id, string title, int year)
+        {
+            return new Album { ForeignAlbumId = id, Title = title, ReleaseDate = new DateTime(year, 1, 1), OldForeignAlbumIds = new List<string>() };
+        }
+
+        private Artist GivenPrimaryWithLinkTo(string otherArtistId, params Album[] albums)
+        {
+            var artist = new Artist
+            {
+                Metadata = new ArtistMetadata { ForeignArtistId = MusicBrainzId, Name = "Artist Name", Links = new List<Links> { new() { Name = "other", Url = string.Concat(OtherLink, otherArtistId.AsSpan("other:".Length)) } } },
+                Albums = albums.ToList()
+            };
+
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(artist);
+
+            return artist;
+        }
+
+        [Test]
+        public void a_supplementary_source_adds_only_the_albums_the_artist_lacks()
+        {
+            GivenPrimaryWithLinkTo("other:9", NamedAlbum("mb-1", "First Album", 2001));
+            GivenSource(2, MetadataSourceRole.Supplementary, OtherFamily).Setup(s => s.GetArtistInfo("other:9", 1)).Returns(new Artist
+            {
+                Albums = new List<Album> { NamedAlbum("other:101", "First Album (Deluxe Edition)", 2011), NamedAlbum("other:102", "Second Album", 2003) }
+            });
+
+            Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("mb-1", "other:102");
+        }
+
+        [Test]
+        public void a_supplementary_source_of_the_same_kind_uses_the_artists_own_id()
+        {
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(ArtistWith("album-1"));
+            GivenSource(2, MetadataSourceRole.Supplementary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(new Artist
+            {
+                Albums = new List<Album> { NamedAlbum("album-2", "Another Title", 2005) }
+            });
+
+            Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("album-1", "album-2");
+        }
+
+        [Test]
+        public void a_supplementary_source_that_answered_for_the_artist_is_not_asked_again()
+        {
+            GivenSource(1, MetadataSourceRole.Primary, OtherFamily);
+            var supplement = GivenSource(2, MetadataSourceRole.Supplementary);
+            supplement.Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(ArtistWith("album-1"));
+
+            Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("album-1");
+
+            supplement.Verify(s => s.GetArtistInfo(MusicBrainzId, 1), Times.Once());
+        }
+
+        [Test]
+        public void a_supplementary_source_without_a_link_is_not_asked()
+        {
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(ArtistWith("album-1"));
+            var supplement = GivenSource(2, MetadataSourceRole.Supplementary, OtherFamily);
+
+            Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value.Should().ContainSingle();
+
+            supplement.Verify(s => s.GetArtistInfo(It.IsAny<string>(), It.IsAny<int>()), Times.Never());
+        }
+
+        [Test]
+        public void a_supplementary_source_without_the_artist_adds_nothing()
+        {
+            GivenPrimaryWithLinkTo("other:9", NamedAlbum("mb-1", "First Album", 2001));
+            GivenSource(2, MetadataSourceRole.Supplementary, OtherFamily).Setup(s => s.GetArtistInfo("other:9", 1)).Throws(new ArtistNotFoundException("other:9"));
+
+            Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("mb-1");
+        }
+
+        [Test]
+        public void a_supplementary_source_that_is_down_keeps_the_albums_it_added()
+        {
+            GivenPrimaryWithLinkTo("other:9", NamedAlbum("mb-1", "First Album", 2001));
+            GivenSource(2, MetadataSourceRole.Supplementary, OtherFamily).Setup(s => s.GetArtistInfo("other:9", 1)).Throws(new TimeoutException("Source 2 is down"));
+            Mocker.GetMock<IArtistService>().Setup(s => s.FindById(MusicBrainzId)).Returns(new Artist { Id = 5 });
+            Mocker.GetMock<IAlbumService>().Setup(s => s.GetAlbumsByArtist(5)).Returns(new List<Album>
+            {
+                NamedAlbum("mb-1", "First Album", 2001),
+                NamedAlbum("mb-2", "Dropped Album", 2002),
+                NamedAlbum("other:102", "Second Album", 2003)
+            });
+
+            Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("mb-1", "other:102");
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void a_supplementary_source_answers_for_its_own_albums()
+        {
+            var album = Tuple.Create("other:9", new Album { ForeignAlbumId = "other:101" }, new List<ArtistMetadata>());
+            GivenSource(1, MetadataSourceRole.Primary);
+            GivenSource(2, MetadataSourceRole.Supplementary, OtherFamily).Setup(s => s.GetAlbumInfo("other:101")).Returns(album);
+
+            Subject.GetAlbumInfo("other:101").Should().BeSameAs(album);
+        }
+
+        private Artist GivenSupplementaryAlbumOwnedBy(string ownerId)
+        {
+            var owner = new Artist { Id = 5, ArtistMetadataId = 50, Metadata = new ArtistMetadata { Id = 50, ForeignArtistId = ownerId, Name = "Artist Name" } };
+            Mocker.GetMock<IMetadataSourceProfileService>().Setup(s => s.HasSupplementarySources()).Returns(true);
+            Mocker.GetMock<IAlbumService>().Setup(s => s.FindById("other:101")).Returns(new Album { ForeignAlbumId = "other:101", ArtistMetadataId = 50 });
+            Mocker.GetMock<IArtistService>().Setup(s => s.GetArtistByMetadataId(50)).Returns(owner);
+
+            return owner;
+        }
+
+        private Tuple<string, Album, List<ArtistMetadata>> GivenSupplementaryAlbumInfo()
+        {
+            var sourceArtist = new ArtistMetadata { ForeignArtistId = "other:9", Name = "Artist Name" };
+            var guest = new ArtistMetadata { ForeignArtistId = "other:10", Name = "Guest Name" };
+            var tracks = new List<Track> { new() { ArtistMetadata = sourceArtist }, new() { ArtistMetadata = guest } };
+            var album = new Album { ForeignAlbumId = "other:101", ArtistMetadata = sourceArtist, AlbumReleases = new List<AlbumRelease> { new() { Tracks = tracks } } };
+
+            GivenSource(2, MetadataSourceRole.Supplementary, OtherFamily).Setup(s => s.GetAlbumInfo("other:101"))
+                .Returns(Tuple.Create("other:9", album, new List<ArtistMetadata> { sourceArtist, guest }));
+
+            return Tuple.Create("other:9", album, new List<ArtistMetadata> { sourceArtist, guest });
+        }
+
+        [Test]
+        public void a_supplementary_album_stays_with_the_artist_it_was_added_to()
+        {
+            var owner = GivenSupplementaryAlbumOwnedBy(MusicBrainzId);
+            GivenSupplementaryAlbumInfo();
+
+            var (artistId, album, artists) = Subject.GetAlbumInfo("other:101");
+
+            artistId.Should().Be(MusicBrainzId);
+            album.ArtistMetadata.Value.Should().BeSameAs(owner.Metadata.Value);
+            album.AlbumReleases.Value.Single().Tracks.Value.Select(t => t.ArtistMetadata.Value.ForeignArtistId).Should().Equal(MusicBrainzId, "other:10");
+            artists.Select(a => a.ForeignArtistId).Should().BeEquivalentTo(MusicBrainzId, "other:10");
+        }
+
+        [Test]
+        public void an_album_from_its_owners_own_source_is_left_as_it_is()
+        {
+            GivenSupplementaryAlbumOwnedBy("other:8");
+            GivenSupplementaryAlbumInfo();
+
+            Subject.GetAlbumInfo("other:101").Item1.Should().Be("other:9");
+        }
+
+        [Test]
+        public void skips_the_album_owner_lookup_without_tagged_profiles_or_supplementary_sources()
+        {
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetAlbumInfo(MusicBrainzId)).Returns(Tuple.Create(MusicBrainzId, new Album(), new List<ArtistMetadata>()));
+
+            Subject.GetAlbumInfo(MusicBrainzId);
+
+            Mocker.GetMock<IAlbumService>().Verify(s => s.FindById(It.IsAny<string>()), Times.Never());
         }
 
         [Test]

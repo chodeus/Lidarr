@@ -29,7 +29,8 @@ namespace NzbDrone.Core.Profiles.MetadataSources
     public enum MetadataSourceRole
     {
         Primary = 0,
-        Fallback = 1
+        Fallback = 1,
+        Supplementary = 2
     }
 
     public enum MetadataSourceCombination

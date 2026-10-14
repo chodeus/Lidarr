@@ -99,6 +99,10 @@ function EditMetadataSourceProfileModalContent(
     return [
       { key: 'primary', value: translate('MetadataSourceRolePrimary') },
       { key: 'fallback', value: translate('MetadataSourceRoleFallback') },
+      {
+        key: 'supplementary',
+        value: translate('MetadataSourceRoleSupplementary'),
+      },
     ];
   }, []);
 

@@ -104,6 +104,15 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
             Subject.GetArtistInfo("discogs:artist:3", 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("discogs:release:17");
         }
 
+        [TestCase("https://www.discogs.com/artist/3840", "discogs:artist:3840")]
+        [TestCase("https://www.discogs.com/artist/3840-Placeholder", "discogs:artist:3840")]
+        [TestCase("https://www.discogs.com/master/3840", null)]
+        [TestCase("https://www.deezer.com/artist/399", null)]
+        public void reads_a_discogs_artist_link(string url, string expected)
+        {
+            Subject.IdFromLink(url).Should().Be(expected);
+        }
+
         [Test]
         public void artist_info_keeps_the_artists_own_audio_releases_the_profile_allows()
         {

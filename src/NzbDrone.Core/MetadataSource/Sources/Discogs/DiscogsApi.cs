@@ -66,7 +66,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
         public DiscogsMasterResource GetMaster(long id, string token)
         {
-            return Get<DiscogsMasterResource>("masters/" + id, token);
+            return Credited(Get<DiscogsMasterResource>("masters/" + id, token), "masters/" + id, m => m.Artists);
         }
 
         public List<DiscogsVersionResource> GetMasterVersions(long id, string token)
@@ -76,7 +76,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
         public DiscogsReleaseResource GetRelease(long id, string token)
         {
-            return Get<DiscogsReleaseResource>("releases/" + id, token);
+            return Credited(Get<DiscogsReleaseResource>("releases/" + id, token), "releases/" + id, r => r.Artists);
         }
 
         public List<DiscogsSearchResultResource> Search(string type, string query, string artist, int limit, string token)
@@ -156,6 +156,13 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
             throw TooManyPages("bootlegs", resource);
         }
 
+        // Discogs credits every master and release, if only as "Unknown Artist", so one without a credit is an unreadable answer
+        private static T Credited<T>(T resource, string path, Func<T, List<DiscogsArtistCreditResource>> artists)
+            where T : class
+        {
+            return resource == null || artists(resource)?.Any() == true ? resource : throw new MetadataSourceUnavailableException("Discogs returned {0} without an artist", path);
+        }
+
         private static bool IsOwn(DiscogsArtistReleaseResource release)
         {
             return release.Role == OwnRole;
@@ -225,7 +232,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
-                throw new MetadataSourceUnavailableException("Discogs rejected the personal access token");
+                throw new DiscogsTokenRejectedException();
             }
 
             if (response.HasHttpError)

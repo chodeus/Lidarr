@@ -89,7 +89,7 @@ class AddNewAlbumSearchResult extends Component {
       metadataSource
     } = this.props;
 
-    const externalUrl = getMusicBrainzUrl('release-group', foreignAlbumId) ?? links?.[0]?.url;
+    const externalUrl = getMusicBrainzUrl('release-group', foreignAlbumId) ?? links?.find((link) => link.url)?.url;
 
     const {
       isNewAddAlbumModalOpen

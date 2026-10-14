@@ -169,6 +169,10 @@ namespace NzbDrone.Core.Extras.Metadata.Consumers.Xbmc
                 if (MusicBrainzIds.IsMusicBrainzId(album.ForeignAlbumId))
                 {
                     albumElement.Add(new XElement("musicbrainzreleasegroupid", album.ForeignAlbumId));
+                }
+
+                if (MusicBrainzIds.IsMusicBrainzId(albumRelease.ForeignReleaseId))
+                {
                     albumElement.Add(new XElement("musicbrainzalbumid", albumRelease.ForeignReleaseId));
                 }
 

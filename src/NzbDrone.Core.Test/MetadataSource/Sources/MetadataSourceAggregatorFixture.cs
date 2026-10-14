@@ -177,7 +177,7 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
         {
             GivenSource(1, MetadataSourceRole.Primary);
 
-            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetArtistInfo(OtherId, 1));
+            Assert.Throws<BadRequestException>(() => Subject.GetArtistInfo(OtherId, 1));
         }
 
         private static Tuple<string, Album, List<ArtistMetadata>> AlbumInfo(string artistId, int releases)

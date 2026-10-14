@@ -4,6 +4,7 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.TrackedDownloads;
+using NzbDrone.Core.Music;
 using NzbDrone.Core.Notifications;
 using NzbDrone.Core.Notifications.Discord;
 using NzbDrone.Core.Notifications.Discord.Payloads;
@@ -54,6 +55,20 @@ namespace NzbDrone.Core.Test.NotificationTests.Discord
 
             field.Value.Length.Should().BeLessOrEqualTo(1024);
             field.Value.Should().StartWith("```").And.EndWith("```");
+        }
+
+        [TestCase("11111111-1111-1111-1111-111111111111", "https://musicbrainz.org/artist/11111111-1111-1111-1111-111111111111")]
+        [TestCase("other:1", null)]
+        public void should_link_only_a_musicbrainz_artist(string foreignArtistId, string url)
+        {
+            Subject.OnManualInteractionRequired(new ManualInteractionRequiredMessage
+            {
+                Message = "Placeholder.Title",
+                Artist = new Artist { Metadata = new ArtistMetadata { ForeignArtistId = foreignArtistId, Name = "Placeholder Artist" } },
+                TrackedDownload = new TrackedDownload { DownloadItem = new DownloadClientItem { Title = "Placeholder.Title" } }
+            });
+
+            _payload.Embeds[0].Url.Should().Be(url);
         }
 
         [Test]

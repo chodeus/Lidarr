@@ -304,7 +304,9 @@ namespace NzbDrone.Core.Notifications.Discord
                     Name = Settings.Author.IsNullOrWhiteSpace() ? _configFileProvider.InstanceName : Settings.Author,
                     IconUrl = "https://raw.githubusercontent.com/lidarr/Lidarr/develop/Logo/256.png"
                 },
-                Url = artist != null ? $"https://musicbrainz.org/artist/{artist.ForeignArtistId}" : null,
+
+                // Only a MusicBrainz ID has a MusicBrainz page
+                Url = artist != null && Guid.TryParseExact(artist.ForeignArtistId, "D", out _) ? $"https://musicbrainz.org/artist/{artist.ForeignArtistId}" : null,
                 Description = "Manual interaction needed",
                 Title = artist != null && albums.Any() ? GetTitle(artist, albums) : GetDownloadTitle(message.TrackedDownload.DownloadItem.Title),
                 Color = (int)DiscordColors.Standard,

@@ -17,6 +17,7 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
     public class DiscogsApiFixture : CoreTest<DiscogsApi>
     {
         private const string Token = "placeholder-token";
+        private const string CreditedRelease = "{\"id\":1,\"artists\":[{\"id\":3,\"name\":\"Placeholder Artist\"}]}";
 
         private readonly List<HttpRequest> _requests = new();
 
@@ -70,13 +71,31 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
             Subject.GetRelease(1, Token).Should().BeNull();
         }
 
-        [TestCase(HttpStatusCode.Unauthorized)]
+        [TestCase(HttpStatusCode.Forbidden)]
         [TestCase(HttpStatusCode.InternalServerError)]
         public void other_http_errors_mean_discogs_is_unavailable(HttpStatusCode status)
         {
             GivenResponse<DiscogsReleaseResource>(status, r => "{\"message\":\"placeholder\"}");
 
             Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetRelease(1, Token));
+        }
+
+        [Test]
+        public void a_rejected_token_is_its_own_failure()
+        {
+            GivenResponse<DiscogsReleaseResource>(HttpStatusCode.Unauthorized, r => "{\"message\":\"placeholder\"}");
+
+            Assert.Throws<DiscogsTokenRejectedException>(() => Subject.GetRelease(1, Token));
+        }
+
+        [Test]
+        public void a_master_or_release_without_an_artist_is_unreadable()
+        {
+            GivenResponse<DiscogsReleaseResource>(HttpStatusCode.OK, r => "{\"id\":1,\"artists\":[]}");
+            GivenResponse<DiscogsMasterResource>(HttpStatusCode.OK, r => "{\"id\":2}");
+
+            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetRelease(1, Token));
+            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetMaster(2, Token));
         }
 
         [Test]
@@ -92,7 +111,7 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
         [Test]
         public void the_token_goes_in_a_header_and_sets_the_faster_rate_limit()
         {
-            GivenResponse<DiscogsReleaseResource>(HttpStatusCode.OK, r => "{\"id\":1}");
+            GivenResponse<DiscogsReleaseResource>(HttpStatusCode.OK, r => CreditedRelease);
 
             Subject.GetRelease(1, Token);
             Subject.GetRelease(1, null);
@@ -108,7 +127,7 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
         [TestCase("5", null)]
         public void a_spent_rate_limit_pauses_until_the_window_resets(string remaining, int? pauseSeconds)
         {
-            GivenResponses<DiscogsReleaseResource>((HttpStatusCode.OK, Header("X-Discogs-Ratelimit-Remaining", remaining), r => "{\"id\":1}"));
+            GivenResponses<DiscogsReleaseResource>((HttpStatusCode.OK, Header("X-Discogs-Ratelimit-Remaining", remaining), r => CreditedRelease));
 
             Subject.GetRelease(1, Token).Id.Should().Be(1);
 
@@ -122,7 +141,7 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
             var tooMany = retryAfter == null ? new HttpHeader() : Header("Retry-After", retryAfter);
             GivenResponses<DiscogsReleaseResource>(
                 (HttpStatusCode.TooManyRequests, tooMany, r => "{\"message\":\"placeholder\"}"),
-                (HttpStatusCode.OK, new HttpHeader(), r => "{\"id\":1}"));
+                (HttpStatusCode.OK, new HttpHeader(), r => CreditedRelease));
 
             Subject.GetRelease(1, Token).Id.Should().Be(1);
 

@@ -11,6 +11,7 @@ using NzbDrone.Core.MetadataSource.Sources.Discogs;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Profiles.Metadata;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
 {
@@ -159,6 +160,27 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
             artistId.Should().Be("discogs:artist:3");
             album.AlbumReleases.Value.Select(r => r.ForeignReleaseId).Should().Equal(expected.Select(DiscogsMapper.ReleaseId));
             album.AlbumReleases.Value.Single(r => r.Monitored).ForeignReleaseId.Should().Be("discogs:release:100");
+        }
+
+        [Test]
+        public void a_missing_pressing_fails_the_album_lookup()
+        {
+            GivenMaster(10, 100, (101, 5));
+            Mocker.GetMock<IDiscogsApi>().Setup(a => a.GetRelease(101, It.IsAny<string>())).Returns((DiscogsReleaseResource)null);
+
+            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetAlbumInfo("discogs:master:10"));
+        }
+
+        [TestCase(true, "Token")]
+        [TestCase(false, "")]
+        public void only_a_rejected_token_is_reported_on_the_token_field(bool tokenRejected, string field)
+        {
+            Mocker.GetMock<IDiscogsApi>().Setup(a => a.Search(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>()))
+                .Throws(tokenRejected ? new DiscogsTokenRejectedException() : new MetadataSourceUnavailableException("Discogs is down"));
+
+            Subject.Test().Errors.Should().ContainSingle().Which.PropertyName.Should().Be(field);
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]

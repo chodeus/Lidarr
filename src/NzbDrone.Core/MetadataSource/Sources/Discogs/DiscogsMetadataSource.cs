@@ -78,10 +78,15 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
                 _api.Search("artist", "test", null, 1, Settings.Token);
                 return new ValidationResult();
             }
+            catch (DiscogsTokenRejectedException ex)
+            {
+                _logger.Warn(ex, "Discogs rejected the token");
+                return new ValidationResult(new[] { new ValidationFailure(nameof(DiscogsMetadataSourceSettings.Token), ex.Message) });
+            }
             catch (Exception ex)
             {
                 _logger.Warn(ex, "Unable to reach Discogs");
-                return new ValidationResult(new[] { new ValidationFailure(nameof(DiscogsMetadataSourceSettings.Token), "Unable to reach Discogs: " + ex.Message) });
+                return new ValidationResult(new[] { new ValidationFailure(string.Empty, "Unable to reach Discogs: " + ex.Message) });
             }
         }
 
@@ -127,7 +132,14 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
             if (kind == DiscogsMapper.Master)
             {
                 var master = _api.GetMaster(id, Settings.Token) ?? throw new AlbumNotFoundException(foreignAlbumId);
-                releases = Pressings(master).Select(r => _api.GetRelease(r, Settings.Token)).Where(r => r != null).ToList();
+                releases = Pressings(master).Select(r => _api.GetRelease(r, Settings.Token)).ToList();
+
+                // A shorter list would read as pressings Discogs dropped, and refresh would delete them
+                if (releases.Any(r => r == null))
+                {
+                    throw new MetadataSourceUnavailableException("Discogs could not find every pressing of master {0}", master.Id);
+                }
+
                 monitoredId = releases.Any(r => r.Id == master.MainRelease) ? master.MainRelease : releases.FirstOrDefault()?.Id ?? 0;
                 album = DiscogsMapper.MapAlbum(master, DiscogsMapper.Classify(releases.FirstOrDefault(r => r.Id == monitoredId)?.Formats));
                 albumArtist = master.Artists.First();

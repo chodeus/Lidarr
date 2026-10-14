@@ -70,5 +70,24 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Deezer
             _requests.Select(r => r.Url.Query).Should().Equal("index=0&limit=100", "index=100&limit=100");
             _requests.Should().OnlyContain(r => r.RateLimit > TimeSpan.Zero);
         }
+
+        [TestCase("index=0")]
+        [TestCase("index=100")]
+        public void a_missing_page_means_deezer_is_unavailable(string missingPage)
+        {
+            GivenResponse<DeezerPageResource<DeezerTrackResource>>(r => r.Url.Query.Contains(missingPage)
+                ? "{\"error\":{\"type\":\"DataException\",\"message\":\"no data\",\"code\":800}}"
+                : "{\"data\":[{\"id\":1}],\"total\":200,\"next\":\"https://api.deezer.com/album/1/tracks?index=100\"}");
+
+            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetAlbumTracks(1));
+        }
+
+        [Test]
+        public void a_list_past_the_page_limit_means_deezer_is_unavailable()
+        {
+            GivenResponse<DeezerPageResource<DeezerAlbumResource>>(r => "{\"data\":[{\"id\":1}],\"next\":\"https://api.deezer.com/artist/1/albums?index=1\"}");
+
+            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetArtistAlbums(1));
+        }
     }
 }

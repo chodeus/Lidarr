@@ -335,9 +335,8 @@ namespace NzbDrone.Core.MetadataSource.Sources
         private static Artist MergeAlbums(Artist first, Artist other)
         {
             var albums = first.Albums.Value;
-            var known = new HashSet<string>(albums.SelectMany(a => (a.OldForeignAlbumIds ?? new List<string>()).Append(a.ForeignAlbumId)));
 
-            albums.AddRange(other.Albums.Value.Where(a => !known.Contains(a.ForeignAlbumId)));
+            albums.AddRange(MissingAlbums.ById(albums, other.Albums.Value));
 
             return first;
         }
@@ -377,7 +376,7 @@ namespace NzbDrone.Core.MetadataSource.Sources
             return album == null ? null : _artistService.GetArtistByMetadataId(album.ArtistMetadataId);
         }
 
-        // Supplementary sources only add albums the artist lacks; one that is down keeps the albums it added before
+        // Supplementary sources only add albums the artist lacks; one with other IDs that is down keeps the albums it added before
         private void AddSupplements(MetadataSourceProfile profile, Artist artist, string foreignArtistId, int metadataProfileId, IMetadataSource answered)
         {
             var albums = artist.Albums.Value;
@@ -385,7 +384,8 @@ namespace NzbDrone.Core.MetadataSource.Sources
             // A supplement that answered for the artist when nothing else could would only repeat itself
             foreach (var source in SourcesOf(profile).Where(x => x.Role == MetadataSourceRole.Supplementary && x.Source != answered).Select(x => x.Source))
             {
-                var id = source.CanHandleId(foreignArtistId)
+                var sameKind = source.CanHandleId(foreignArtistId);
+                var id = sameKind
                     ? foreignArtistId
                     : artist.Metadata.Value.Links?.Select(l => source.IdFromLink(l.Url)).FirstOrDefault(i => i != null);
 
@@ -397,13 +397,17 @@ namespace NzbDrone.Core.MetadataSource.Sources
 
                 try
                 {
-                    albums.AddRange(SupplementaryAlbums.Missing(albums, source.GetArtistInfo(id, metadataProfileId).Albums.Value));
+                    // With shared IDs, the same title under another ID is another album
+                    var listed = source.GetArtistInfo(id, metadataProfileId).Albums.Value;
+                    albums.AddRange(sameKind ? MissingAlbums.ById(albums, listed) : MissingAlbums.ByIdOrTitle(albums, listed));
                 }
                 catch (ArtistNotFoundException)
                 {
                     _logger.Debug("{0} does not have {1}", source.Definition?.Name, id);
                 }
-                catch (Exception ex)
+
+                // Albums with the artist's own kind of IDs can't be told apart by source, so that outage fails the lookup like an And merge
+                catch (Exception ex) when (!sameKind)
                 {
                     _logger.Warn(ex, "Supplementary metadata source {0} failed, keeping the albums it added before", source.Definition?.Name);
                     albums.AddRange(AlbumsAddedBy(source, foreignArtistId, albums));

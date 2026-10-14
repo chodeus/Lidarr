@@ -150,6 +150,23 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
         }
 
         [Test]
+        public void a_repeated_rate_header_uses_its_first_value()
+        {
+            var tooMany = Header("Retry-After", "7");
+            tooMany.Add("Retry-After", "7");
+            var spent = Header("X-Discogs-Ratelimit-Remaining", "0");
+            spent.Add("X-Discogs-Ratelimit-Remaining", "0");
+            GivenResponses<DiscogsReleaseResource>(
+                (HttpStatusCode.TooManyRequests, tooMany, r => "{\"message\":\"placeholder\"}"),
+                (HttpStatusCode.OK, spent, r => CreditedRelease));
+
+            Subject.GetRelease(1, Token).Id.Should().Be(1);
+
+            Mocker.GetMock<IRateLimitService>().Verify(r => r.WaitAndPulse("api.discogs.com", TimeSpan.FromSeconds(7)), Times.Once());
+            Mocker.GetMock<IRateLimitService>().Verify(r => r.WaitAndPulse("api.discogs.com", TimeSpan.FromSeconds(60)), Times.Once());
+        }
+
+        [Test]
         public void too_many_requests_twice_means_discogs_is_unavailable()
         {
             GivenResponses<DiscogsReleaseResource>((HttpStatusCode.TooManyRequests, Header("X-Discogs-Ratelimit-Remaining", "0"), r => "{\"message\":\"placeholder\"}"));

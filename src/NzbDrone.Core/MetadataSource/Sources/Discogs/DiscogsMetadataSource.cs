@@ -126,7 +126,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
             Album album;
             List<DiscogsReleaseResource> releases;
-            long monitoredId;
+            long mainId;
             DiscogsArtistCreditResource albumArtist;
 
             if (kind == DiscogsMapper.Master)
@@ -140,15 +140,15 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
                     throw new MetadataSourceUnavailableException("Discogs could not find every pressing of master {0}", master.Id);
                 }
 
-                monitoredId = releases.Any(r => r.Id == master.MainRelease) ? master.MainRelease : releases.FirstOrDefault()?.Id ?? 0;
-                album = DiscogsMapper.MapAlbum(master, DiscogsMapper.Classify(releases.FirstOrDefault(r => r.Id == monitoredId)?.Formats));
+                mainId = master.MainRelease;
+                album = DiscogsMapper.MapAlbum(master, DiscogsMapper.Classify(releases.FirstOrDefault(r => r.Id == mainId)?.Formats));
                 albumArtist = master.Artists.First();
             }
             else
             {
                 var release = _api.GetRelease(id, Settings.Token) ?? throw new AlbumNotFoundException(foreignAlbumId);
                 releases = new List<DiscogsReleaseResource> { release };
-                monitoredId = release.Id;
+                mainId = release.Id;
                 album = DiscogsMapper.MapAlbum(release);
                 albumArtist = release.Artists.First();
             }
@@ -159,7 +159,15 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
                 .Select(DiscogsMapper.MapArtist)
                 .ToDictionary(a => a.ForeignArtistId);
 
-            album.AlbumReleases = releases.Select(r => DiscogsMapper.MapRelease(r, artists, r.Id == monitoredId)).Where(r => r.TrackCount > 0).ToList();
+            album.AlbumReleases = releases.Select(r => DiscogsMapper.MapRelease(r, artists)).Where(r => r.TrackCount > 0).ToList();
+
+            // Chosen after dropping pressings without tracks, so one kept pressing is always monitored
+            var monitored = album.AlbumReleases.Value.FirstOrDefault(r => r.ForeignReleaseId == DiscogsMapper.ReleaseId(mainId)) ?? album.AlbumReleases.Value.FirstOrDefault();
+
+            if (monitored != null)
+            {
+                monitored.Monitored = true;
+            }
 
             var artistId = DiscogsMapper.ArtistId(albumArtist.Id);
             album.ArtistMetadata = artists[artistId];
@@ -227,7 +235,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
             }
 
             var others = _api.GetMasterVersions(master.Id, Settings.Token)
-                .Where(v => v.Id != master.MainRelease && DiscogsMapper.Classify(v.MajorFormats ?? new List<string>(), new List<string>()).IsAudio)
+                .Where(v => v.Id != master.MainRelease && DiscogsMapper.Classify(v).IsAudio)
                 .OrderByDescending(v => v.Stats?.Community?.InCollection ?? 0)
                 .Select(v => v.Id);
 
@@ -263,7 +271,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
             if (album == null)
             {
                 album = DiscogsMapper.MapAlbum(master, kind);
-                var trackCount = master.Tracklist.Count(t => t.Type == null || t.Type == "track");
+                var trackCount = DiscogsMapper.Tracks(master.Tracklist).Count;
                 album.AlbumReleases = new List<AlbumRelease> { DiscogsMapper.MapSearchRelease(DiscogsMapper.ReleaseId(master.MainRelease), trackCount, kind) };
             }
 
@@ -277,7 +285,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
             if (album == null)
             {
                 album = DiscogsMapper.MapAlbum(release);
-                var trackCount = release.Tracklist.Count(t => t.Type == null || t.Type == "track");
+                var trackCount = DiscogsMapper.Tracks(release.Tracklist).Count;
                 album.AlbumReleases = new List<AlbumRelease> { DiscogsMapper.MapSearchRelease(DiscogsMapper.ReleaseId(release.Id), trackCount, DiscogsMapper.Classify(release.Formats)) };
             }
 

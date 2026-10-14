@@ -71,6 +71,17 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             (distance == 0.0).Should().Be(identical);
         }
 
+        [Test]
+        public void another_taggers_id_in_the_file_does_not_count_against_a_musicbrainz_track()
+        {
+            var track = GivenTrack("one");
+            track.ForeignRecordingId = "22222222-2222-2222-2222-222222222222";
+            var localTrack = GivenLocalTrack(track);
+            localTrack.FileTrackInfo.RecordingMBId = "other:1";
+
+            DistanceCalculator.TrackDistance(localTrack, track, 1, true).NormalizedDistance().Should().Be(0.0);
+        }
+
         [TestCase("22222222-2222-2222-2222-222222222222", false)]
         [TestCase("other:1", true)]
         public void fingerprints_count_only_against_a_musicbrainz_track(string recordingId, bool identical)

@@ -121,15 +121,16 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             DistanceCalculator.AlbumReleaseDistance(localTracks, release, mapping).NormalizedDistance().Should().Be(0.0);
         }
 
-        [TestCase("22222222-2222-2222-2222-222222222222", false)]
-        [TestCase("other:1", true)]
-        public void a_release_id_from_the_files_counts_only_against_a_musicbrainz_release(string releaseId, bool identical)
+        [TestCase("22222222-2222-2222-2222-222222222222", "11111111-1111-1111-1111-111111111111", false)]
+        [TestCase("other:1", "11111111-1111-1111-1111-111111111111", true)]
+        [TestCase("22222222-2222-2222-2222-222222222222", "other:1", true)]
+        public void a_release_id_from_the_files_counts_only_against_a_musicbrainz_release(string releaseId, string fileReleaseId, bool identical)
         {
             var tracks = GivenTracks(3);
             var release = GivenAlbumRelease("album", tracks);
             release.ForeignReleaseId = releaseId;
             var localTracks = GivenLocalTracks(tracks, release);
-            localTracks.ForEach(x => x.FileTrackInfo.ReleaseMBId = "11111111-1111-1111-1111-111111111111");
+            localTracks.ForEach(x => x.FileTrackInfo.ReleaseMBId = fileReleaseId);
             var mapping = GivenMapping(localTracks, tracks);
 
             var distance = DistanceCalculator.AlbumReleaseDistance(localTracks, release, mapping).NormalizedDistance();

@@ -346,7 +346,8 @@ namespace NzbDrone.Core.MetadataSource.Sources
                 return LastResortRoute();
             }
 
-            throw new MetadataSourceUnavailableException("No metadata source in profile {0} can look up {1}", profile.Name, foreignId);
+            // Not an outage: the profile has no source for this kind of ID, so refresh keeps what it has
+            throw new BadRequestException("No metadata source in profile {0} can look up {1}", profile.Name, foreignId);
         }
 
         private Route FamilyRoute(MetadataSourceProfile profile, string family)

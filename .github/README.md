@@ -1,25 +1,19 @@
-# Add Discogs as a built-in metadata source
+# Keep Discogs answers in a disk cache beside the database
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`feat/deezer-metadata-source`](https://github.com/chodeus/Lidarr/tree/feat/deezer-metadata-source). Reviewed in [#35](https://github.com/chodeus/Lidarr/pull/35).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`feat/discogs-metadata-source`](https://github.com/chodeus/Lidarr/tree/feat/discogs-metadata-source). Reviewed in [#36](https://github.com/chodeus/Lidarr/pull/36).
 
-- Discogs as a built-in metadata source, written from Discogs's public API. IDs are `discogs:artist:<n>`, `discogs:master:<n>` and `discogs:release:<n>`; Discogs has no track IDs, so tracks use the release ID and track index.
-- Settings: an optional personal access token (sent in a header, never the URL) and Pressings Per Album (default 25, 0 = every pressing). A master album loads its main release, then the pressings most people own. The settings test marks the Token field only when Discogs rejects the token.
-- Artist info keeps the artist's own releases (role Main) that are audio and allowed by the metadata profile. A master's type comes from its main release. Promos, samplers and test pressings map to Promotion, unofficial releases to Bootleg; video and data formats are dropped, but DVD-Audio and Blu-ray Audio count as audio. The artist list joins an entry's formats with " + " and shortens names (`Comp`, `TP`, `W/Lbl`, `Maxi`, `DVD-V`); both are read.
-- Discogs lists an artist's own releases before every other credit, so the list is read only up to the first other role (Radiohead: 3 of 33 pages). If own releases ever appear after another role, or page 1 starts with another role, the whole list is read instead.
-- Bootlegs (role UnofficialRelease) come after every other credit, so they are read from the last page back, and only when the metadata profile allows Bootleg (Radiohead: 630 bootlegs in 8 requests). Every bootleg credit counts as Bootleg, since the artist list writes the format many ways ("Unofficial", "P/Unofficial", "CD + DVD-V + Unofficial"). "Unofficial" also beats "Promo" when a release has both.
-- Lists are never returned partly: a missing page fails the lookup, and so does a list past 100 pages (an artist's own releases past 100 pages fail after one look at page 101, so Bach costs 2 requests, not 100). A pressing Discogs can't find fails the album lookup too.
-- Index entries, which hold a classical work's movements, expand into their tracks, named `Work: Movement`. The monitored pressing is picked from those with tracks.
-- Track positions: vinyl sides pair up on a disc (A and B are disc 1), CD positions read disc-track. Durations, unknown date parts and Discogs's `(2)` name numbers are handled.
-- Rate limit: requests are spaced for 60 a minute with a token and 25 without. When `X-Discogs-Ratelimit-Remaining` reaches 0, the next request waits out the 60-second window; a 429 waits for `Retry-After` (or 60 seconds) and retries once. A not-found is null; anything else counts as Discogs being down.
+- Discogs answers are kept in `discogs-cache.db` beside the database (not in `lidarr.db`, so backups don't grow). Values are the trimmed resources Lidarr reads, as gzip JSON, about 0.6 KB per release.
+- Releases and masters are kept 30 days; artists, artist discographies and pressing lists 7 days. Searches are never cached, and a not-found or an outage is never stored. A list page without pagination or a page count, or an artist, master or release without an ID, counts as Discogs being down, so it is never stored. Keys carry a fingerprint of the Discogs resource fields, so a build that adds or drops a field never reads entries an older build wrote.
+- A housekeeping task removes expired entries. A cache that can't be opened or read is skipped with a warning; the lookup goes to Discogs. A cache file deleted while Lidarr runs is made again on the next lookup.
+- The source's one-day in-memory cache of album types is gone; the disk cache covers it.
 
-Tests: the API client (not-found, errors, failed requests, token header and rate limits, paging, missing pages, the 100-page limit, stopping at the end of own releases and falling back to a full read, reading bootlegs from the end, the spent-limit pause, one retry), ID parsing, format and status classification (multi-format and shortened entries, DVD-Audio), positions, durations, dates, release mapping (index tracks), missing pressings, the monitored pressing, the token field, artist filtering, pressing order and limit, standalone releases, and search. Each rule was broken on purpose and caught by a test. Checked live against Discogs without a token.
+Tests: round trip, expiry, housekeeping, entries written for other resource fields, a deleted cache file, an unusable cache, a list page without a page count, a list of no pages, an answer without an ID, cache hits, the key and lifetime of each cached lookup, what is and isn't stored, and searches. Each rule was broken on purpose and caught by a test. Checked live: the first lookup took 677 ms, the cached one 2 ms.
 
 ## Summary by CodeRabbit
 
 * **New Features**
-  * Added Discogs as a metadata source for searching artists and albums and retrieving artist, album, release, and track details.
-  * Discogs results respect metadata profile settings, including audio formats and bootleg preferences.
-  * Added an optional API token and a configurable limit for album pressings; set the limit to zero to load all pressings.
-  * Search results can reuse artists and albums already in your library.
+  * Discogs metadata lookups are cached to reduce repeat requests. Cache entries expire automatically, with different lifetimes for different types of metadata.
 * **Bug Fixes**
-  * Discogs requests now handle rate limits with pauses and retries, and report unavailable or incomplete results clearly.
+  * Unavailable or unsuccessful lookups aren’t cached, so later requests can try again.
+  * Expired or incompatible cached data is ignored, and cleanup preserves unexpired entries.
+  * Discogs list requests now report unavailable results when pagination information is missing, rather than treating the list as complete.

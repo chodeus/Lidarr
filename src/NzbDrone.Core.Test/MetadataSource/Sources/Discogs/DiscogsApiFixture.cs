@@ -99,6 +99,21 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
         }
 
         [Test]
+        public void an_answer_without_an_id_means_discogs_is_unavailable()
+        {
+            const string unnamed = "{\"name\":\"Placeholder Artist\",\"artists\":[{\"id\":3,\"name\":\"Placeholder Artist\"}]}";
+            GivenResponse<DiscogsArtistResource>(HttpStatusCode.OK, r => unnamed);
+            GivenResponse<DiscogsMasterResource>(HttpStatusCode.OK, r => unnamed);
+            GivenResponse<DiscogsReleaseResource>(HttpStatusCode.OK, r => unnamed);
+
+            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetArtist(3, Token));
+            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetMaster(4, Token));
+            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetRelease(5, Token));
+
+            Mocker.GetMock<IDiscogsCache>().Invocations.Where(i => i.Method.Name == nameof(IDiscogsCache.Set)).Should().BeEmpty();
+        }
+
+        [Test]
         public void a_failed_request_means_discogs_is_unavailable()
         {
             Mocker.GetMock<IHttpClient>()

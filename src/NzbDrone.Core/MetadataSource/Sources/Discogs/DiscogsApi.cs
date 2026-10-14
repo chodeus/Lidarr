@@ -52,7 +52,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
         public DiscogsArtistResource GetArtist(long id, string token)
         {
             var resource = "artists/" + id;
-            return Cached(resource, ListLifetime, () => Get<DiscogsArtistResource>(resource, token));
+            return Cached(resource, ListLifetime, () => Identified(Get<DiscogsArtistResource>(resource, token), resource, a => a.Id));
         }
 
         public List<DiscogsArtistReleaseResource> GetArtistOwnReleases(long id, string token)
@@ -72,7 +72,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
         public DiscogsMasterResource GetMaster(long id, string token)
         {
             var resource = "masters/" + id;
-            return Cached(resource, ReleaseLifetime, () => Credited(Get<DiscogsMasterResource>(resource, token), resource, m => m.Artists));
+            return Cached(resource, ReleaseLifetime, () => Credited(Identified(Get<DiscogsMasterResource>(resource, token), resource, m => m.Id), resource, m => m.Artists));
         }
 
         public List<DiscogsVersionResource> GetMasterVersions(long id, string token)
@@ -84,7 +84,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
         public DiscogsReleaseResource GetRelease(long id, string token)
         {
             var resource = "releases/" + id;
-            return Cached(resource, ReleaseLifetime, () => Credited(Get<DiscogsReleaseResource>(resource, token), resource, r => r.Artists));
+            return Cached(resource, ReleaseLifetime, () => Credited(Identified(Get<DiscogsReleaseResource>(resource, token), resource, r => r.Id), resource, r => r.Artists));
         }
 
         public List<DiscogsSearchResultResource> Search(string type, string query, string artist, int limit, string token)
@@ -181,6 +181,13 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
             }
 
             throw TooManyPages("bootlegs", resource);
+        }
+
+        // An answer that names no record, such as an empty body, is unreadable rather than a record to keep
+        private static T Identified<T>(T resource, string path, Func<T, long> id)
+            where T : class
+        {
+            return resource == null || id(resource) > 0 ? resource : throw new MetadataSourceUnavailableException("Discogs returned {0} without an ID", path);
         }
 
         // Discogs credits every master and release, if only as "Unknown Artist", so one without a credit is an unreadable answer

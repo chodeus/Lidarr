@@ -1,27 +1,23 @@
-# Add metadata source profiles
+# Keep other metadata sources' IDs out of MusicBrainz tags, matching, links and searches
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`fix/profile-order-and-tags`](https://github.com/chodeus/Lidarr/tree/fix/profile-order-and-tags). Reviewed in [#32](https://github.com/chodeus/Lidarr/pull/32), [#40](https://github.com/chodeus/Lidarr/pull/40), [#41](https://github.com/chodeus/Lidarr/pull/41) and [#50](https://github.com/chodeus/Lidarr/pull/50).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`feat/metadata-source-profiles`](https://github.com/chodeus/Lidarr/tree/feat/metadata-source-profiles). Reviewed in [#33](https://github.com/chodeus/Lidarr/pull/33).
 
-- Metadata sources are providers, in a new Metadata Sources section on Settings → Metadata. Built in: Lidarr's own server, and any server that answers like it (URL setting, with Test). Plugins can add sources by implementing `IMetadataSource`.
-- Metadata source profiles (Settings → Profiles) choose the sources per artist by tag, like tagging profiles. Each source is Primary or Fallback. Primaries combine with Or (the first that has the artist) or And (every primary; albums only some of them have are added). The default profile has no tags.
-- Lookups go through the artist's profile. A source that throws anything but not-found counts as down; not-found is reported only when every source said so, otherwise the outage is rethrown. Fallbacks are asked when the primaries are down or don't have the artist. With And, a primary that is down fails the lookup, so a refresh never sees a partial album list. An album answer without releases counts as not having the album, so the next source is asked; if no source has releases the first answer is used, and an outage still wins.
-- Only sources whose ID kind matches the ID are asked (the built-in sources use MusicBrainz IDs). The primaries in a profile must share one ID kind. An ID no source in the profile can handle goes to Lidarr's server if it is a MusicBrainz ID; otherwise the lookup fails as unavailable.
-- Search uses the default profile. Each result carries the name of the source that returned it, shown as a label on the add-new page.
-- Migration 909 adds `MetadataSources` and `MetadataSourceProfiles`, seeded with Lidarr's server and a default profile that has it as the only primary, so lookups are unchanged until a profile is edited.
-- The five lookup interfaces are registered to the profile-aware lookup after plugins load, so a plugin's own lookup can't bypass the profiles.
-- Deleting a source removes it from every profile.
-- A tag a profile uses counts as in use: the Tags screen lists the profile, the tag cannot be deleted, and the unused-tag cleanup keeps it. `TagDetails.MetadataSourceProfileIds` starts empty, so a `TagDetails` built by a plugin that sets only develop's lists doesn't make `InUse` throw.
-- Profile order (add, drag, delete) uses the shared `ProfileOrder` from #12, like delay and tagging profiles; the default profile stays last.
-- Each custom server keeps its own changed-albums cache, so one server's list never answers for another.
-- `SearchController` keeps its 3-argument constructor.
+Groundwork for metadata sources whose IDs are not MusicBrainz IDs (Deezer and Discogs come next). Lidarr treated every foreign ID as a MusicBrainz ID:
 
-Tests: lookup routing, Or and And, fallback, outage versus not-found, album answers without releases, search fallback and labels, changed-ID lists, profile matching by tag and order, the seeded default, source settings, and the container wiring (profiles win over a plugin's lookup, no other lookup stays registered, the search controller gets the labels), and a `TagDetails` with only develop's lists set not counting as in use. Each rule was broken on purpose and caught by a test.
+- File tags: a MusicBrainz tag gets the source's ID only when it is a MusicBrainz ID. Otherwise the file keeps the MusicBrainz ID it already has, for both writing and the retag preview.
+- Import matching: the recording ID, fingerprint and release ID checks count only against MusicBrainz candidates, since tags and AcoustID carry MusicBrainz IDs only. A `MetadataSourceUnavailableException` during a remote search is skipped like a SkyHook error, and that exception now answers 503.
+- Search: an ID search (`mbid:`, `lidarr:`, `lidarrid:`, or a source's own `deezer:…`) goes only to sources of that ID family, never to the others as text.
+- `ArtistRepository.FindById` matches old IDs quoted, as `ReleaseRepository` already does, so a short ID can't match inside a longer one (the JSON column is searched with LIKE).
+- Links: artist and album pages and search results link to MusicBrainz only for MusicBrainz IDs; search results otherwise use the source's first link. Discord follows the same rule, and Kodi `.nfo` files carry MusicBrainz IDs only.
+- Unchanged: the API's `mbId` artist lookup, the webhook and custom script `MBId` fields, and the import list exclusion GUID check.
 
-Checked: Core and Host suites on this branch, with only the known AudioTagService, ImportListService and UpgradeMediaFileService failures; the settings screens (add, test, save, delete), profile editing and search labels in a local run.
+Tests: tag writing keeps the file's IDs for another source and writes a MusicBrainz source's IDs (MP3 and FLAC); track, fingerprint and release distances count only against MusicBrainz candidates; an unavailable source is skipped in remote candidates; ID searches route by family; the quoted old ID lookup; Discord and Kodi links. Each rule was broken on purpose and caught by a test. `TrackMappingFixture` tracks now carry MusicBrainz recording IDs, like real data.
+
+Checked: Core and Host suites, with only the known AudioTagService, ImportListService and UpgradeMediaFileService failures; frontend type check and lint.
 
 ## Summary by CodeRabbit
 
-* **New Features**
-  * Added configurable metadata sources, including support for custom server URLs, connection testing, and enable/disable controls.
-  * Added metadata source profiles with tags, primary or fallback sources, configurable search behavior, and drag-and-drop reordering.
-  * Search results now show the metadata source when that information is available.
+* **Bug Fixes**
+  * Album and artist links in details, search results, and Discord notifications now use MusicBrainz when the ID is valid, or an available link from another source. Links are omitted when no valid destination is available.
+  * Audio tags preserve existing MusicBrainz IDs when a metadata source provides a non-MusicBrainz ID; NFO files include only valid MusicBrainz IDs.
+  * ID-based searches now route to the relevant metadata source family. Track matching ignores non-MusicBrainz IDs, and matching can continue when remote album search is unavailable.

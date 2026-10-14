@@ -129,7 +129,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
                 var result = GetPage<DiscogsArtistReleasesPageResource>(resource, token, page);
                 var ownOnPage = result.Releases.TakeWhile(IsOwn).ToList();
                 var others = result.Releases.Skip(ownOnPage.Count).ToList();
-                var lastPage = result.Pagination == null || page >= result.Pagination.Pages;
+                var lastPage = page >= result.Pagination.Pages;
 
                 if (others.Any(IsOwn) || (page == 1 && ownOnPage.Count == 0 && !lastPage))
                 {
@@ -137,7 +137,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
                 }
 
                 // One look past the limit, so an artist with too many releases of their own fails without reading them all
-                if (page == 1 && result.Pagination?.Pages > MaxPages && GetPage<DiscogsArtistReleasesPageResource>(resource, token, MaxPages + 1).Releases.Take(1).Any(IsOwn))
+                if (page == 1 && result.Pagination.Pages > MaxPages && GetPage<DiscogsArtistReleasesPageResource>(resource, token, MaxPages + 1).Releases.Take(1).Any(IsOwn))
                 {
                     throw TooManyPages("own releases", resource);
                 }
@@ -158,7 +158,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
         private List<DiscogsArtistReleaseResource> ReadBootlegs(string resource, string token)
         {
             var first = GetPage<DiscogsArtistReleasesPageResource>(resource, token, 1);
-            var lastPage = Math.Max(first.Pagination?.Pages ?? 1, 1);
+            var lastPage = Math.Max(first.Pagination.Pages, 1);
             var bootlegs = new List<DiscogsArtistReleaseResource>();
 
             for (var page = lastPage; page >= 1 && page > lastPage - MaxPages; page--)
@@ -216,14 +216,14 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
                 var result = GetPage<TPage>(resource, token, page);
 
                 // Checked on the first page, so a list too long to read costs one request
-                if (result.Pagination?.Pages > MaxPages)
+                if (result.Pagination.Pages > MaxPages)
                 {
                     throw new MetadataSourceUnavailableException("Discogs lists {0} pages for {1}, more than the {2} this source reads", result.Pagination.Pages, resource, MaxPages);
                 }
 
                 all.AddRange(items(result));
 
-                if (result.Pagination == null || page >= result.Pagination.Pages)
+                if (page >= result.Pagination.Pages)
                 {
                     return all;
                 }
@@ -232,11 +232,14 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
             throw new MetadataSourceUnavailableException("Discogs request for {0} failed: more than {1} pages", resource, MaxPages);
         }
 
+        // A page without pagination can't say whether the list is complete, so it counts as Discogs being down
         private TPage GetPage<TPage>(string resource, string token, int page)
             where TPage : DiscogsPageResource, new()
         {
-            return Get<TPage>(resource, token, ("page", page.ToString()), ("per_page", PageSize.ToString()))
+            var result = Get<TPage>(resource, token, ("page", page.ToString()), ("per_page", PageSize.ToString()))
                 ?? throw new MetadataSourceUnavailableException("Discogs request for {0} failed: page {1} was not found", resource, page);
+
+            return result.Pagination != null ? result : throw new MetadataSourceUnavailableException("Discogs returned page {0} of {1} without pagination", page, resource);
         }
 
         // Null for a genuine not-found; anything else that goes wrong means Discogs is unavailable

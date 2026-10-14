@@ -243,10 +243,22 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
         {
             GivenResponse<DiscogsSearchPageResource>(HttpStatusCode.OK, r => "{\"results\":[{\"id\":3}]}");
 
-            Subject.Search("artist", "placeholder", null, 5, Token);
+            Subject.Search("artist", "placeholder", null, 5, Token).Should().ContainSingle();
 
-            Mocker.GetMock<IDiscogsCache>().Verify(c => c.Set(It.IsAny<string>(), It.IsAny<DiscogsSearchPageResource>(), It.IsAny<TimeSpan>()), Times.Never());
-            Mocker.GetMock<IDiscogsCache>().Verify(c => c.TryGet(It.IsAny<string>(), out It.Ref<DiscogsSearchPageResource>.IsAny), Times.Never());
+            Mocker.GetMock<IDiscogsCache>().Invocations.Should().BeEmpty();
+        }
+
+        [Test]
+        public void a_list_page_without_pagination_means_discogs_is_unavailable()
+        {
+            GivenResponse<DiscogsArtistReleasesPageResource>(HttpStatusCode.OK, r => "{\"releases\":[{\"id\":1,\"role\":\"Main\"}]}");
+            GivenResponse<DiscogsVersionsPageResource>(HttpStatusCode.OK, r => "{\"versions\":[{\"id\":5}]}");
+
+            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetArtistOwnReleases(3, Token));
+            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetArtistBootlegs(3, Token));
+            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetMasterVersions(4, Token));
+
+            Mocker.GetMock<IDiscogsCache>().Invocations.Where(i => i.Method.Name == nameof(IDiscogsCache.Set)).Should().BeEmpty();
         }
 
         [Test]

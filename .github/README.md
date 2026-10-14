@@ -1,21 +1,25 @@
-# Add Deezer as a built-in metadata source
+# Add Discogs as a built-in metadata source
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`feat/metadata-source-ids`](https://github.com/chodeus/Lidarr/tree/feat/metadata-source-ids). Reviewed in [#34](https://github.com/chodeus/Lidarr/pull/34).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`feat/deezer-metadata-source`](https://github.com/chodeus/Lidarr/tree/feat/deezer-metadata-source). Reviewed in [#35](https://github.com/chodeus/Lidarr/pull/35).
 
-- Deezer as a built-in metadata source, written from Deezer's public API (no account needed). IDs are `deezer:<number>`; only numeric IDs are accepted, since Deezer answers `artist/abc` with some artist.
-- Deezer reports errors, including not-found, as HTTP 200 with an error object: code 800 is a genuine not-found, anything else (quota, server) counts as Deezer being down. Requests are spaced 110 ms apart to stay under Deezer's 50 per 5 seconds; lists are read 100 at a time.
-- Artist info lists the artist's albums filtered by the metadata profile. Album info carries one official release with its tracks, numbered across discs from `disk_number` and `track_position`. Record types map to Album, EP and Single; `compile` is an Album with the Compilation type.
-- Search by name, by `deezer:<id>`, and album search by artist and title through Deezer's field search. Album search results lack the release date, so each is read in full (10 at most).
-- `MetadataProfileAlbumFilter` holds the metadata profile's album type and status rules; `SkyHookProxy.FilterAlbums` now uses it, unchanged in behaviour, so every source filters the same way.
+- Discogs as a built-in metadata source, written from Discogs's public API. IDs are `discogs:artist:<n>`, `discogs:master:<n>` and `discogs:release:<n>`; Discogs has no track IDs, so tracks use the release ID and track index.
+- Settings: an optional personal access token (sent in a header, never the URL) and Pressings Per Album (default 25, 0 = every pressing). A master album loads its main release, then the pressings most people own. The settings test marks the Token field only when Discogs rejects the token.
+- Artist info keeps the artist's own releases (role Main) that are audio and allowed by the metadata profile. A master's type comes from its main release. Promos, samplers and test pressings map to Promotion, unofficial releases to Bootleg; video and data formats are dropped, but DVD-Audio and Blu-ray Audio count as audio. The artist list joins an entry's formats with " + " and shortens names (`Comp`, `TP`, `W/Lbl`, `Maxi`, `DVD-V`); both are read.
+- Discogs lists an artist's own releases before every other credit, so the list is read only up to the first other role (Radiohead: 3 of 33 pages). If own releases ever appear after another role, or page 1 starts with another role, the whole list is read instead.
+- Bootlegs (role UnofficialRelease) come after every other credit, so they are read from the last page back, and only when the metadata profile allows Bootleg (Radiohead: 630 bootlegs in 8 requests). Every bootleg credit counts as Bootleg, since the artist list writes the format many ways ("Unofficial", "P/Unofficial", "CD + DVD-V + Unofficial"). "Unofficial" also beats "Promo" when a release has both.
+- Lists are never returned partly: a missing page fails the lookup, and so does a list past 100 pages (an artist's own releases past 100 pages fail after one look at page 101, so Bach costs 2 requests, not 100). A pressing Discogs can't find fails the album lookup too.
+- Index entries, which hold a classical work's movements, expand into their tracks, named `Work: Movement`. The monitored pressing is picked from those with tracks.
+- Track positions: vinyl sides pair up on a disc (A and B are disc 1), CD positions read disc-track. Durations, unknown date parts and Discogs's `(2)` name numbers are handled.
+- Rate limit: requests are spaced for 60 a minute with a token and 25 without. When `X-Discogs-Ratelimit-Remaining` reaches 0, the next request waits out the 60-second window; a 429 waits for `Retry-After` (or 60 seconds) and retries once. A not-found is null; anything else counts as Discogs being down.
 
-Tests: the API client (not-found, other errors, failed requests, paging, rate limit), ID parsing, artist and album mapping, profile filtering, search by ID and text, and the shared filter. Each rule was broken on purpose and caught by a test; the existing SkyHook filter tests also catch the filter rules. Checked live against Deezer: artist, album, search and ID lookup.
+Tests: the API client (not-found, errors, failed requests, token header and rate limits, paging, missing pages, the 100-page limit, stopping at the end of own releases and falling back to a full read, reading bootlegs from the end, the spent-limit pause, one retry), ID parsing, format and status classification (multi-format and shortened entries, DVD-Audio), positions, durations, dates, release mapping (index tracks), missing pressings, the monitored pressing, the token field, artist filtering, pressing order and limit, standalone releases, and search. Each rule was broken on purpose and caught by a test. Checked live against Discogs without a token.
 
 ## Summary by CodeRabbit
 
 * **New Features**
-  * Added Deezer as a metadata source for artist and album lookups and searches.
-  * Deezer results include album details, track listings, and artist information. Album selection follows the configured metadata profile.
-  * Searches can look up Deezer IDs directly or find artists and albums by name.
-* **Improvements**
-  * Album metadata from Deezer is retrieved across multiple pages, with track order preserved across discs.
-  * Metadata profile rules are applied consistently when filtering albums from metadata sources.
+  * Added Discogs as a metadata source for searching artists and albums and retrieving artist, album, release, and track details.
+  * Discogs results respect metadata profile settings, including audio formats and bootleg preferences.
+  * Added an optional API token and a configurable limit for album pressings; set the limit to zero to load all pressings.
+  * Search results can reuse artists and albums already in your library.
+* **Bug Fixes**
+  * Discogs requests now handle rate limits with pauses and retries, and report unavailable or incomplete results clearly.

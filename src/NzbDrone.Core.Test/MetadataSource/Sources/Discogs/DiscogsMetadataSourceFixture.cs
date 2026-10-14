@@ -67,6 +67,44 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
             Subject.CanHandleId(foreignId).Should().Be(expected);
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void bootlegs_are_read_only_when_the_profile_allows_them(bool allowed)
+        {
+            var profile = MetadataProfileAlbumFilterFixture.AlbumsOnlyProfile();
+            profile.ReleaseStatuses.Single(s => s.ReleaseStatus.Name == "Bootleg").Allowed = allowed;
+            Mocker.GetMock<IMetadataProfileService>().Setup(s => s.Get(1)).Returns(profile);
+            Mocker.GetMock<IDiscogsApi>().Setup(a => a.GetArtistOwnReleases(3, It.IsAny<string>())).Returns(new List<DiscogsArtistReleaseResource>
+            {
+                new() { Id = 15, Type = "release", Role = "Main", Title = "Standalone", Format = "CD, Album" }
+            });
+            Mocker.GetMock<IDiscogsApi>().Setup(a => a.GetArtistBootlegs(3, It.IsAny<string>())).Returns(new List<DiscogsArtistReleaseResource>
+            {
+                new() { Id = 16, Type = "release", Role = "UnofficialRelease", Title = "Bootleg", Format = "CD, Album, Unofficial" }
+            });
+
+            var artist = Subject.GetArtistInfo("discogs:artist:3", 1);
+
+            artist.Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal(allowed ? new[] { "discogs:release:15", "discogs:release:16" } : new[] { "discogs:release:15" });
+            Mocker.GetMock<IDiscogsApi>().Verify(a => a.GetArtistBootlegs(3, It.IsAny<string>()), allowed ? Times.Once() : Times.Never());
+        }
+
+        [Test]
+        public void a_bootleg_credit_counts_as_a_bootleg_whatever_its_format_says()
+        {
+            var profile = MetadataProfileAlbumFilterFixture.AlbumsOnlyProfile();
+            profile.ReleaseStatuses.Single(s => s.ReleaseStatus.Name == "Official").Allowed = false;
+            profile.ReleaseStatuses.Single(s => s.ReleaseStatus.Name == "Bootleg").Allowed = true;
+            Mocker.GetMock<IMetadataProfileService>().Setup(s => s.Get(1)).Returns(profile);
+            Mocker.GetMock<IDiscogsApi>().Setup(a => a.GetArtistOwnReleases(3, It.IsAny<string>())).Returns(new List<DiscogsArtistReleaseResource>());
+            Mocker.GetMock<IDiscogsApi>().Setup(a => a.GetArtistBootlegs(3, It.IsAny<string>())).Returns(new List<DiscogsArtistReleaseResource>
+            {
+                new() { Id = 17, Type = "release", Role = "UnofficialRelease", Title = "Bootleg", Format = "CD + DVD-V + Unofficial" }
+            });
+
+            Subject.GetArtistInfo("discogs:artist:3", 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("discogs:release:17");
+        }
+
         [Test]
         public void artist_info_keeps_the_artists_own_audio_releases_the_profile_allows()
         {

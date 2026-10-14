@@ -9,7 +9,7 @@ using NzbDrone.Core.Music;
 
 namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 {
-    public class DiscogsFormatKind
+    public record DiscogsFormatKind
     {
         public string PrimaryType { get; init; }
         public List<SecondaryAlbumType> SecondaryTypes { get; init; }
@@ -37,6 +37,8 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
         private static readonly Regex VinylSide = new Regex(@"^([A-Z])\d*$", RegexOptions.Compiled);
         private static readonly Regex FormatQuantity = new Regex(@"^\d+x", RegexOptions.Compiled);
 
+        // The artist list shortens Unofficial Release to Unofficial
+        private static readonly HashSet<string> UnofficialDescriptions = new(StringComparer.OrdinalIgnoreCase) { "Unofficial Release", "Unofficial" };
         private static readonly HashSet<string> PromoDescriptions = new(StringComparer.OrdinalIgnoreCase) { "Promo", "Advance", "Smplr", "Sampler", "Test Pressing", "Transcription", "White Label" };
 
         private static readonly HashSet<string> NonAudioFormats = new(StringComparer.OrdinalIgnoreCase)
@@ -86,7 +88,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
             {
                 PrimaryType = described.Contains("EP") ? PrimaryAlbumType.EP.Name : described.Contains("Single") || described.Contains("Maxi-Single") ? PrimaryAlbumType.Single.Name : PrimaryAlbumType.Album.Name,
                 SecondaryTypes = described.Contains("Compilation") ? new List<SecondaryAlbumType> { SecondaryAlbumType.Compilation } : new List<SecondaryAlbumType>(),
-                ReleaseStatus = described.Overlaps(PromoDescriptions) ? ReleaseStatus.Promotion.Name : described.Contains("Unofficial Release") ? ReleaseStatus.Bootleg.Name : ReleaseStatus.Official.Name,
+                ReleaseStatus = described.Overlaps(UnofficialDescriptions) ? ReleaseStatus.Bootleg.Name : described.Overlaps(PromoDescriptions) ? ReleaseStatus.Promotion.Name : ReleaseStatus.Official.Name,
                 IsAudio = !nameList.Any() || audioName != null,
                 MediaFormat = audioName == null ? "Unknown" : audioName == "File" ? "Digital Media" : audioName
             };

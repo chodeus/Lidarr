@@ -43,6 +43,8 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
         [TestCase("Vinyl, 7\", Single", "Single", "Official", "Vinyl", true)]
         [TestCase("File, MP3, Album", "Album", "Official", "Digital Media", true)]
         [TestCase("CD, Album, Unofficial Release", "Album", "Bootleg", "CD", true)]
+        [TestCase("CD, Unofficial", "Album", "Bootleg", "CD", true)]
+        [TestCase("CD, EP, Promo, Unofficial Release", "EP", "Bootleg", "CD", true)]
         [TestCase("VHS, Promo", "Album", "Promotion", "Unknown", false)]
         [TestCase("Floppy, 3,5\"", "Album", "Official", "Unknown", false)]
         public void classifies_an_artist_list_format(string format, string primaryType, string status, string mediaFormat, bool isAudio)

@@ -6,30 +6,48 @@ using NzbDrone.Core.Music;
 
 namespace NzbDrone.Core.MetadataSource.Sources
 {
-    // Which of a supplementary source's albums the artist doesn't have yet
-    public static class SupplementaryAlbums
+    // Which of another source's albums the artist doesn't have yet
+    public static class MissingAlbums
     {
         private static readonly Regex EditionSuffix = new Regex(@"\s*[\(\[][^\)\]]*\b(?:deluxe|remaster(?:ed)?|edition|expanded|anniversary|bonus|special|collector'?s)\b[^\)\]]*[\)\]]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-        public static List<Album> Missing(IEnumerable<Album> known, IEnumerable<Album> candidates)
+        // An album the artist has, or had before a merge, can come back under another title
+        public static List<Album> ById(IEnumerable<Album> known, IEnumerable<Album> candidates)
         {
-            var knownAlbums = known.ToList();
-            var keys = knownAlbums.Select(Key).ToList();
-            var ids = knownAlbums.SelectMany(IdsOf).ToHashSet();
+            var ids = known.SelectMany(IdsOf).ToHashSet();
             var missing = new List<Album>();
 
             foreach (var album in candidates)
             {
+                if (IdsOf(album).Any(ids.Contains))
+                {
+                    continue;
+                }
+
+                ids.UnionWith(IdsOf(album));
+                missing.Add(album);
+            }
+
+            return missing;
+        }
+
+        // For a source whose IDs needn't match the artist's, where the same title is the same album
+        public static List<Album> ByIdOrTitle(IEnumerable<Album> known, IEnumerable<Album> candidates)
+        {
+            var knownAlbums = known.ToList();
+            var keys = knownAlbums.Select(Key).ToList();
+            var missing = new List<Album>();
+
+            foreach (var album in ById(knownAlbums, candidates))
+            {
                 var key = Key(album);
 
-                // A source with the same kind of IDs can list an album the artist has, or had before a merge, under another title
-                if (IdsOf(album).Any(ids.Contains) || keys.Any(k => SameAlbum(k, key)))
+                if (keys.Any(k => SameAlbum(k, key)))
                 {
                     continue;
                 }
 
                 keys.Add(key);
-                ids.UnionWith(IdsOf(album));
                 missing.Add(album);
             }
 

@@ -10,7 +10,7 @@ using NzbDrone.Core.Test.Framework;
 namespace NzbDrone.Core.Test.MetadataSource.Sources
 {
     [TestFixture]
-    public class SupplementaryAlbumsFixture : CoreTest
+    public class MissingAlbumsFixture : CoreTest
     {
         private static Album Album(string title, int year)
         {
@@ -19,7 +19,7 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
 
         private static IEnumerable<string> Missing(List<Album> known, params Album[] candidates)
         {
-            return SupplementaryAlbums.Missing(known, candidates).Select(a => a.Title + " " + a.ReleaseDate?.Year);
+            return MissingAlbums.ByIdOrTitle(known, candidates).Select(a => a.Title + " " + a.ReleaseDate?.Year);
         }
 
         [Test]
@@ -72,6 +72,14 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
             var known = new List<Album> { WithIds(Album("First Album", 2001), knownId, knownOldId) };
 
             Missing(known, WithIds(Album("Renamed Album", 2005), candidateId, candidateOldId)).Should().BeEmpty();
+        }
+
+        [Test]
+        public void by_id_adds_an_album_with_a_known_title_and_a_new_id()
+        {
+            var known = new List<Album> { WithIds(Album("First Album", 2001), "album-1", null) };
+
+            MissingAlbums.ById(known, new[] { WithIds(Album("First Album", 2001), "album-2", null) }).Select(a => a.ForeignAlbumId).Should().Equal("album-2");
         }
 
         [Test]

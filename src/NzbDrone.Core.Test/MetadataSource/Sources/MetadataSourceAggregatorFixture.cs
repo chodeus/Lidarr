@@ -131,6 +131,21 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
             result.Albums.Value[1].Should().BeSameAs(firstArtist.Albums.Value[1]);
         }
 
+        [TestCase("album-0", "album-0", null)]
+        [TestCase(null, "album-2", "album-1")]
+        public void and_skips_an_album_the_first_source_has_under_a_merged_id(string firstOldId, string secondId, string secondOldId)
+        {
+            _profile.PrimaryCombination = MetadataSourceCombination.And;
+            var firstArtist = ArtistWith("album-1");
+            var secondArtist = ArtistWith(secondId);
+            firstArtist.Albums.Value[0].OldForeignAlbumIds.AddRange(new[] { firstOldId }.Where(id => id != null));
+            secondArtist.Albums.Value[0].OldForeignAlbumIds.AddRange(new[] { secondOldId }.Where(id => id != null));
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(firstArtist);
+            GivenSource(2, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(secondArtist);
+
+            Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("album-1");
+        }
+
         [Test]
         public void and_reports_the_outage_instead_of_merging_without_a_down_source()
         {
@@ -183,6 +198,29 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
             });
 
             Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("album-1", "album-2");
+        }
+
+        [Test]
+        public void a_supplementary_source_of_the_same_kind_adds_an_album_with_a_known_title_and_a_new_id()
+        {
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(ArtistWith("album-1"));
+            GivenSource(2, MetadataSourceRole.Supplementary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(new Artist
+            {
+                Albums = new List<Album> { NamedAlbum("album-2", "Album Title", 2001) }
+            });
+
+            Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("album-1", "album-2");
+        }
+
+        [Test]
+        public void a_supplementary_source_of_the_same_kind_that_is_down_fails_the_lookup()
+        {
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(ArtistWith("album-1"));
+            GivenSource(2, MetadataSourceRole.Supplementary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Throws(new TimeoutException("Source 2 is down"));
+
+            Assert.Throws<TimeoutException>(() => Subject.GetArtistInfo(MusicBrainzId, 1));
+
+            Mocker.GetMock<IAlbumService>().Verify(s => s.GetAlbumsByArtist(It.IsAny<int>()), Times.Never());
         }
 
         [Test]

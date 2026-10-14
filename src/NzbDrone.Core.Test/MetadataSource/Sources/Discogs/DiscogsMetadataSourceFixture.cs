@@ -70,13 +70,12 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
         [Test]
         public void artist_info_keeps_the_artists_own_audio_releases_the_profile_allows()
         {
-            Mocker.GetMock<IDiscogsApi>().Setup(a => a.GetArtistReleases(3, It.IsAny<string>())).Returns(new List<DiscogsArtistReleaseResource>
+            Mocker.GetMock<IDiscogsApi>().Setup(a => a.GetArtistOwnReleases(3, It.IsAny<string>())).Returns(new List<DiscogsArtistReleaseResource>
             {
                 new() { Id = 10, Type = "master", Role = "Main", Title = "Album", MainRelease = 100 },
                 new() { Id = 11, Type = "master", Role = "Main", Title = "Single", MainRelease = 110 },
                 new() { Id = 12, Type = "release", Role = "Main", Title = "Promo", Format = "CD, Album, Promo" },
                 new() { Id = 13, Type = "release", Role = "Main", Title = "Video", Format = "VHS, Album" },
-                new() { Id = 14, Type = "release", Role = "Appearance", Title = "Guest", Format = "CD, Album" },
                 new() { Id = 15, Type = "release", Role = "Main", Title = "Standalone", Format = "CD, Album" }
             });
             Mocker.GetMock<IDiscogsApi>().Setup(a => a.GetRelease(100, It.IsAny<string>())).Returns(Release(100, "CD", "Album"));
@@ -90,7 +89,7 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
         [Test]
         public void a_masters_type_is_read_once()
         {
-            Mocker.GetMock<IDiscogsApi>().Setup(a => a.GetArtistReleases(3, It.IsAny<string>())).Returns(new List<DiscogsArtistReleaseResource>
+            Mocker.GetMock<IDiscogsApi>().Setup(a => a.GetArtistOwnReleases(3, It.IsAny<string>())).Returns(new List<DiscogsArtistReleaseResource>
             {
                 new() { Id = 10, Type = "master", Role = "Main", Title = "Album", MainRelease = 100 }
             });

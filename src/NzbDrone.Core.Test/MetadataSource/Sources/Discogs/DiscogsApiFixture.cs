@@ -145,12 +145,71 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
         public void artist_releases_are_read_page_by_page()
         {
             GivenResponse<DiscogsArtistReleasesPageResource>(HttpStatusCode.OK, r => r.Url.Query.Contains("page=1&")
-                ? "{\"pagination\":{\"page\":1,\"pages\":2},\"releases\":[{\"id\":1}]}"
-                : "{\"pagination\":{\"page\":2,\"pages\":2},\"releases\":[{\"id\":2}]}");
+                ? Releases(2, "Main:1")
+                : Releases(2, "Main:2"));
 
-            Subject.GetArtistReleases(3, Token).Select(r => r.Id).Should().Equal(1, 2);
+            Subject.GetArtistOwnReleases(3, Token).Select(r => r.Id).Should().Equal(1, 2);
 
             _requests.Should().HaveCount(2);
+        }
+
+        [Test]
+        public void own_releases_stop_at_the_first_other_credit()
+        {
+            GivenResponse<DiscogsArtistReleasesPageResource>(HttpStatusCode.OK, r => r.Url.Query.Contains("page=1&")
+                ? Releases(3, "Main:1")
+                : Releases(3, "Main:2", "Appearance:3"));
+
+            Subject.GetArtistOwnReleases(3, Token).Select(r => r.Id).Should().Equal(1, 2);
+
+            _requests.Should().HaveCount(2);
+        }
+
+        [Test]
+        public void a_list_with_own_releases_after_other_credits_is_read_in_full()
+        {
+            GivenResponse<DiscogsArtistReleasesPageResource>(HttpStatusCode.OK, r => Releases(1, "Main:1", "Appearance:2", "Main:3"));
+
+            Subject.GetArtistOwnReleases(3, Token).Select(r => r.Id).Should().Equal(1, 3);
+        }
+
+        [Test]
+        public void a_list_starting_with_other_credits_is_read_in_full()
+        {
+            GivenResponse<DiscogsArtistReleasesPageResource>(HttpStatusCode.OK, r => r.Url.Query.Contains("page=1&")
+                ? Releases(2, "Appearance:1")
+                : Releases(2, "Main:2"));
+
+            Subject.GetArtistOwnReleases(3, Token).Select(r => r.Id).Should().Equal(2);
+        }
+
+        [Test]
+        public void a_long_list_whose_own_releases_end_early_is_read_up_to_them()
+        {
+            GivenResponse<DiscogsArtistReleasesPageResource>(HttpStatusCode.OK, r => r.Url.Query.Contains("page=1&")
+                ? Releases(150, "Main:1")
+                : r.Url.Query.Contains("page=101&") ? Releases(150, "Appearance:101") : Releases(150, "Main:2", "Appearance:3"));
+
+            Subject.GetArtistOwnReleases(3, Token).Select(r => r.Id).Should().Equal(1, 2);
+
+            _requests.Should().HaveCount(3);
+        }
+
+        [Test]
+        public void own_releases_past_the_page_limit_fail_after_two_requests()
+        {
+            GivenResponse<DiscogsArtistReleasesPageResource>(HttpStatusCode.OK, r => Releases(150, "Main:1"));
+
+            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetArtistOwnReleases(3, Token));
+
+            _requests.Should().HaveCount(2);
+        }
+
+        private static string Releases(int pages, params string[] entries)
+        {
+            var releases = entries.Select(e => e.Split(':')).Select(e => $"{{\"id\":{e[1]},\"role\":\"{e[0]}\"}}");
+
+            return $"{{\"pagination\":{{\"pages\":{pages}}},\"releases\":[{string.Join(",", releases)}]}}";
         }
 
         [Test]
@@ -165,18 +224,18 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
         public void a_missing_later_page_means_discogs_is_unavailable()
         {
             GivenResponses<DiscogsArtistReleasesPageResource>(
-                (HttpStatusCode.OK, new HttpHeader(), r => "{\"pagination\":{\"page\":1,\"pages\":2},\"releases\":[{\"id\":1}]}"),
+                (HttpStatusCode.OK, new HttpHeader(), r => Releases(2, "Main:1")),
                 (HttpStatusCode.NotFound, new HttpHeader(), r => "{\"message\":\"Artist not found.\"}"));
 
-            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetArtistReleases(3, Token));
+            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetArtistOwnReleases(3, Token));
         }
 
         [Test]
         public void a_list_past_the_page_limit_fails_after_its_first_page()
         {
-            GivenResponse<DiscogsArtistReleasesPageResource>(HttpStatusCode.OK, r => "{\"pagination\":{\"page\":1,\"pages\":101},\"releases\":[{\"id\":1}]}");
+            GivenResponse<DiscogsVersionsPageResource>(HttpStatusCode.OK, r => "{\"pagination\":{\"page\":1,\"pages\":101},\"versions\":[{\"id\":1}]}");
 
-            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetArtistReleases(3, Token));
+            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetMasterVersions(3, Token));
 
             _requests.Should().HaveCount(1);
         }

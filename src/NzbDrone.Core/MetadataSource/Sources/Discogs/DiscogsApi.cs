@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using Newtonsoft.Json;
 using NzbDrone.Common.Extensions;
@@ -11,7 +12,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
     public interface IDiscogsApi
     {
         DiscogsArtistResource GetArtist(long id, string token);
-        List<DiscogsArtistReleaseResource> GetArtistReleases(long id, string token);
+        List<DiscogsArtistReleaseResource> GetArtistOwnReleases(long id, string token);
         DiscogsMasterResource GetMaster(long id, string token);
         List<DiscogsVersionResource> GetMasterVersions(long id, string token);
         DiscogsReleaseResource GetRelease(long id, string token);
@@ -24,6 +25,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
         private const string BaseUrl = "https://api.discogs.com";
         private const int PageSize = 100;
         private const int MaxPages = 100;
+        private const string OwnRole = "Main";
 
         private static readonly TimeSpan TokenRateLimit = TimeSpan.FromMilliseconds(1050);
         private static readonly TimeSpan AnonymousRateLimit = TimeSpan.FromMilliseconds(2500);
@@ -44,9 +46,12 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
             return Get<DiscogsArtistResource>("artists/" + id, token);
         }
 
-        public List<DiscogsArtistReleaseResource> GetArtistReleases(long id, string token)
+        public List<DiscogsArtistReleaseResource> GetArtistOwnReleases(long id, string token)
         {
-            return GetAll<DiscogsArtistReleasesPageResource, DiscogsArtistReleaseResource>("artists/" + id + "/releases", token, p => p.Releases);
+            var resource = "artists/" + id + "/releases";
+
+            return ReadOwnReleases(resource, token)
+                ?? GetAll<DiscogsArtistReleasesPageResource, DiscogsArtistReleaseResource>(resource, token, p => p.Releases).Where(IsOwn).ToList();
         }
 
         public DiscogsMasterResource GetMaster(long id, string token)
@@ -76,6 +81,51 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
             return Get<DiscogsSearchPageResource>("database/search", token, parameters.ToArray())?.Results ?? new List<DiscogsSearchResultResource>();
         }
 
+        // Discogs lists an artist's own releases before every other credit, so reading stops at the first other one.
+        // Null when the list breaks that order, so the caller reads all of it
+        private List<DiscogsArtistReleaseResource> ReadOwnReleases(string resource, string token)
+        {
+            var own = new List<DiscogsArtistReleaseResource>();
+
+            for (var page = 1; page <= MaxPages; page++)
+            {
+                var result = GetPage<DiscogsArtistReleasesPageResource>(resource, token, page);
+                var ownOnPage = result.Releases.TakeWhile(IsOwn).ToList();
+                var others = result.Releases.Skip(ownOnPage.Count).ToList();
+                var lastPage = result.Pagination == null || page >= result.Pagination.Pages;
+
+                if (others.Any(IsOwn) || (page == 1 && ownOnPage.Count == 0 && !lastPage))
+                {
+                    return null;
+                }
+
+                // One look past the limit, so an artist with too many releases of their own fails without reading them all
+                if (page == 1 && result.Pagination?.Pages > MaxPages && GetPage<DiscogsArtistReleasesPageResource>(resource, token, MaxPages + 1).Releases.Take(1).Any(IsOwn))
+                {
+                    throw TooManyOwnReleases(resource);
+                }
+
+                own.AddRange(ownOnPage);
+
+                if (others.Any() || lastPage)
+                {
+                    return own;
+                }
+            }
+
+            throw TooManyOwnReleases(resource);
+        }
+
+        private static bool IsOwn(DiscogsArtistReleaseResource release)
+        {
+            return release.Role == OwnRole;
+        }
+
+        private static MetadataSourceUnavailableException TooManyOwnReleases(string resource)
+        {
+            return new MetadataSourceUnavailableException("Discogs lists more than {0} pages of the artist's own releases for {1}, more than this source reads", MaxPages, resource);
+        }
+
         // Never a partial list: refresh would take it as complete and drop what is missing
         private List<TItem> GetAll<TPage, TItem>(string resource, string token, Func<TPage, List<TItem>> items)
             where TPage : DiscogsPageResource, new()
@@ -84,8 +134,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
             for (var page = 1; page <= MaxPages; page++)
             {
-                var result = Get<TPage>(resource, token, ("page", page.ToString()), ("per_page", PageSize.ToString()))
-                    ?? throw new MetadataSourceUnavailableException("Discogs request for {0} failed: page {1} was not found", resource, page);
+                var result = GetPage<TPage>(resource, token, page);
 
                 // Checked on the first page, so a list too long to read costs one request
                 if (result.Pagination?.Pages > MaxPages)
@@ -102,6 +151,13 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
             }
 
             throw new MetadataSourceUnavailableException("Discogs request for {0} failed: more than {1} pages", resource, MaxPages);
+        }
+
+        private TPage GetPage<TPage>(string resource, string token, int page)
+            where TPage : DiscogsPageResource, new()
+        {
+            return Get<TPage>(resource, token, ("page", page.ToString()), ("per_page", PageSize.ToString()))
+                ?? throw new MetadataSourceUnavailableException("Discogs request for {0} failed: page {1} was not found", resource, page);
         }
 
         // Null for a genuine not-found; anything else that goes wrong means Discogs is unavailable

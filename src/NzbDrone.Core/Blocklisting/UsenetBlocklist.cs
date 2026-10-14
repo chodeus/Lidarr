@@ -45,19 +45,12 @@ namespace NzbDrone.Core.Blocklisting
 
         private bool SameNzb(Blocklist item, ReleaseInfo release)
         {
-            if (item.PublishedDate == release.PublishDate)
+            if (!HasSameIndexer(item, release.Indexer))
             {
-                return true;
+                return false;
             }
 
-            if (!HasSameIndexer(item, release.Indexer) &&
-                HasSamePublishedDate(item, release.PublishDate) &&
-                HasSameSize(item, release.Size))
-            {
-                return true;
-            }
-
-            return false;
+            return item.PublishedDate == release.PublishDate;
         }
 
         private bool HasSameIndexer(Blocklist item, string indexer)
@@ -68,29 +61,6 @@ namespace NzbDrone.Core.Blocklisting
             }
 
             return item.Indexer.Equals(indexer, StringComparison.InvariantCultureIgnoreCase);
-        }
-
-        private bool HasSamePublishedDate(Blocklist item, DateTime publishedDate)
-        {
-            if (!item.PublishedDate.HasValue)
-            {
-                return true;
-            }
-
-            return item.PublishedDate.Value.AddMinutes(-2) <= publishedDate &&
-                   item.PublishedDate.Value.AddMinutes(2) >= publishedDate;
-        }
-
-        private bool HasSameSize(Blocklist item, long size)
-        {
-            if (!item.Size.HasValue)
-            {
-                return true;
-            }
-
-            var difference = Math.Abs(item.Size.Value - size);
-
-            return difference <= 2.Megabytes();
         }
     }
 }

@@ -407,7 +407,7 @@ namespace NzbDrone.Core.MetadataSource.Sources
             return sources.Empty() ? LastResortRoute() : RouteOf(profile, sources);
         }
 
-        // An ID search goes only to sources that understand that kind of ID, never to the others as text
+        // Sent to other sources as plain text, an ID would bring back unrelated name matches
         private string IdFamilyOf(string query)
         {
             var id = query?.Trim() ?? string.Empty;

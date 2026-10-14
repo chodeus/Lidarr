@@ -1,6 +1,6 @@
 import ModelBase from 'App/ModelBase';
 
-export type MetadataSourceRole = 'primary' | 'fallback';
+export type MetadataSourceRole = 'primary' | 'fallback' | 'supplementary';
 
 export type MetadataSourceCombination = 'or' | 'and';
 

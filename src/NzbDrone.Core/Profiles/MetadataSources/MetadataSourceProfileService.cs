@@ -20,6 +20,7 @@ namespace NzbDrone.Core.Profiles.MetadataSources
         MetadataSourceProfile GetDefaultProfile();
         MetadataSourceProfile BestForTags(HashSet<int> tagIds);
         bool HasTaggedProfiles();
+        bool HasSupplementarySources();
         List<MetadataSourceProfile> Reorder(int id, int? afterId);
     }
 
@@ -29,13 +30,13 @@ namespace NzbDrone.Core.Profiles.MetadataSources
 
         private readonly IMetadataSourceProfileRepository _repo;
         private readonly ICached<MetadataSourceProfile> _bestForTagsCache;
-        private readonly ICached<bool> _taggedCache;
+        private readonly ICached<bool> _flagCache;
 
         public MetadataSourceProfileService(IMetadataSourceProfileRepository repo, ICacheManager cacheManager)
         {
             _repo = repo;
             _bestForTagsCache = cacheManager.GetCache<MetadataSourceProfile>(GetType(), "best");
-            _taggedCache = cacheManager.GetCache<bool>(GetType(), "tagged");
+            _flagCache = cacheManager.GetCache<bool>(GetType(), "flags");
         }
 
         public MetadataSourceProfile Add(MetadataSourceProfile profile)
@@ -98,7 +99,12 @@ namespace NzbDrone.Core.Profiles.MetadataSources
 
         public bool HasTaggedProfiles()
         {
-            return _taggedCache.Get("tagged", () => All().Any(p => p.Tags.Any()), TimeSpan.FromSeconds(30));
+            return _flagCache.Get("tagged", () => All().Any(p => p.Tags.Any()), TimeSpan.FromSeconds(30));
+        }
+
+        public bool HasSupplementarySources()
+        {
+            return _flagCache.Get("supplementary", () => All().Any(p => p.Items.Any(i => i.Role == MetadataSourceRole.Supplementary)), TimeSpan.FromSeconds(30));
         }
 
         private MetadataSourceProfile FetchBestForTags(HashSet<int> tagIds)
@@ -139,7 +145,7 @@ namespace NzbDrone.Core.Profiles.MetadataSources
         private void ClearCaches()
         {
             _bestForTagsCache.Clear();
-            _taggedCache.Clear();
+            _flagCache.Clear();
         }
     }
 }

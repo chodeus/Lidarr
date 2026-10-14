@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
 using FluentValidation.Results;
 using NLog;
 using NzbDrone.Common.Extensions;
@@ -23,6 +25,8 @@ namespace NzbDrone.Core.MetadataSource.Sources.Deezer
     public class DeezerMetadataSource : MetadataSourceBase<DeezerMetadataSourceSettings>
     {
         private const int SearchLimit = 10;
+
+        private static readonly Regex ArtistLink = new Regex(@"^https?://(?:www\.)?deezer\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?artist/(\d+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         private readonly IDeezerApi _api;
         private readonly IArtistService _artistService;
@@ -48,6 +52,13 @@ namespace NzbDrone.Core.MetadataSource.Sources.Deezer
         public override string IdFamily => MetadataIdFamilies.Deezer;
 
         public override bool CanHandleId(string foreignId) => DeezerMapper.TryParseForeignId(foreignId, out _);
+
+        public override string IdFromLink(string url)
+        {
+            var match = ArtistLink.Match(url ?? string.Empty);
+
+            return match.Success && long.TryParse(match.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var id) ? DeezerMapper.ToForeignId(id) : null;
+        }
 
         public override ValidationResult Test()
         {

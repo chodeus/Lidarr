@@ -10,7 +10,7 @@ Adds Must Not Contain terms to metadata profiles (upstream request #4923):
 - The validator rejects invalid regexes and regexes that match an empty title.
 - Migration 900 adds `MetadataProfiles.Ignored`. The 900+ range is reserved for build-only changes.
 
-`SkyHookProxy` builds its own `TermMatcherService`, and `ITermMatcherService` is unchanged, because plugins construct `SkyHookProxy` with develop's constructor.
+`SkyHookProxy` is unchanged apart from using the shared album filter, so plugins still construct it with develop's constructor. The aggregator builds its own `TermMatcherService`, since the whole-word match isn't on `ITermMatcherService`.
 
 ## Summary by CodeRabbit
 

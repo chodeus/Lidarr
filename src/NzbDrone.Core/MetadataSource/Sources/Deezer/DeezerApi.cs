@@ -63,28 +63,25 @@ namespace NzbDrone.Core.MetadataSource.Sources.Deezer
             return Get<DeezerPageResource<DeezerAlbumResource>>("search/album", ("q", query), ("limit", limit.ToString()))?.Data ?? new List<DeezerAlbumResource>();
         }
 
+        // Never a partial list: refresh would take it as complete and drop what is missing
         private List<T> GetAll<T>(string resource)
         {
             var items = new List<T>();
 
             for (var page = 0; page < MaxPages; page++)
             {
-                var result = Get<DeezerPageResource<T>>(resource, ("index", (page * PageSize).ToString()), ("limit", PageSize.ToString()));
-
-                if (result == null)
-                {
-                    return page == 0 ? null : items;
-                }
+                var result = Get<DeezerPageResource<T>>(resource, ("index", (page * PageSize).ToString()), ("limit", PageSize.ToString()))
+                    ?? throw new MetadataSourceUnavailableException("Deezer request for {0} failed: page {1} was not found", resource, page + 1);
 
                 items.AddRange(result.Data);
 
                 if (result.Next == null || result.Data.Count == 0)
                 {
-                    break;
+                    return items;
                 }
             }
 
-            return items;
+            throw new MetadataSourceUnavailableException("Deezer request for {0} failed: more than {1} pages", resource, MaxPages);
         }
 
         // Null for a genuine not-found; anything else that goes wrong means Deezer is unavailable

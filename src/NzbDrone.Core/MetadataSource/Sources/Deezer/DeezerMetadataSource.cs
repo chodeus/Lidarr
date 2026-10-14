@@ -72,7 +72,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Deezer
             var artist = new Artist { Metadata = DeezerMapper.MapArtist(resource) };
             artist.CleanName = Parser.Parser.CleanArtistName(artist.Metadata.Value.Name);
             artist.SortName = Parser.Parser.NormalizeTitle(artist.Metadata.Value.Name);
-            artist.Albums = (_api.GetArtistAlbums(id) ?? new List<DeezerAlbumResource>())
+            artist.Albums = _api.GetArtistAlbums(id)
                 .Select(DeezerMapper.MapAlbum)
                 .Where(album => filter.Allows(album.AlbumType, album.SecondaryTypes.Select(t => t.Name).ToList(), DeezerMapper.ReleaseStatuses))
                 .ToList();
@@ -84,7 +84,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Deezer
         {
             var id = ParseId(foreignAlbumId);
             var resource = _api.GetAlbum(id) ?? throw new AlbumNotFoundException(foreignAlbumId);
-            var tracks = _api.GetAlbumTracks(id) ?? new List<DeezerTrackResource>();
+            var tracks = _api.GetAlbumTracks(id);
 
             var artists = tracks.Select(t => t.Artist)
                 .Prepend(resource.Artist)

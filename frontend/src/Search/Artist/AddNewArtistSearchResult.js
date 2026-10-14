@@ -86,7 +86,7 @@ class AddNewArtistSearchResult extends Component {
       metadataSource
     } = this.props;
 
-    const externalUrl = getMusicBrainzUrl('artist', foreignArtistId) ?? links?.[0]?.url;
+    const externalUrl = getMusicBrainzUrl('artist', foreignArtistId) ?? links?.find((link) => link.url)?.url;
 
     const {
       isNewAddArtistModalOpen

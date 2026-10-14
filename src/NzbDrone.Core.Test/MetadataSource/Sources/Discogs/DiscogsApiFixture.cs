@@ -205,6 +205,47 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
             _requests.Should().HaveCount(2);
         }
 
+        [Test]
+        public void bootlegs_are_read_from_the_last_page_back_to_the_first_other_credit()
+        {
+            GivenResponse<DiscogsArtistReleasesPageResource>(HttpStatusCode.OK, r => r.Url.Query.Contains("page=1&") ? Releases(4, "Main:1")
+                : r.Url.Query.Contains("page=2&") ? Releases(4, "Appearance:2")
+                : r.Url.Query.Contains("page=3&") ? Releases(4, "Appearance:3", "UnofficialRelease:4")
+                : Releases(4, "UnofficialRelease:5"));
+
+            Subject.GetArtistBootlegs(3, Token).Select(r => r.Id).Should().Equal(4, 5);
+
+            _requests.Select(r => r.Url.Query).Should().Equal("page=1&per_page=100", "page=4&per_page=100", "page=3&per_page=100");
+        }
+
+        [Test]
+        public void a_one_page_list_is_read_once_for_bootlegs()
+        {
+            GivenResponse<DiscogsArtistReleasesPageResource>(HttpStatusCode.OK, r => Releases(1, "Main:1", "UnofficialRelease:2"));
+
+            Subject.GetArtistBootlegs(3, Token).Select(r => r.Id).Should().Equal(2);
+
+            _requests.Should().HaveCount(1);
+        }
+
+        [Test]
+        public void a_list_with_bootlegs_before_other_credits_is_read_in_full_for_bootlegs()
+        {
+            GivenResponse<DiscogsArtistReleasesPageResource>(HttpStatusCode.OK, r => Releases(1, "UnofficialRelease:1", "Main:2", "UnofficialRelease:3"));
+
+            Subject.GetArtistBootlegs(3, Token).Select(r => r.Id).Should().Equal(1, 3);
+        }
+
+        [Test]
+        public void bootlegs_past_the_page_limit_fail()
+        {
+            GivenResponse<DiscogsArtistReleasesPageResource>(HttpStatusCode.OK, r => Releases(150, "UnofficialRelease:1"));
+
+            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetArtistBootlegs(3, Token));
+
+            _requests.Should().HaveCount(101);
+        }
+
         private static string Releases(int pages, params string[] entries)
         {
             var releases = entries.Select(e => e.Split(':')).Select(e => $"{{\"id\":{e[1]},\"role\":\"{e[0]}\"}}");

@@ -95,8 +95,16 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
             artist.CleanName = Parser.Parser.CleanArtistName(artist.Metadata.Value.Name);
             artist.SortName = Parser.Parser.NormalizeTitle(artist.Metadata.Value.Name);
 
-            artist.Albums = _api.GetArtistOwnReleases(id, Settings.Token)
-                .Select(entry => (Entry: entry, Kind: entry.Type == DiscogsMapper.Master ? MainReleaseKind(entry.MainRelease) : DiscogsMapper.Classify(entry.Format)))
+            var entries = _api.GetArtistOwnReleases(id, Settings.Token);
+
+            // Bootlegs sit apart at the end of the list, so only a profile that wants them pays for reading them
+            if (filter.AllowsReleaseStatus(ReleaseStatus.Bootleg.Name))
+            {
+                entries = entries.Concat(_api.GetArtistBootlegs(id, Settings.Token)).ToList();
+            }
+
+            artist.Albums = entries
+                .Select(entry => (Entry: entry, Kind: KindOf(entry)))
                 .Where(x => x.Kind.IsAudio && filter.Allows(x.Kind.PrimaryType, x.Kind.SecondaryTypes.Select(t => t.Name).ToList(), new[] { x.Kind.ReleaseStatus }))
                 .Select(x => DiscogsMapper.MapAlbum(x.Entry, x.Kind))
                 .ToList();
@@ -214,6 +222,14 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
             var pressings = others.Prepend(master.MainRelease);
 
             return (limit > 0 ? pressings.Take(limit) : pressings).ToList();
+        }
+
+        // The artist list writes a bootleg's format many ways ("P/Unofficial", "CD + DVD-V + Unofficial"), but its role is always the same
+        private DiscogsFormatKind KindOf(DiscogsArtistReleaseResource entry)
+        {
+            var kind = entry.Type == DiscogsMapper.Master ? MainReleaseKind(entry.MainRelease) : DiscogsMapper.Classify(entry.Format);
+
+            return entry.Role == DiscogsApi.BootlegRole ? kind with { ReleaseStatus = ReleaseStatus.Bootleg.Name } : kind;
         }
 
         // Masters carry no format, so the album type comes from the main release

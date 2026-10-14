@@ -31,5 +31,10 @@ namespace NzbDrone.Core.MetadataSource
                    ((!secondaryTypes.Any() && _secondaryTypes.Contains("Studio")) || secondaryTypes.Any(_secondaryTypes.Contains)) &&
                    releaseStatuses.Any(_releaseStatuses.Contains);
         }
+
+        public bool AllowsReleaseStatus(string releaseStatus)
+        {
+            return _releaseStatuses.Contains(releaseStatus);
+        }
     }
 }

@@ -13,6 +13,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
     {
         DiscogsArtistResource GetArtist(long id, string token);
         List<DiscogsArtistReleaseResource> GetArtistOwnReleases(long id, string token);
+        List<DiscogsArtistReleaseResource> GetArtistBootlegs(long id, string token);
         DiscogsMasterResource GetMaster(long id, string token);
         List<DiscogsVersionResource> GetMasterVersions(long id, string token);
         DiscogsReleaseResource GetRelease(long id, string token);
@@ -25,6 +26,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
         private const string BaseUrl = "https://api.discogs.com";
         private const int PageSize = 100;
         private const int MaxPages = 100;
+        public const string BootlegRole = "UnofficialRelease";
         private const string OwnRole = "Main";
 
         private static readonly TimeSpan TokenRateLimit = TimeSpan.FromMilliseconds(1050);
@@ -52,6 +54,14 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
             return ReadOwnReleases(resource, token)
                 ?? GetAll<DiscogsArtistReleasesPageResource, DiscogsArtistReleaseResource>(resource, token, p => p.Releases).Where(IsOwn).ToList();
+        }
+
+        public List<DiscogsArtistReleaseResource> GetArtistBootlegs(long id, string token)
+        {
+            var resource = "artists/" + id + "/releases";
+
+            return ReadBootlegs(resource, token)
+                ?? GetAll<DiscogsArtistReleasesPageResource, DiscogsArtistReleaseResource>(resource, token, p => p.Releases).Where(IsBootleg).ToList();
         }
 
         public DiscogsMasterResource GetMaster(long id, string token)
@@ -102,7 +112,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
                 // One look past the limit, so an artist with too many releases of their own fails without reading them all
                 if (page == 1 && result.Pagination?.Pages > MaxPages && GetPage<DiscogsArtistReleasesPageResource>(resource, token, MaxPages + 1).Releases.Take(1).Any(IsOwn))
                 {
-                    throw TooManyOwnReleases(resource);
+                    throw TooManyPages("own releases", resource);
                 }
 
                 own.AddRange(ownOnPage);
@@ -113,7 +123,37 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
                 }
             }
 
-            throw TooManyOwnReleases(resource);
+            throw TooManyPages("own releases", resource);
+        }
+
+        // Bootlegs come after every other credit, so reading starts at the last page and stops at the first other one.
+        // Null when the list breaks that order, so the caller reads all of it
+        private List<DiscogsArtistReleaseResource> ReadBootlegs(string resource, string token)
+        {
+            var first = GetPage<DiscogsArtistReleasesPageResource>(resource, token, 1);
+            var lastPage = Math.Max(first.Pagination?.Pages ?? 1, 1);
+            var bootlegs = new List<DiscogsArtistReleaseResource>();
+
+            for (var page = lastPage; page >= 1 && page > lastPage - MaxPages; page--)
+            {
+                var releases = page == 1 ? first.Releases : GetPage<DiscogsArtistReleasesPageResource>(resource, token, page).Releases;
+                var bootlegsOnPage = releases.AsEnumerable().Reverse().TakeWhile(IsBootleg).Reverse().ToList();
+                var others = releases.Take(releases.Count - bootlegsOnPage.Count).ToList();
+
+                if (others.Any(IsBootleg))
+                {
+                    return null;
+                }
+
+                bootlegs.InsertRange(0, bootlegsOnPage);
+
+                if (others.Any() || page == 1)
+                {
+                    return bootlegs;
+                }
+            }
+
+            throw TooManyPages("bootlegs", resource);
         }
 
         private static bool IsOwn(DiscogsArtistReleaseResource release)
@@ -121,9 +161,14 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
             return release.Role == OwnRole;
         }
 
-        private static MetadataSourceUnavailableException TooManyOwnReleases(string resource)
+        private static bool IsBootleg(DiscogsArtistReleaseResource release)
         {
-            return new MetadataSourceUnavailableException("Discogs lists more than {0} pages of the artist's own releases for {1}, more than this source reads", MaxPages, resource);
+            return release.Role == BootlegRole;
+        }
+
+        private static MetadataSourceUnavailableException TooManyPages(string section, string resource)
+        {
+            return new MetadataSourceUnavailableException("Discogs lists more than {0} pages of the artist's {1} for {2}, more than this source reads", MaxPages, section, resource);
         }
 
         // Never a partial list: refresh would take it as complete and drop what is missing

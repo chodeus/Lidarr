@@ -6,6 +6,9 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
     public class DiscogsPaginationResource
     {
         public int Page { get; set; }
+
+        // 0 is a real count; a missing one can't say whether the list is complete
+        [JsonProperty(Required = Required.Always)]
         public int Pages { get; set; }
     }
 

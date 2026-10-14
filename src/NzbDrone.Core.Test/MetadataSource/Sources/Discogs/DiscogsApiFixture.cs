@@ -248,17 +248,29 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
             Mocker.GetMock<IDiscogsCache>().Invocations.Should().BeEmpty();
         }
 
-        [Test]
-        public void a_list_page_without_pagination_means_discogs_is_unavailable()
+        [TestCase("")]
+        [TestCase("\"pagination\":{},")]
+        [TestCase("\"pagination\":{\"page\":1,\"pages\":null},")]
+        public void a_list_page_without_a_page_count_means_discogs_is_unavailable(string pagination)
         {
-            GivenResponse<DiscogsArtistReleasesPageResource>(HttpStatusCode.OK, r => "{\"releases\":[{\"id\":1,\"role\":\"Main\"}]}");
-            GivenResponse<DiscogsVersionsPageResource>(HttpStatusCode.OK, r => "{\"versions\":[{\"id\":5}]}");
+            GivenResponse<DiscogsArtistReleasesPageResource>(HttpStatusCode.OK, r => "{" + pagination + "\"releases\":[{\"id\":1,\"role\":\"Main\"}]}");
+            GivenResponse<DiscogsVersionsPageResource>(HttpStatusCode.OK, r => "{" + pagination + "\"versions\":[{\"id\":5}]}");
 
             Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetArtistOwnReleases(3, Token));
             Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetArtistBootlegs(3, Token));
             Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetMasterVersions(4, Token));
 
             Mocker.GetMock<IDiscogsCache>().Invocations.Where(i => i.Method.Name == nameof(IDiscogsCache.Set)).Should().BeEmpty();
+        }
+
+        [Test]
+        public void a_list_of_no_pages_is_cached_empty()
+        {
+            GivenResponse<DiscogsVersionsPageResource>(HttpStatusCode.OK, r => "{\"pagination\":{\"page\":1,\"pages\":0},\"versions\":[]}");
+
+            Subject.GetMasterVersions(4, Token).Should().BeEmpty();
+
+            Mocker.GetMock<IDiscogsCache>().Verify(c => c.Set("masters/4/versions", It.Is<List<DiscogsVersionResource>>(l => l.Count == 0), TimeSpan.FromDays(7)), Times.Once());
         }
 
         [Test]

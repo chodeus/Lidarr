@@ -36,7 +36,6 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
         private readonly string _connectionString;
         private readonly Logger _logger;
         private readonly object _lock = new();
-        private bool _tableReady;
 
         public DiscogsCache(IAppFolderInfo appFolderInfo, Logger logger)
         {
@@ -113,13 +112,10 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
                     using var connection = new SQLiteConnection(_connectionString);
                     connection.Open();
 
-                    if (!_tableReady)
-                    {
-                        using var create = connection.CreateCommand();
-                        create.CommandText = "CREATE TABLE IF NOT EXISTS Entries (Key TEXT PRIMARY KEY, Value BLOB NOT NULL, Expires INTEGER NOT NULL)";
-                        create.ExecuteNonQuery();
-                        _tableReady = true;
-                    }
+                    // Every time, so a cache file deleted while Lidarr runs is recreated
+                    using var create = connection.CreateCommand();
+                    create.CommandText = "CREATE TABLE IF NOT EXISTS Entries (Key TEXT PRIMARY KEY, Value BLOB NOT NULL, Expires INTEGER NOT NULL)";
+                    create.ExecuteNonQuery();
 
                     using var command = connection.CreateCommand();
                     action(command);

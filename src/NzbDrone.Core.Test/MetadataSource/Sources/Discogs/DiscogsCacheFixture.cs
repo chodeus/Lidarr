@@ -76,8 +76,9 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
             Subject.TryGet<DiscogsReleaseResource>("releases/8", out _).Should().BeTrue();
         }
 
-        [Test]
-        public void an_entry_written_for_other_resource_fields_is_not_read()
+        [TestCase("releases/7")]
+        [TestCase("0/releases/7")]
+        public void an_entry_written_for_other_resource_fields_is_not_read(string storedKey)
         {
             Subject.Set("releases/7", Release(), TimeSpan.FromDays(30));
 
@@ -85,11 +86,23 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
             {
                 connection.Open();
                 using var command = connection.CreateCommand();
-                command.CommandText = "UPDATE Entries SET Key = 'releases/7'";
+                command.CommandText = "UPDATE Entries SET Key = @key";
+                command.Parameters.AddWithValue("@key", storedKey);
                 command.ExecuteNonQuery();
             }
 
             Subject.TryGet<DiscogsReleaseResource>("releases/7", out _).Should().BeFalse();
+        }
+
+        [Test]
+        public void a_cache_file_deleted_while_running_is_recreated()
+        {
+            Subject.Set("releases/7", Release(), TimeSpan.FromDays(30));
+            File.Delete(Path.Combine(_appData, DiscogsCache.FileName));
+
+            Subject.Set("releases/8", Release(), TimeSpan.FromDays(30));
+
+            Subject.TryGet<DiscogsReleaseResource>("releases/8", out _).Should().BeTrue();
         }
 
         [Test]

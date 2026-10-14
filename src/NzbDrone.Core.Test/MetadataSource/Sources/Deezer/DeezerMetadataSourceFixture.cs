@@ -46,6 +46,15 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Deezer
             Subject.CanHandleId(foreignId).Should().Be(expected);
         }
 
+        [TestCase("https://www.deezer.com/artist/399", "deezer:399")]
+        [TestCase("https://www.deezer.com/fr/artist/399", "deezer:399")]
+        [TestCase("https://www.deezer.com/album/399", null)]
+        [TestCase("https://www.discogs.com/artist/3840", null)]
+        public void reads_a_deezer_artist_link(string url, string expected)
+        {
+            Subject.IdFromLink(url).Should().Be(expected);
+        }
+
         [Test]
         public void artist_info_keeps_only_the_albums_the_metadata_profile_allows()
         {

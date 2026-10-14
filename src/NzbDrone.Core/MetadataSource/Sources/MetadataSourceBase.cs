@@ -35,6 +35,11 @@ namespace NzbDrone.Core.MetadataSource.Sources
 
         public abstract bool CanHandleId(string foreignId);
 
+        public virtual string IdFromLink(string url)
+        {
+            return null;
+        }
+
         public abstract Artist GetArtistInfo(string foreignArtistId, int metadataProfileId);
 
         public virtual HashSet<string> GetChangedArtists(DateTime startTime)

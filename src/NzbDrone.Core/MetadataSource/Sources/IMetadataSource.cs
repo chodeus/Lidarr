@@ -12,6 +12,9 @@ namespace NzbDrone.Core.MetadataSource.Sources
 
         bool CanHandleId(string foreignId);
 
+        // This source's artist ID for a link to its own artist page, such as one MusicBrainz lists; null for any other link
+        string IdFromLink(string url);
+
         Artist GetArtistInfo(string foreignArtistId, int metadataProfileId);
 
         // Null when the source can't list changes, so every artist is refreshed

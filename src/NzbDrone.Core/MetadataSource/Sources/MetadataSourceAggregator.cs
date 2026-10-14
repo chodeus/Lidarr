@@ -63,9 +63,22 @@ namespace NzbDrone.Core.MetadataSource.Sources
 
         public Artist GetArtistInfo(string lidarrId, int metadataProfileId)
         {
-            var route = RouteFor(ProfileForArtist(lidarrId), lidarrId);
+            var profile = ProfileForArtist(lidarrId);
+            IMetadataSource answered = null;
 
-            return Lookup(route, s => s.GetArtistInfo(lidarrId, metadataProfileId), () => new ArtistNotFoundException(lidarrId), MergeAlbums);
+            Artist Ask(IMetadataSource source)
+            {
+                var found = source.GetArtistInfo(lidarrId, metadataProfileId);
+                answered = source;
+
+                return found;
+            }
+
+            var artist = Lookup(RouteFor(profile, lidarrId), Ask, () => new ArtistNotFoundException(lidarrId), MergeAlbums);
+
+            AddSupplements(profile, artist, lidarrId, metadataProfileId, answered);
+
+            return artist;
         }
 
         public HashSet<string> GetChangedArtists(DateTime startTime)
@@ -75,9 +88,11 @@ namespace NzbDrone.Core.MetadataSource.Sources
 
         public Tuple<string, Album, List<ArtistMetadata>> GetAlbumInfo(string id)
         {
-            var route = RouteFor(ProfileForAlbum(id), id);
+            var owner = OwnerOfAlbum(id);
+            var profile = owner != null && _profileService.HasTaggedProfiles() ? _profileService.BestForTags(owner.Tags) : _profileService.GetDefaultProfile();
+            var info = Lookup(RouteFor(profile, id), s => s.GetAlbumInfo(id), () => new AlbumNotFoundException(id), null);
 
-            return Lookup(route, s => s.GetAlbumInfo(id), () => new AlbumNotFoundException(id), null);
+            return owner == null || FamilyOf(owner.ForeignArtistId) == FamilyOf(info.Item1) ? info : KeepOwner(info, owner);
         }
 
         public HashSet<string> GetChangedAlbums(DateTime startTime)
@@ -157,7 +172,8 @@ namespace NzbDrone.Core.MetadataSource.Sources
                 return found.Aggregate(merge);
             }
 
-            foreach (var source in route.Fallback)
+            // A supplementary source still answers for its own IDs when nothing else can
+            foreach (var source in route.Fallback.Concat(route.Supplementary))
             {
                 if (TryAsk(source, call, ref outage, out var result))
                 {
@@ -318,17 +334,86 @@ namespace NzbDrone.Core.MetadataSource.Sources
             return artist == null ? _profileService.GetDefaultProfile() : _profileService.BestForTags(artist.Tags);
         }
 
-        private MetadataSourceProfile ProfileForAlbum(string foreignAlbumId)
+        // Only read when it can matter: a tagged profile picks the sources, or a supplementary album keeps its owner
+        private Artist OwnerOfAlbum(string foreignAlbumId)
         {
-            if (!_profileService.HasTaggedProfiles())
+            if (!_profileService.HasTaggedProfiles() && !_profileService.HasSupplementarySources())
             {
-                return _profileService.GetDefaultProfile();
+                return null;
             }
 
             var album = _albumService.FindById(foreignAlbumId);
-            var artist = album == null ? null : _artistService.GetArtistByMetadataId(album.ArtistMetadataId);
 
-            return artist == null ? _profileService.GetDefaultProfile() : _profileService.BestForTags(artist.Tags);
+            return album == null ? null : _artistService.GetArtistByMetadataId(album.ArtistMetadataId);
+        }
+
+        // Supplementary sources only add albums the artist lacks; one that is down keeps the albums it added before
+        private void AddSupplements(MetadataSourceProfile profile, Artist artist, string foreignArtistId, int metadataProfileId, IMetadataSource answered)
+        {
+            var albums = artist.Albums.Value;
+
+            // A supplement that answered for the artist when nothing else could would only repeat itself
+            foreach (var source in SourcesOf(profile).Where(x => x.Role == MetadataSourceRole.Supplementary && x.Source != answered).Select(x => x.Source))
+            {
+                var id = source.CanHandleId(foreignArtistId)
+                    ? foreignArtistId
+                    : artist.Metadata.Value.Links?.Select(l => source.IdFromLink(l.Url)).FirstOrDefault(i => i != null);
+
+                if (id == null)
+                {
+                    _logger.Debug("{0} has no link to {1}, so it adds nothing", artist.Name, source.Definition?.Name);
+                    continue;
+                }
+
+                try
+                {
+                    albums.AddRange(SupplementaryAlbums.Missing(albums, source.GetArtistInfo(id, metadataProfileId).Albums.Value));
+                }
+                catch (ArtistNotFoundException)
+                {
+                    _logger.Debug("{0} does not have {1}", source.Definition?.Name, id);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warn(ex, "Supplementary metadata source {0} failed, keeping the albums it added before", source.Definition?.Name);
+                    albums.AddRange(AlbumsAddedBy(source, foreignArtistId, albums));
+                }
+            }
+        }
+
+        private IEnumerable<Album> AlbumsAddedBy(IMetadataSource source, string foreignArtistId, List<Album> listed)
+        {
+            var local = _artistService.FindById(foreignArtistId);
+
+            if (local == null)
+            {
+                return Enumerable.Empty<Album>();
+            }
+
+            var listedIds = listed.Select(a => a.ForeignAlbumId).ToHashSet();
+
+            return _albumService.GetAlbumsByArtist(local.Id).Where(a => source.CanHandleId(a.ForeignAlbumId) && !listedIds.Contains(a.ForeignAlbumId)).ToList();
+        }
+
+        // A supplementary album belongs to the artist it was added to, not to the supplement's copy of that artist
+        private static Tuple<string, Album, List<ArtistMetadata>> KeepOwner(Tuple<string, Album, List<ArtistMetadata>> info, Artist owner)
+        {
+            var (sourceArtistId, album, artists) = info;
+            var ownerMetadata = owner.Metadata.Value;
+
+            album.ArtistMetadata = ownerMetadata;
+
+            foreach (var track in album.AlbumReleases.Value.SelectMany(r => r.Tracks.Value).Where(t => t.ArtistMetadata.Value.ForeignArtistId == sourceArtistId))
+            {
+                track.ArtistMetadata = ownerMetadata;
+            }
+
+            return Tuple.Create(owner.ForeignArtistId, album, artists.Where(a => a.ForeignArtistId != sourceArtistId).Append(ownerMetadata).ToList());
+        }
+
+        private string FamilyOf(string foreignId)
+        {
+            return EnabledSources().Values.Append(_lastResort).FirstOrDefault(s => s.CanHandleId(foreignId))?.IdFamily;
         }
 
         private Route RouteFor(MetadataSourceProfile profile, string foreignId)
@@ -396,6 +481,7 @@ namespace NzbDrone.Core.MetadataSource.Sources
             {
                 Primary = sources.Where(x => x.Role == MetadataSourceRole.Primary).Select(x => x.Source).ToList(),
                 Fallback = sources.Where(x => x.Role == MetadataSourceRole.Fallback).Select(x => x.Source).ToList(),
+                Supplementary = sources.Where(x => x.Role == MetadataSourceRole.Supplementary).Select(x => x.Source).ToList(),
                 CombineAll = profile.PrimaryCombination == MetadataSourceCombination.And
             };
         }
@@ -424,6 +510,7 @@ namespace NzbDrone.Core.MetadataSource.Sources
         {
             public List<IMetadataSource> Primary { get; init; } = new();
             public List<IMetadataSource> Fallback { get; init; } = new();
+            public List<IMetadataSource> Supplementary { get; init; } = new();
             public bool CombineAll { get; init; }
         }
     }

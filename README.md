@@ -13,9 +13,6 @@
   - Saving a profile keeps its position, and a request without tags no longer fails.
 - **Artists sharing a clean name** — branch [`fix/ambiguous-artist-disambiguation`](https://github.com/chodeus/Lidarr/tree/fix/ambiguous-artist-disambiguation), upstream PR [#5840](https://github.com/Lidarr/Lidarr/pull/5840)
   - When two artists reduce to the same clean name, the parsed album picks the artist instead of failing with "found multiple artists".
-- **Must Not Contain terms for metadata profiles** — branch [`metadata-profile-must-not-contain`](https://github.com/chodeus/Lidarr/tree/metadata-profile-must-not-contain), not submitted
-  - Whole-word terms or regexes that keep matching albums (such as live recordings) out of an artist's albums on refresh. Albums with files or added by hand stay.
-  - Migration 900.
 - **Retry failed imports after a refresh** — branch [`feat/retry-import-failed`](https://github.com/chodeus/Lidarr/tree/feat/retry-import-failed), not submitted
   - When a metadata refresh changes an album, that artist's `importFailed` downloads get fresh album data and are imported again, so a MusicBrainz fix clears the queue without a manual import.
 - **Allow Smaller Release Upgrades** — branch [`feat/smaller-release-upgrades`](https://github.com/chodeus/Lidarr/tree/feat/smaller-release-upgrades), not submitted
@@ -71,6 +68,11 @@
   - Settings → Metadata gets a Metadata Sources section: Lidarr's own server and other SkyHook-compatible servers by URL. Settings → Profiles gets metadata source profiles, applied to artists by tag, that set which sources answer first (combined with Or or And) and which are fallbacks. Search uses the default profile and labels each result with its source. A source that is down fails the lookup instead of counting as not found. Migration 909.
 - **Other metadata sources' IDs** — branch [`feat/metadata-source-ids`](https://github.com/chodeus/Lidarr/tree/feat/metadata-source-ids), builds on `feat/metadata-source-profiles`, not submitted
   - Groundwork for Deezer and Discogs: their IDs never go in MusicBrainz file tags (the file keeps its own), import matching compares only MusicBrainz IDs, ID searches go only to sources of that kind, and links, Discord and Kodi `.nfo` files use MusicBrainz only for MusicBrainz IDs.
+- **Deezer metadata source** — branch [`feat/deezer-metadata-source`](https://github.com/chodeus/Lidarr/tree/feat/deezer-metadata-source), builds on `feat/metadata-source-ids`, not submitted
+  - Deezer as a built-in source for metadata source profiles, from Deezer's public API (no account): artists, albums with their tracks, and search by name, by `deezer:<id>` or by artist and title. A Deezer error or an incomplete list counts as Deezer being down, never as "no albums".
+- **Must Not Contain terms for metadata profiles** — branch [`metadata-profile-must-not-contain`](https://github.com/chodeus/Lidarr/tree/metadata-profile-must-not-contain), builds on `feat/deezer-metadata-source`, not submitted
+  - Whole-word terms or regexes that keep matching albums (such as live recordings) out of an artist's albums on refresh, whichever metadata source they come from. Albums with files or added by hand stay.
+  - Migration 900.
 
 ## How the build works
 

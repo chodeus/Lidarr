@@ -208,6 +208,19 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
         }
 
         [Test]
+        public void a_supplementary_album_matching_a_must_not_contain_term_is_left_out()
+        {
+            _metadataProfile.Ignored = new List<string> { "live" };
+            GivenPrimaryWithLinkTo("other:9", NamedAlbum("mb-1", "First Album", 2001));
+            GivenSource(2, MetadataSourceRole.Supplementary, OtherFamily).Setup(s => s.GetArtistInfo("other:9", 1)).Returns(new Artist
+            {
+                Albums = new List<Album> { NamedAlbum("other:102", "Second Album", 2003), NamedAlbum("other:103", "Live at the Venue", 2004) }
+            });
+
+            Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("mb-1", "other:102");
+        }
+
+        [Test]
         public void a_supplementary_source_of_the_same_kind_uses_the_artists_own_id()
         {
             GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(ArtistWith("album-1"));

@@ -1,10 +1,10 @@
 # New: Must Not Contain terms for metadata profiles
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`feat/discogs-disk-cache`](https://github.com/chodeus/Lidarr/tree/feat/discogs-disk-cache), the top of the metadata sources stack. Reviewed in [#3](https://github.com/chodeus/Lidarr/pull/3).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`feat/metadata-supplementary-sources`](https://github.com/chodeus/Lidarr/tree/feat/metadata-supplementary-sources), the top of the metadata sources stack. Reviewed in [#3](https://github.com/chodeus/Lidarr/pull/3).
 
 Adds Must Not Contain terms to metadata profiles (upstream request #4923):
 - A refresh leaves out albums whose title contains a term as a whole word, case-insensitively. Albums with files, or added by hand, are kept.
-- The terms apply to every metadata source's albums (Deezer, Discogs and any other), checked once in the metadata source aggregator after the sources answer.
+- The terms apply to every metadata source's albums (Deezer, Discogs and any other), checked once in the metadata source aggregator after the sources answer and the supplementary sources add theirs.
 - A term written as `/pattern/flags` is a regex anchored at both slashes. A plain term such as `Live // Unplugged` stays plain.
 - Whole-word matching uses lookarounds, not `\b`, so terms that start or end with punctuation, like `(live)`, still match.
 - The validator rejects invalid regexes and regexes that match an empty title.

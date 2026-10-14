@@ -88,9 +88,7 @@ function MetadataSourceProfiles() {
   const onMetadataSourceProfileDragEnd = useCallback(
     ({ id }: { id: number }, didDrop: boolean) => {
       if (didDrop && dropIndex !== null) {
-        dispatch(
-          reorderMetadataSourceProfile({ id, moveIndex: dropIndex - 1 })
-        );
+        dispatch(reorderMetadataSourceProfile({ id, moveIndex: dropIndex }));
       }
 
       setDragIndex(null);
@@ -138,7 +136,6 @@ function MetadataSourceProfiles() {
                       sourceNames={sourceNames}
                       {...item}
                       index={index}
-                      isDragging={isDragging}
                       isDraggingUp={isDraggingUp}
                       isDraggingDown={isDraggingDown}
                       onConfirmDeleteMetadataSourceProfile={

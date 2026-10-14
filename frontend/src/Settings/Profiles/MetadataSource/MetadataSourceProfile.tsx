@@ -15,7 +15,7 @@ import translate from 'Utilities/String/translate';
 import EditMetadataSourceProfileModal from './EditMetadataSourceProfileModal';
 import styles from './MetadataSourceProfile.css';
 
-interface MetadataSourceProfileProps {
+export interface MetadataSourceProfileProps {
   id: number;
   name: string;
   tags: number[];
@@ -24,7 +24,7 @@ interface MetadataSourceProfileProps {
   sourceNames: Record<number, string>;
   tagList?: Tag[];
   isDragging: boolean;
-  connectDragSource?: (node: React.ReactNode) => React.ReactNode;
+  connectDragSource?: (node: React.ReactElement) => React.ReactElement | null;
   onConfirmDeleteMetadataSourceProfile?: (id: number) => void;
 }
 
@@ -38,7 +38,7 @@ function MetadataSourceProfile(props: MetadataSourceProfileProps) {
     sourceNames,
     tagList = [],
     isDragging,
-    connectDragSource = (node: React.ReactNode) => node,
+    connectDragSource = (node: React.ReactElement) => node,
     onConfirmDeleteMetadataSourceProfile,
   } = props;
 

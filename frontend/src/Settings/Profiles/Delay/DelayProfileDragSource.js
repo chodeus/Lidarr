@@ -19,8 +19,9 @@ const delayProfileDragSource = {
 
 const delayProfileDropTarget = {
   hover(props, monitor, component) {
-    const dragIndex = monitor.getItem().order;
-    const hoverIndex = props.order;
+    // Positions, not stored orders, so a gap left by a delete can't misplace the drop
+    const dragIndex = monitor.getItem().index;
+    const hoverIndex = props.index;
 
     const hoverBoundingRect = findDOMNode(component).getBoundingClientRect();
     const hoverMiddleY = (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2;
@@ -126,6 +127,7 @@ class DelayProfileDragSource extends Component {
 
 DelayProfileDragSource.propTypes = {
   id: PropTypes.number.isRequired,
+  index: PropTypes.number.isRequired,
   order: PropTypes.number.isRequired,
   isDragging: PropTypes.bool,
   isDraggingUp: PropTypes.bool,

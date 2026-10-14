@@ -75,7 +75,7 @@ function TaggingProfiles() {
   const onTaggingProfileDragEnd = useCallback(
     ({ id }: { id: number }, didDrop: boolean) => {
       if (didDrop && dropIndex !== null) {
-        dispatch(reorderTaggingProfile({ id, moveIndex: dropIndex - 1 }));
+        dispatch(reorderTaggingProfile({ id, moveIndex: dropIndex }));
       }
 
       setDragIndex(null);

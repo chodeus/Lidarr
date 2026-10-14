@@ -37,15 +37,23 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
         private static readonly Regex VinylSide = new Regex(@"^([A-Z])\d*$", RegexOptions.Compiled);
         private static readonly Regex FormatQuantity = new Regex(@"^\d+x", RegexOptions.Compiled);
 
-        // The artist list shortens Unofficial Release to Unofficial
+        // The artist list shortens names, as in Comp, TP, W/Lbl, Maxi, Unofficial and DVD-V
+        private static readonly HashSet<string> CompilationDescriptions = new(StringComparer.OrdinalIgnoreCase) { "Compilation", "Comp" };
+        private static readonly HashSet<string> SingleDescriptions = new(StringComparer.OrdinalIgnoreCase) { "Single", "Maxi-Single", "Maxi" };
         private static readonly HashSet<string> UnofficialDescriptions = new(StringComparer.OrdinalIgnoreCase) { "Unofficial Release", "Unofficial" };
-        private static readonly HashSet<string> PromoDescriptions = new(StringComparer.OrdinalIgnoreCase) { "Promo", "Advance", "Smplr", "Sampler", "Test Pressing", "Transcription", "White Label" };
+        private static readonly HashSet<string> PromoDescriptions = new(StringComparer.OrdinalIgnoreCase) { "Promo", "Advance", "Smplr", "Sampler", "Test Pressing", "TP", "Transcription", "White Label", "W/Lbl" };
 
         private static readonly HashSet<string> NonAudioFormats = new(StringComparer.OrdinalIgnoreCase)
         {
-            "VHS", "DVD", "DVDr", "Blu-ray", "Blu-ray-R", "HD DVD", "HD DVD-R", "Laserdisc", "Betamax", "Betacam", "Betacam SP",
+            "VHS", "DVD", "DVD-V", "DVDr", "Blu-ray", "Blu-ray-R", "HD DVD", "HD DVD-R", "Laserdisc", "Betamax", "Betacam", "Betacam SP",
             "U-matic", "Video 2000", "Video8", "MiniDV", "UMD", "VCD", "SVCD", "Floppy", "Floppy Disk"
         };
+
+        // Packaging, not media
+        private static readonly HashSet<string> Containers = new(StringComparer.OrdinalIgnoreCase) { "Box Set", "Box", "All Media" };
+
+        // Audio-only discs on video media
+        private static readonly string[] AudioOnVideoDescriptions = { "DVD-Audio", "Blu-ray Audio" };
 
         public static string ArtistId(long id) => IdPrefix + Artist + ":" + id.ToString(CultureInfo.InvariantCulture);
         public static string MasterId(long id) => IdPrefix + Master + ":" + id.ToString(CultureInfo.InvariantCulture);
@@ -63,12 +71,22 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
         public static string WithoutNumber(string name) => NameNumber.Replace(name ?? string.Empty, string.Empty);
 
-        // From an artist list entry such as "2xCD, EP, Promo": the first entry is the format, the rest describe it
+        // From an artist list entry such as "2xCD, EP + DVD-V": each format starts a part, followed by its descriptions
         public static DiscogsFormatKind Classify(string formatList)
         {
-            var parts = (formatList ?? string.Empty).Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            var formats = (formatList ?? string.Empty).Split(" + ", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                .Select(f => f.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+                .Where(f => f.Length > 0)
+                .ToList();
 
-            return Classify(parts.Take(1).Select(p => FormatQuantity.Replace(p, string.Empty)), parts.Skip(1));
+            // Discogs cuts long entries short, so a part can start with a description; every entry also counts as one
+            return Classify(formats.Select(f => FormatQuantity.Replace(f[0], string.Empty)), formats.SelectMany(f => f));
+        }
+
+        // A version lists only its descriptions, as in "DVD-Audio, Album"
+        public static DiscogsFormatKind Classify(DiscogsVersionResource version)
+        {
+            return Classify(version.MajorFormats ?? new List<string>(), (version.Format ?? string.Empty).Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
         }
 
         public static DiscogsFormatKind Classify(List<DiscogsFormatResource> formats)
@@ -80,14 +98,14 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
         public static DiscogsFormatKind Classify(IEnumerable<string> names, IEnumerable<string> descriptions)
         {
-            var nameList = names.Where(n => n.IsNotNullOrWhiteSpace()).ToList();
+            var nameList = names.Where(n => n.IsNotNullOrWhiteSpace() && !Containers.Contains(n)).ToList();
             var described = new HashSet<string>(descriptions, StringComparer.OrdinalIgnoreCase);
-            var audioName = nameList.FirstOrDefault(n => !NonAudioFormats.Contains(n));
+            var audioName = nameList.FirstOrDefault(n => !NonAudioFormats.Contains(n)) ?? AudioOnVideoDescriptions.FirstOrDefault(described.Contains);
 
             return new DiscogsFormatKind
             {
-                PrimaryType = described.Contains("EP") ? PrimaryAlbumType.EP.Name : described.Contains("Single") || described.Contains("Maxi-Single") ? PrimaryAlbumType.Single.Name : PrimaryAlbumType.Album.Name,
-                SecondaryTypes = described.Contains("Compilation") ? new List<SecondaryAlbumType> { SecondaryAlbumType.Compilation } : new List<SecondaryAlbumType>(),
+                PrimaryType = described.Contains("EP") ? PrimaryAlbumType.EP.Name : described.Overlaps(SingleDescriptions) ? PrimaryAlbumType.Single.Name : PrimaryAlbumType.Album.Name,
+                SecondaryTypes = described.Overlaps(CompilationDescriptions) ? new List<SecondaryAlbumType> { SecondaryAlbumType.Compilation } : new List<SecondaryAlbumType>(),
                 ReleaseStatus = described.Overlaps(UnofficialDescriptions) ? ReleaseStatus.Bootleg.Name : described.Overlaps(PromoDescriptions) ? ReleaseStatus.Promotion.Name : ReleaseStatus.Official.Name,
                 IsAudio = !nameList.Any() || audioName != null,
                 MediaFormat = audioName == null ? "Unknown" : audioName == "File" ? "Digital Media" : audioName
@@ -133,13 +151,12 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
             return NewAlbum(ReleaseId(release.Id), release.Title, ParseDate(release.Released, release.Year), Classify(release.Formats), Genres(release.Genres, release.Styles), release.Uri, Images(MediaCoverTypes.Cover, release.Images));
         }
 
-        public static AlbumRelease MapRelease(DiscogsReleaseResource release, Dictionary<string, ArtistMetadata> artists, bool monitored)
+        public static AlbumRelease MapRelease(DiscogsReleaseResource release, Dictionary<string, ArtistMetadata> artists)
         {
             var kind = Classify(release.Formats);
             var albumArtist = ArtistId(release.Artists.First().Id);
 
-            var tracks = release.Tracklist
-                .Where(t => t.Type.IsNullOrWhiteSpace() || t.Type == "track")
+            var tracks = Tracks(release.Tracklist)
                 .Select((t, index) => MapTrack(release.Id, t, index + 1, artists[t.Artists?.Any() == true ? ArtistId(t.Artists.First().Id) : albumArtist]))
                 .ToList();
 
@@ -156,8 +173,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
                 Tracks = tracks,
                 TrackCount = tracks.Count,
                 Duration = tracks.Sum(t => t.Duration),
-                Media = tracks.Select(t => t.MediumNumber).Distinct().Select(n => new Medium { Number = n, Name = string.Empty, Format = kind.MediaFormat }).ToList(),
-                Monitored = monitored
+                Media = tracks.Select(t => t.MediumNumber).Distinct().Select(n => new Medium { Number = n, Name = string.Empty, Format = kind.MediaFormat }).ToList()
             };
         }
 
@@ -181,7 +197,16 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
         public static IEnumerable<DiscogsArtistCreditResource> Credits(DiscogsReleaseResource release)
         {
-            return release.Artists.Concat(release.Tracklist.SelectMany(t => t.Artists ?? new List<DiscogsArtistCreditResource>()));
+            return release.Artists.Concat(Tracks(release.Tracklist).SelectMany(t => t.Artists ?? new List<DiscogsArtistCreditResource>()));
+        }
+
+        // An index holds the tracks of one work, as classical releases often do
+        public static List<DiscogsTrackResource> Tracks(List<DiscogsTrackResource> tracklist)
+        {
+            return (tracklist ?? new List<DiscogsTrackResource>())
+                .SelectMany(t => t.Type == "index" ? (t.SubTracks ?? new List<DiscogsTrackResource>()).Select(part => PartOfWork(t, part)) : new[] { t })
+                .Where(t => t.Type.IsNullOrWhiteSpace() || t.Type == "track")
+                .ToList();
         }
 
         // Vinyl sides pair up on a disc (A and B are disc 1), CD positions read disc-track
@@ -228,6 +253,19 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
                 Duration = DurationMs(track.Duration),
                 MediumNumber = MediumNumber(track.Position),
                 ArtistMetadata = artist
+            };
+        }
+
+        // Named "Work: Movement" as MusicBrainz names classical tracks
+        private static DiscogsTrackResource PartOfWork(DiscogsTrackResource work, DiscogsTrackResource part)
+        {
+            return new DiscogsTrackResource
+            {
+                Position = part.Position,
+                Title = work.Title.IsNullOrWhiteSpace() ? part.Title : work.Title + ": " + part.Title,
+                Duration = part.Duration,
+                Artists = part.Artists?.Any() == true ? part.Artists : work.Artists,
+                Type = part.Type
             };
         }
 

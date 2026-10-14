@@ -163,6 +163,34 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
         }
 
         [Test]
+        public void a_pressing_without_tracks_is_dropped_and_another_is_monitored()
+        {
+            GivenMaster(10, 100, (101, 5));
+            var empty = Release(100, "CD", "Album");
+            empty.Tracklist.Clear();
+            Mocker.GetMock<IDiscogsApi>().Setup(a => a.GetRelease(100, It.IsAny<string>())).Returns(empty);
+
+            var album = Subject.GetAlbumInfo("discogs:master:10").Item2;
+
+            album.AlbumReleases.Value.Should().ContainSingle().Which.Monitored.Should().BeTrue();
+            album.AlbumReleases.Value.Single().ForeignReleaseId.Should().Be("discogs:release:101");
+        }
+
+        [Test]
+        public void a_dvd_audio_version_is_a_pressing_and_a_dvd_video_is_not()
+        {
+            _settings.PressingsPerAlbum = 0;
+            GivenMaster(10, 100, (101, 5), (102, 4));
+            Mocker.GetMock<IDiscogsApi>().Setup(a => a.GetMasterVersions(10, It.IsAny<string>())).Returns(new List<DiscogsVersionResource>
+            {
+                new() { Id = 101, MajorFormats = new List<string> { "DVD" }, Format = "DVD-Audio, Album" },
+                new() { Id = 102, MajorFormats = new List<string> { "DVD" }, Format = "DVD-Video, Album" }
+            });
+
+            Subject.GetAlbumInfo("discogs:master:10").Item2.AlbumReleases.Value.Select(r => r.ForeignReleaseId).Should().Equal("discogs:release:100", "discogs:release:101");
+        }
+
+        [Test]
         public void a_missing_pressing_fails_the_album_lookup()
         {
             GivenMaster(10, 100, (101, 5));
@@ -226,6 +254,21 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
             album.ForeignAlbumId.Should().Be("discogs:master:10");
             album.Artist.Value.Metadata.Value.ForeignArtistId.Should().Be("discogs:artist:3");
             album.AlbumReleases.Value.Single().ForeignReleaseId.Should().Be("discogs:release:100");
+        }
+
+        [Test]
+        public void album_search_counts_the_tracks_inside_an_index()
+        {
+            GivenMaster(10, 100);
+            Mocker.GetMock<IDiscogsApi>().Setup(a => a.GetMaster(10, It.IsAny<string>())).Returns(new DiscogsMasterResource
+            {
+                Id = 10, Title = "Master 10", MainRelease = 100, Artists = new List<DiscogsArtistCreditResource> { Credit },
+                Tracklist = new List<DiscogsTrackResource> { new() { Type = "index", Title = "Work", SubTracks = new List<DiscogsTrackResource> { new() { Type = "track", Title = "I" }, new() { Type = "track", Title = "II" } } } }
+            });
+            Mocker.GetMock<IDiscogsApi>().Setup(a => a.Search("master", "Master 10", "Placeholder Artist", It.IsAny<int>(), It.IsAny<string>()))
+                .Returns(new List<DiscogsSearchResultResource> { new() { Id = 10, Type = "master", Format = new List<string> { "CD", "Album" } } });
+
+            Subject.SearchForNewAlbum("Master 10", "Placeholder Artist").Single().AlbumReleases.Value.Single().TrackCount.Should().Be(2);
         }
 
         [Test]

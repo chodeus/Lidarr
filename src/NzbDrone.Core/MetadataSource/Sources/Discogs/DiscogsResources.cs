@@ -86,6 +86,8 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
         public long Id { get; set; }
         public DiscogsVersionStatsResource Stats { get; set; }
 
+        public string Format { get; set; }
+
         [JsonProperty("major_formats")]
         public List<string> MajorFormats { get; set; }
     }
@@ -116,6 +118,9 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
         [JsonProperty("type_")]
         public string Type { get; set; }
+
+        [JsonProperty("sub_tracks")]
+        public List<DiscogsTrackResource> SubTracks { get; set; }
     }
 
     public class DiscogsReleaseResource

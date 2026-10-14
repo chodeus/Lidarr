@@ -223,6 +223,22 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
         }
 
         [Test]
+        public void artists_masters_and_versions_are_cached_under_their_own_keys()
+        {
+            GivenResponse<DiscogsArtistResource>(HttpStatusCode.OK, r => "{\"id\":3,\"name\":\"Placeholder Artist\"}");
+            GivenResponse<DiscogsMasterResource>(HttpStatusCode.OK, r => "{\"id\":4,\"artists\":[{\"id\":3,\"name\":\"Placeholder Artist\"}]}");
+            GivenResponse<DiscogsVersionsPageResource>(HttpStatusCode.OK, r => "{\"pagination\":{\"page\":1,\"pages\":1},\"versions\":[{\"id\":5}]}");
+
+            Subject.GetArtist(3, Token);
+            Subject.GetMaster(4, Token);
+            Subject.GetMasterVersions(4, Token);
+
+            Mocker.GetMock<IDiscogsCache>().Verify(c => c.Set("artists/3", It.Is<DiscogsArtistResource>(a => a.Id == 3), TimeSpan.FromDays(7)), Times.Once());
+            Mocker.GetMock<IDiscogsCache>().Verify(c => c.Set("masters/4", It.Is<DiscogsMasterResource>(m => m.Id == 4), TimeSpan.FromDays(30)), Times.Once());
+            Mocker.GetMock<IDiscogsCache>().Verify(c => c.Set("masters/4/versions", It.Is<List<DiscogsVersionResource>>(l => l.Single().Id == 5), TimeSpan.FromDays(7)), Times.Once());
+        }
+
+        [Test]
         public void searches_are_not_cached()
         {
             GivenResponse<DiscogsSearchPageResource>(HttpStatusCode.OK, r => "{\"results\":[{\"id\":3}]}");

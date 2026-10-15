@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using NzbDrone.Core.Datastore;
 
 namespace NzbDrone.Core.Profiles.Releases
@@ -8,9 +9,17 @@ namespace NzbDrone.Core.Profiles.Releases
         public bool Enabled { get; set; }
         public List<string> Required { get; set; }
         public List<string> Ignored { get; set; }
-        public int IndexerId { get; set; }
+        public List<int> IndexerIds { get; set; }
         public HashSet<int> Tags { get; set; }
         public HashSet<int> ExcludedTags { get; set; }
+
+        // Develop's single indexer, kept for plugins and stored for older builds to read
+        // Rows set it before the later IndexerIds column, so a read keeps the full list
+        public int IndexerId
+        {
+            get => IndexerIds.FirstOrDefault();
+            set => IndexerIds = value > 0 ? new List<int> { value } : new List<int>();
+        }
 
         public ReleaseProfile()
         {
@@ -19,7 +28,7 @@ namespace NzbDrone.Core.Profiles.Releases
             Ignored = new List<string>();
             Tags = new HashSet<int>();
             ExcludedTags = new HashSet<int>();
-            IndexerId = 0;
+            IndexerIds = new List<int>();
         }
     }
 

@@ -1,4 +1,3 @@
-import _ from 'lodash';
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import MiddleTruncate from 'react-middle-truncate';
@@ -62,7 +61,7 @@ class ReleaseProfile extends Component {
       ignored,
       tags,
       excludedTags,
-      indexerId,
+      indexerIds,
       tagList,
       indexerList
     } = this.props;
@@ -72,7 +71,7 @@ class ReleaseProfile extends Component {
       isDeleteReleaseProfileModalOpen
     } = this.state;
 
-    const indexer = indexerId !== 0 && _.find(indexerList, { id: indexerId });
+    const indexers = indexerList.filter((indexer) => indexerIds.includes(indexer.id));
 
     return (
       <Card
@@ -151,13 +150,17 @@ class ReleaseProfile extends Component {
           }
 
           {
-            indexer &&
-              <Label
-                kind={kinds.INFO}
-                outline={true}
-              >
-                {indexer.name}
-              </Label>
+            indexers.map((indexer) => {
+              return (
+                <Label
+                  key={indexer.id}
+                  kind={kinds.INFO}
+                  outline={true}
+                >
+                  {indexer.name}
+                </Label>
+              );
+            })
           }
         </div>
 
@@ -189,7 +192,7 @@ ReleaseProfile.propTypes = {
   ignored: PropTypes.arrayOf(PropTypes.string).isRequired,
   tags: PropTypes.arrayOf(PropTypes.number).isRequired,
   excludedTags: PropTypes.arrayOf(PropTypes.number).isRequired,
-  indexerId: PropTypes.number.isRequired,
+  indexerIds: PropTypes.arrayOf(PropTypes.number).isRequired,
   tagList: PropTypes.arrayOf(PropTypes.object).isRequired,
   indexerList: PropTypes.arrayOf(PropTypes.object).isRequired,
   onConfirmDeleteReleaseProfile: PropTypes.func.isRequired
@@ -200,7 +203,7 @@ ReleaseProfile.defaultProps = {
   required: [],
   ignored: [],
   excludedTags: [],
-  indexerId: 0
+  indexerIds: []
 };
 
 export default ReleaseProfile;

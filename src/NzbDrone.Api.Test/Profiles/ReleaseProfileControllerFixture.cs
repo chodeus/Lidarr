@@ -73,6 +73,74 @@ namespace NzbDrone.Api.Test.Profiles
             model.ToResource().ExcludedTags.Should().BeEquivalentTo(new[] { 2 });
         }
 
+        [Test]
+        public void should_take_indexer_ids_over_indexer_id()
+        {
+            var resource = Resource();
+            resource.IndexerId = 3;
+            resource.IndexerIds = new List<int> { 5, 7 };
+
+            resource.ToModel().IndexerIds.Should().Equal(5, 7);
+        }
+
+        [Test]
+        public void should_read_indexer_id_from_clients_that_only_send_one()
+        {
+            var resource = Resource();
+            resource.IndexerId = 5;
+
+            resource.ToModel().IndexerIds.Should().Equal(5);
+        }
+
+        [Test]
+        public void should_apply_to_every_indexer_when_a_client_sends_only_indexer_id_0()
+        {
+            Resource().ToModel().IndexerIds.Should().BeEmpty();
+        }
+
+        [Test]
+        public void should_drop_zero_and_repeated_indexer_ids()
+        {
+            var resource = Resource();
+            resource.IndexerIds = new List<int> { 0, 5, 5 };
+
+            resource.ToModel().IndexerIds.Should().Equal(5);
+        }
+
+        [Test]
+        public void should_return_indexer_ids_and_the_first_one_as_indexer_id()
+        {
+            var resource = new ReleaseProfile { IndexerIds = new List<int> { 5, 7 } }.ToResource();
+
+            resource.IndexerIds.Should().Equal(5, 7);
+            resource.IndexerId.Should().Be(5);
+            new ReleaseProfile().ToResource().IndexerId.Should().Be(0);
+        }
+
+        [Test]
+        public void should_reject_each_indexer_that_does_not_exist()
+        {
+            _indexerFactory.Setup(s => s.Exists(5)).Returns(true);
+
+            var resource = Resource();
+            resource.IndexerIds = new List<int> { 5, 7 };
+
+            var error = _subject.Validate(resource).Errors.Should().ContainSingle().Subject;
+
+            error.PropertyName.Should().Be("IndexerIds");
+            error.ErrorMessage.Should().Be("Indexer does not exist: 7");
+        }
+
+        [Test]
+        public void should_not_check_the_indexers_of_a_disabled_profile()
+        {
+            var resource = Resource();
+            resource.Enabled = false;
+            resource.IndexerIds = new List<int> { 7 };
+
+            _subject.Validate(resource).IsValid.Should().BeTrue();
+        }
+
         private class TestController : ReleaseProfileController
         {
             public TestController(IReleaseProfileService releaseProfileService, IIndexerFactory indexerFactory)

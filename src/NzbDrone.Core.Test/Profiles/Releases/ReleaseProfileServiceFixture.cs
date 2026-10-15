@@ -92,6 +92,40 @@ namespace NzbDrone.Core.Test.Profiles.Releases
             Subject.AllExcludedForTag(ProvidedTagToExclude).Should().Equal(_excludedReleaseProfile, _includedAndExcludedReleaseProfile);
         }
 
+        [TestCase(5, true)]
+        [TestCase(7, true)]
+        [TestCase(9, false)]
+        public void enabled_for_tags_should_apply_a_profile_to_its_indexers_only(int indexerId, bool applies)
+        {
+            var releaseProfile = new ReleaseProfile { Id = 1, Required = new List<string> { "flac" }, IndexerIds = new List<int> { 5, 7 } };
+            Mocker.GetMock<IRestrictionRepository>().Setup(s => s.All()).Returns(new List<ReleaseProfile> { releaseProfile });
+
+            Subject.EnabledForTags(new HashSet<int>(), indexerId).Contains(releaseProfile).Should().Be(applies);
+        }
+
+        [Test]
+        public void enabled_for_tags_should_apply_a_profile_without_indexers_to_every_indexer()
+        {
+            var releaseProfile = new ReleaseProfile { Id = 1, Required = new List<string> { "flac" } };
+            Mocker.GetMock<IRestrictionRepository>().Setup(s => s.All()).Returns(new List<ReleaseProfile> { releaseProfile });
+
+            Subject.EnabledForTags(new HashSet<int>(), 9).Should().Equal(releaseProfile);
+        }
+
+        [Test]
+        public void should_read_and_set_develops_single_indexer_through_the_indexer_list()
+        {
+            var releaseProfile = new ReleaseProfile { IndexerIds = new List<int> { 5, 7 } };
+
+            releaseProfile.IndexerId.Should().Be(5);
+
+            releaseProfile.IndexerId = 9;
+            releaseProfile.IndexerIds.Should().Equal(9);
+
+            releaseProfile.IndexerId = 0;
+            releaseProfile.IndexerIds.Should().BeEmpty();
+        }
+
         [Test]
         public void should_give_the_member_added_to_the_develop_interface_a_default()
         {

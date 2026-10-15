@@ -35,7 +35,7 @@ function EditReleaseProfileModalContent(props) {
     ignored,
     tags,
     excludedTags,
-    indexerId
+    indexerIds
   } = item;
 
   return (
@@ -98,16 +98,15 @@ function EditReleaseProfileModalContent(props) {
 
           <FormGroup>
             <FormLabel>
-              {translate('Indexer')}
+              {translate('Indexers')}
             </FormLabel>
 
             <FormInputGroup
               type={inputTypes.INDEXER_SELECT}
-              name="indexerId"
-              helpText={translate('IndexerIdHelpText')}
+              name="indexerIds"
+              helpText={translate('ReleaseProfileIndexersHelpText')}
               helpTextWarning={translate('IndexerIdHelpTextWarning')}
-              {...indexerId}
-              includeAny={true}
+              {...indexerIds}
               onChange={onInputChange}
             />
           </FormGroup>

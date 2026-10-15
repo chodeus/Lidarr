@@ -11,6 +11,7 @@ namespace Lidarr.Api.V1.Profiles.Release
         public List<string> Required { get; set; }
         public List<string> Ignored { get; set; }
         public int IndexerId { get; set; }
+        public List<int> IndexerIds { get; set; }
         public HashSet<int> Tags { get; set; }
         public HashSet<int> ExcludedTags { get; set; }
 
@@ -37,7 +38,8 @@ namespace Lidarr.Api.V1.Profiles.Release
                 Enabled = model.Enabled,
                 Required = model.Required,
                 Ignored = model.Ignored,
-                IndexerId = model.IndexerId,
+                IndexerId = model.IndexerIds.FirstOrDefault(),
+                IndexerIds = model.IndexerIds.ToList(),
                 Tags = new HashSet<int>(model.Tags),
                 ExcludedTags = new HashSet<int>(model.ExcludedTags)
             };
@@ -57,10 +59,18 @@ namespace Lidarr.Api.V1.Profiles.Release
                 Enabled = resource.Enabled,
                 Required = resource.Required,
                 Ignored = resource.Ignored,
-                IndexerId = resource.IndexerId,
+                IndexerIds = resource.MapIndexerIds(),
                 Tags = new HashSet<int>(resource.Tags),
                 ExcludedTags = new HashSet<int>(resource.ExcludedTags)
             };
+        }
+
+        public static List<int> MapIndexerIds(this ReleaseProfileResource resource)
+        {
+            // IndexerId is for clients that only know one indexer; 0 means any
+            var indexerIds = resource.IndexerIds ?? new List<int> { resource.IndexerId };
+
+            return indexerIds.Where(i => i > 0).Distinct().ToList();
         }
 
         public static List<ReleaseProfileResource> ToResource(this IEnumerable<ReleaseProfile> models)

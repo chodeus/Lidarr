@@ -61,5 +61,29 @@ namespace NzbDrone.Core.Test.IndexerTests.NewznabTests
             page.Url.Query.Should().Contain("artist=Alien%20Ant%20Farm");
             page.Url.Query.Should().Contain("album=TruANT");
         }
+
+        private string SelfTitledTextSearch(int albumYear)
+        {
+            var criteria = new AlbumSearchCriteria
+            {
+                Artist = new Music.Artist { Name = "Artist Name" },
+                AlbumTitle = "Artist Name",
+                AlbumYear = albumYear
+            };
+
+            return Subject.GetSearchRequests(criteria).GetAllTiers().SelectMany(t => t).First(r => r.Url.Query.Contains("t=search")).Url.Query;
+        }
+
+        [Test]
+        public void should_add_the_year_to_a_self_titled_text_search()
+        {
+            SelfTitledTextSearch(2019).Should().Contain("q=Artist%20Name%20Artist%20Name%202019");
+        }
+
+        [Test]
+        public void should_not_add_a_year_to_a_self_titled_text_search_without_one()
+        {
+            SelfTitledTextSearch(0).Should().EndWith("&q=Artist%20Name%20Artist%20Name");
+        }
     }
 }

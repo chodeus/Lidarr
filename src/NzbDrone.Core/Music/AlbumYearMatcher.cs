@@ -12,7 +12,7 @@ namespace NzbDrone.Core.Music
                 return AlbumYearMatchResult.NoYearProvided();
             }
 
-            if (!albumReleaseDate.HasValue)
+            if (!HasDate(albumReleaseDate))
             {
                 return AlbumYearMatchResult.Match(0, 0, YearMatchConfidence.Low);
             }
@@ -52,8 +52,9 @@ namespace NzbDrone.Core.Music
                 return AlbumYearMatchResult.NoYearProvided();
             }
 
+            var primaryDated = HasDate(album.ReleaseDate);
             var primaryResult = Match(album.ReleaseDate, parsedYear);
-            if (primaryResult.IsMatch && primaryResult.YearDifference <= AlbumYearMatchingOptions.ExactMatchYearTolerance)
+            if (primaryDated && primaryResult.IsMatch && primaryResult.YearDifference <= AlbumYearMatchingOptions.ExactMatchYearTolerance)
             {
                 return primaryResult;
             }
@@ -64,7 +65,7 @@ namespace NzbDrone.Core.Music
                 var releases = album.AlbumReleases.Value;
                 if (releases != null && releases.Any())
                 {
-                    foreach (var release in releases.Where(r => r.Monitored || album.AnyReleaseOk))
+                    foreach (var release in releases.Where(r => r.Monitored || album.AnyReleaseOk).OrderByDescending(r => HasDate(r.ReleaseDate)))
                     {
                         var releaseResult = Match(release.ReleaseDate, parsedYear);
                         if (releaseResult.IsMatch &&
@@ -74,6 +75,11 @@ namespace NzbDrone.Core.Music
                         }
                     }
                 }
+            }
+
+            if (!primaryDated)
+            {
+                return primaryResult;
             }
 
             // Be more lenient for compilations and live albums
@@ -92,6 +98,12 @@ namespace NzbDrone.Core.Music
         {
             var result = Match(albumReleaseDate, expectedYear);
             return result.ScoreAdjustment;
+        }
+
+        // The metadata server sends 0001-01-01 for a release group with no date
+        private static bool HasDate(DateTime? date)
+        {
+            return date.HasValue && date.Value.Year > 1;
         }
     }
 }

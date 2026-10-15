@@ -32,6 +32,16 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
+        public void should_treat_an_album_dated_year_one_as_undated()
+        {
+            var result = Subject.Match(new DateTime(1, 1, 1), 2019);
+
+            result.IsMatch.Should().BeTrue();
+            result.Confidence.Should().Be(YearMatchConfidence.Low);
+            result.ScoreAdjustment.Should().Be(0);
+        }
+
+        [Test]
         public void should_give_high_bonus_for_exact_year_match()
         {
             var result = Subject.Match(new DateTime(2020, 6, 15), 2020);
@@ -160,6 +170,66 @@ namespace NzbDrone.Core.Test.MusicTests
 
             result.IsMatch.Should().BeTrue();
             result.ScoreAdjustment.Should().Be(AlbumYearMatchingOptions.ExactYearBonus);
+        }
+
+        [Test]
+        public void should_score_a_dated_edition_when_the_album_is_undated()
+        {
+            var album = new Album
+            {
+                Title = "Test",
+                ReleaseDate = new DateTime(1, 1, 1),
+                AlbumReleases = new LazyLoaded<List<AlbumRelease>>(new List<AlbumRelease>
+                {
+                    new AlbumRelease { ReleaseDate = new DateTime(2019, 1, 1), Monitored = true }
+                })
+            };
+
+            var result = Subject.Match(album, 2019);
+
+            result.ScoreAdjustment.Should().Be(AlbumYearMatchingOptions.ExactYearBonus);
+        }
+
+        [Test]
+        public void should_prefer_a_dated_edition_over_an_undated_one()
+        {
+            var album = new Album
+            {
+                Title = "Test",
+                ReleaseDate = new DateTime(1, 1, 1),
+                AlbumReleases = new LazyLoaded<List<AlbumRelease>>(new List<AlbumRelease>
+                {
+                    new AlbumRelease { ReleaseDate = new DateTime(1, 1, 1), Monitored = true },
+                    new AlbumRelease { ReleaseDate = new DateTime(2019, 1, 1), Monitored = true }
+                })
+            };
+
+            var result = Subject.Match(album, 2019);
+
+            result.ScoreAdjustment.Should().Be(AlbumYearMatchingOptions.ExactYearBonus);
+        }
+
+        [Test]
+        public void should_not_penalise_an_undated_compilation()
+        {
+            var album = new Album
+            {
+                Title = "Greatest Hits",
+                ReleaseDate = new DateTime(1, 1, 1),
+                SecondaryTypes = new List<SecondaryAlbumType>
+                {
+                    new SecondaryAlbumType { Name = "Compilation" }
+                },
+                AlbumReleases = new LazyLoaded<List<AlbumRelease>>(new List<AlbumRelease>
+                {
+                    new AlbumRelease { ReleaseDate = new DateTime(2010, 1, 1), Monitored = true }
+                })
+            };
+
+            var result = Subject.Match(album, 2019);
+
+            result.IsMatch.Should().BeTrue();
+            result.ScoreAdjustment.Should().Be(0);
         }
 
         [Test]

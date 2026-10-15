@@ -114,7 +114,7 @@ namespace NzbDrone.Core.Indexers.Newznab
 
                 var searchQuery = $"{artistQuery}+{albumQuery}";
 
-                if (artistQuery == albumQuery)
+                if (artistQuery == albumQuery && searchCriteria.AlbumYear > 0)
                 {
                     searchQuery = $"{artistQuery}+{albumQuery}+{searchCriteria.AlbumYear}";
                 }

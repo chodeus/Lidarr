@@ -34,6 +34,7 @@ function EditReleaseProfileModalContent(props) {
     required,
     ignored,
     tags,
+    excludedTags,
     indexerId
   } = item;
 
@@ -121,6 +122,21 @@ function EditReleaseProfileModalContent(props) {
               name="tags"
               helpText={translate('ReleaseProfileTagArtistHelpText')}
               {...tags}
+              onChange={onInputChange}
+            />
+          </FormGroup>
+
+          <FormGroup>
+            <FormLabel>
+              {translate('ExcludedTags')}
+            </FormLabel>
+
+            <FormInputGroup
+              type={inputTypes.TAG}
+              name="excludedTags"
+              helpText={translate('ReleaseProfileExcludedTagArtistHelpText')}
+              kind={kinds.DANGER}
+              {...excludedTags}
               onChange={onInputChange}
             />
           </FormGroup>

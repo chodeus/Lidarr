@@ -30,6 +30,7 @@ namespace NzbDrone.Core.Housekeeping.Housekeepers
                 }
                 .SelectMany(v => GetUsedTags(v, "Tags", mapper))
                 .Concat(GetUsedTags("RootFolders", "DefaultTags", mapper))
+                .Concat(GetUsedTags("ReleaseProfiles", "ExcludedTags", mapper))
                 .Concat(GetAutoTaggingTagSpecificationTags(mapper))
                 .Distinct()
                 .ToArray();

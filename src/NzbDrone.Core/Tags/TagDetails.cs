@@ -10,6 +10,7 @@ namespace NzbDrone.Core.Tags
         public List<int> ArtistIds { get; set; }
         public List<int> NotificationIds { get; set; }
         public List<int> RestrictionIds { get; set; }
+        public List<int> ExcludedReleaseProfileIds { get; set; } = new List<int>();
         public List<int> DelayProfileIds { get; set; }
         public List<int> ImportListIds { get; set; }
         public List<int> RootFolderIds { get; set; }
@@ -22,6 +23,7 @@ namespace NzbDrone.Core.Tags
         public bool InUse => ArtistIds.Any() ||
                              NotificationIds.Any() ||
                              RestrictionIds.Any() ||
+                             ExcludedReleaseProfileIds.Count != 0 ||
                              DelayProfileIds.Any() ||
                              ImportListIds.Any() ||
                              RootFolderIds.Any() ||

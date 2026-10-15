@@ -58,6 +58,7 @@ class Tag extends Component {
       importListIds,
       notificationIds,
       restrictionIds,
+      excludedReleaseProfileIds,
       indexerIds,
       downloadClientIds,
       autoTagIds,
@@ -76,6 +77,7 @@ class Tag extends Component {
       importListIds.length ||
       notificationIds.length ||
       restrictionIds.length ||
+      excludedReleaseProfileIds.length ||
       indexerIds.length ||
       downloadClientIds.length ||
       autoTagIds.length ||
@@ -83,6 +85,8 @@ class Tag extends Component {
       taggingProfileIds.length ||
       metadataSourceProfileIds.length
     );
+
+    const releaseProfileIds = [...new Set([...restrictionIds, ...excludedReleaseProfileIds])];
 
     return (
       <Card
@@ -124,7 +128,7 @@ class Tag extends Component {
               <TagInUse
                 label={translate('ReleaseProfile')}
                 labelPlural={translate('ReleaseProfiles')}
-                count={restrictionIds.length}
+                count={releaseProfileIds.length}
               />
 
               <TagInUse
@@ -173,7 +177,7 @@ class Tag extends Component {
           delayProfileIds={delayProfileIds}
           importListIds={importListIds}
           notificationIds={notificationIds}
-          restrictionIds={restrictionIds}
+          restrictionIds={releaseProfileIds}
           indexerIds={indexerIds}
           downloadClientIds={downloadClientIds}
           autoTagIds={autoTagIds}
@@ -205,6 +209,7 @@ Tag.propTypes = {
   importListIds: PropTypes.arrayOf(PropTypes.number).isRequired,
   notificationIds: PropTypes.arrayOf(PropTypes.number).isRequired,
   restrictionIds: PropTypes.arrayOf(PropTypes.number).isRequired,
+  excludedReleaseProfileIds: PropTypes.arrayOf(PropTypes.number).isRequired,
   indexerIds: PropTypes.arrayOf(PropTypes.number).isRequired,
   downloadClientIds: PropTypes.arrayOf(PropTypes.number).isRequired,
   autoTagIds: PropTypes.arrayOf(PropTypes.number).isRequired,
@@ -219,6 +224,7 @@ Tag.defaultProps = {
   importListIds: [],
   notificationIds: [],
   restrictionIds: [],
+  excludedReleaseProfileIds: [],
   indexerIds: [],
   downloadClientIds: [],
   autoTagIds: [],

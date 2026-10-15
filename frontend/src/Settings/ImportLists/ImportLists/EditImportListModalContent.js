@@ -87,6 +87,7 @@ function EditImportListModalContent(props) {
     qualityProfileId,
     metadataProfileId,
     tags,
+    tagExisting,
     fields,
     message
   } = item;
@@ -294,6 +295,20 @@ function EditImportListModalContent(props) {
                     name="tags"
                     helpText={translate('ImportListTagsHelpText')}
                     {...tags}
+                    onChange={onInputChange}
+                  />
+                </FormGroup>
+
+                <FormGroup>
+                  <FormLabel>
+                    {translate('TagExisting')}
+                  </FormLabel>
+
+                  <FormInputGroup
+                    type={inputTypes.CHECK}
+                    name="tagExisting"
+                    helpText={translate('TagExistingHelpText')}
+                    {...tagExisting}
                     onChange={onInputChange}
                   />
                 </FormGroup>

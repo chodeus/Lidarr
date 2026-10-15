@@ -548,5 +548,150 @@ namespace NzbDrone.Core.Test.ImportListTests
             Mocker.GetMock<IImportListExclusionService>()
                 .Verify(v => v.All(), Times.Never);
         }
+
+        private void WithTaggingLists(params ImportListDefinition[] lists)
+        {
+            Mocker.GetMock<IImportListFactory>()
+                .Setup(v => v.All())
+                .Returns(lists.ToList());
+        }
+
+        private static ImportListDefinition TaggingList(int id, bool tagExisting, params int[] tags)
+        {
+            return new ImportListDefinition { Id = id, ShouldMonitor = ImportListMonitorType.EntireArtist, TagExisting = tagExisting, Tags = new HashSet<int>(tags) };
+        }
+
+        private void WithLibraryArtist(int id, params int[] tags)
+        {
+            Mocker.GetMock<IArtistService>()
+                .Setup(v => v.GetArtists(It.IsAny<IEnumerable<int>>()))
+                .Returns<IEnumerable<int>>(ids => ids.Contains(id) ? new List<Artist> { new Artist { Id = id, Tags = new HashSet<int>(tags) } } : new List<Artist>());
+        }
+
+        private void VerifyTagged(int artistId, params int[] tags)
+        {
+            Mocker.GetMock<IArtistService>()
+                .Verify(v => v.UpdateTags(It.Is<List<Artist>>(l => l.Single().Id == artistId && l.Single().Tags.SetEquals(tags))), Times.Once());
+
+            Mocker.GetMock<IArtistService>()
+                .Verify(v => v.UpdateArtists(It.IsAny<List<Artist>>(), It.IsAny<bool>()), Times.Never());
+        }
+
+        private void VerifyNotTagged()
+        {
+            Mocker.GetMock<IArtistService>()
+                .Verify(v => v.UpdateTags(It.IsAny<List<Artist>>()), Times.Never());
+
+            Mocker.GetMock<IArtistService>()
+                .Verify(v => v.UpdateArtists(It.IsAny<List<Artist>>(), It.IsAny<bool>()), Times.Never());
+        }
+
+        [Test]
+        public void should_add_the_lists_tags_to_an_existing_artist_when_tag_existing_is_on()
+        {
+            WithArtistId();
+            WithExistingArtist(true);
+            WithLibraryArtist(1, 3);
+            WithTaggingLists(TaggingList(0, true, 1, 2));
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            VerifyTagged(1, 1, 2, 3);
+        }
+
+        [Test]
+        public void should_not_tag_existing_artists_when_tag_existing_is_off()
+        {
+            WithArtistId();
+            WithExistingArtist(true);
+            WithLibraryArtist(1, 3);
+            WithTaggingLists(TaggingList(0, false, 1, 2));
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            VerifyNotTagged();
+        }
+
+        [Test]
+        public void should_not_update_an_artist_that_already_has_the_lists_tags()
+        {
+            WithArtistId();
+            WithExistingArtist(true);
+            WithLibraryArtist(1, 1, 2);
+            WithTaggingLists(TaggingList(0, true, 1, 2));
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            VerifyNotTagged();
+        }
+
+        [Test]
+        public void should_add_the_lists_tags_to_the_artist_of_an_existing_album()
+        {
+            WithAlbumId();
+            WithArtistId();
+            WithExistingAlbum(true);
+            var artistId = Mocker.GetMock<IAlbumService>().Object.FindById(_importListReports.First().AlbumMusicBrainzId).ArtistId;
+            WithLibraryArtist(artistId);
+            WithTaggingLists(TaggingList(0, true, 4));
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            VerifyTagged(artistId, 4);
+        }
+
+        [Test]
+        public void should_give_a_new_artist_on_two_lists_both_lists_tags_and_leave_the_others_alone()
+        {
+            const string sharedArtistId = "11111111-1111-1111-1111-111111111111";
+            const string otherArtistId = "22222222-2222-2222-2222-222222222222";
+
+            _importListReports.Clear();
+            _importListReports.Add(new ImportListItemInfo { ImportListId = 1, Artist = "Artist Name", ArtistMusicBrainzId = sharedArtistId });
+            _importListReports.Add(new ImportListItemInfo { ImportListId = 1, Artist = "Other Artist", ArtistMusicBrainzId = otherArtistId });
+            _importListReports.Add(new ImportListItemInfo { ImportListId = 2, Artist = "Artist Name", ArtistMusicBrainzId = sharedArtistId });
+            WithTaggingLists(TaggingList(1, false, 1), TaggingList(2, false, 2));
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            Mocker.GetMock<IAddArtistService>()
+                .Verify(v => v.AddArtists(It.Is<List<Artist>>(l => l.Count == 2 && HasTags(l, sharedArtistId, 1, 2) && HasTags(l, otherArtistId, 1)), false, It.IsAny<bool>()));
+        }
+
+        [Test]
+        public void should_give_the_new_artist_of_an_album_on_two_lists_both_lists_tags()
+        {
+            WithAlbumId();
+            WithArtistId();
+            _importListReports.First().ImportListId = 1;
+            _importListReports.Add(new ImportListItemInfo { ImportListId = 2, ArtistMusicBrainzId = _importListReports.First().ArtistMusicBrainzId, AlbumMusicBrainzId = _importListReports.First().AlbumMusicBrainzId });
+            WithTaggingLists(TaggingList(1, false, 1), TaggingList(2, false, 2));
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            Mocker.GetMock<IAddArtistService>()
+                .Verify(v => v.AddArtists(It.Is<List<Artist>>(l => l.Single().Tags.SetEquals(new[] { 1, 2 })), false, It.IsAny<bool>()));
+        }
+
+        [Test]
+        public void should_tag_the_existing_artist_of_a_new_album_on_a_second_list()
+        {
+            WithAlbumId();
+            WithArtistId();
+            WithExistingArtist(true);
+            WithLibraryArtist(1, 3);
+            _importListReports.First().ImportListId = 1;
+            _importListReports.Add(new ImportListItemInfo { ImportListId = 2, ArtistMusicBrainzId = _importListReports.First().ArtistMusicBrainzId, AlbumMusicBrainzId = _importListReports.First().AlbumMusicBrainzId });
+            WithTaggingLists(TaggingList(1, false, 1), TaggingList(2, true, 2));
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            VerifyTagged(1, 2, 3);
+        }
+
+        private static bool HasTags(List<Artist> artists, string foreignArtistId, params int[] tags)
+        {
+            return artists.Single(a => a.ForeignArtistId == foreignArtistId).Tags.SetEquals(tags);
+        }
     }
 }

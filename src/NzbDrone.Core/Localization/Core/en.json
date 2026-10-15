@@ -1236,6 +1236,8 @@
   "TBA": "TBA",
   "Table": "Table",
   "TagAudioFilesWithMetadata": "Tag Audio Files with Metadata",
+  "TagExisting": "Tag Existing",
+  "TagExistingHelpText": "Add this list's tags to artists already in {appName}, including the artist of a listed album",
   "TagIsNotUsedAndCanBeDeleted": "Tag is not used and can be deleted",
   "Tags": "Tags",
   "TagsSettingsSummary": "See all tags and how they are used. Unused tags can be removed",

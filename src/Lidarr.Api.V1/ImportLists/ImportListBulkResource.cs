@@ -8,6 +8,7 @@ namespace Lidarr.Api.V1.ImportLists
         public bool? EnableAutomaticAdd { get; set; }
         public string RootFolderPath { get; set; }
         public int? QualityProfileId { get; set; }
+        public bool? TagExisting { get; set; }
     }
 
     public class ImportListBulkResourceMapper : ProviderBulkResourceMapper<ImportListBulkResource, ImportListDefinition>
@@ -24,6 +25,7 @@ namespace Lidarr.Api.V1.ImportLists
                 existing.EnableAutomaticAdd = resource.EnableAutomaticAdd ?? existing.EnableAutomaticAdd;
                 existing.RootFolderPath = resource.RootFolderPath ?? existing.RootFolderPath;
                 existing.ProfileId = resource.QualityProfileId ?? existing.ProfileId;
+                existing.TagExisting = resource.TagExisting ?? existing.TagExisting;
             });
 
             return existingDefinitions;

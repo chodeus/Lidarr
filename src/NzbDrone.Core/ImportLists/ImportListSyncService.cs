@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -135,6 +136,7 @@ namespace NzbDrone.Core.ImportLists
             var processed = new List<Album>();
             var artistsToAdd = new List<Artist>();
             var albumsToAdd = new List<Album>();
+            var existingArtistTags = new Dictionary<int, HashSet<int>>();
 
             if (items.Count == 0)
             {
@@ -163,7 +165,7 @@ namespace NzbDrone.Core.ImportLists
                         MapAlbumReport(item);
                     }
 
-                    ProcessAlbumReport(importList, item, listExclusions, albumsToAdd, artistsToAdd);
+                    ProcessAlbumReport(importList, item, listExclusions, albumsToAdd, artistsToAdd, existingArtistTags);
                 }
                 else if (item.Artist.IsNotNullOrWhiteSpace() || item.ArtistMusicBrainzId.IsNotNullOrWhiteSpace())
                 {
@@ -172,9 +174,11 @@ namespace NzbDrone.Core.ImportLists
                         MapArtistReport(item);
                     }
 
-                    ProcessArtistReport(importList, item, listExclusions, artistsToAdd);
+                    ProcessArtistReport(importList, item, listExclusions, artistsToAdd, existingArtistTags);
                 }
             }
+
+            TagExistingArtists(existingArtistTags);
 
             var addedArtists = _addArtistService.AddArtists(artistsToAdd, false, true);
             var addedAlbums = _addAlbumService.AddAlbums(albumsToAdd, false, true);
@@ -209,7 +213,7 @@ namespace NzbDrone.Core.ImportLists
             report.ArtistMusicBrainzId ??= mappedAlbum.ArtistMetadata?.Value?.ForeignArtistId;
         }
 
-        private void ProcessAlbumReport(ImportListDefinition importList, ImportListItemInfo report, Dictionary<string, ImportListExclusion> listExclusions, List<Album> albumsToAdd, List<Artist> artistsToAdd)
+        private void ProcessAlbumReport(ImportListDefinition importList, ImportListItemInfo report, Dictionary<string, ImportListExclusion> listExclusions, List<Album> albumsToAdd, List<Artist> artistsToAdd, Dictionary<int, HashSet<int>> existingArtistTags)
         {
             if (report.AlbumMusicBrainzId.IsNullOrWhiteSpace() || report.ArtistMusicBrainzId.IsNullOrWhiteSpace())
             {
@@ -237,6 +241,7 @@ namespace NzbDrone.Core.ImportLists
                 _logger.Debug("{0} [{1}] Rejected, Album Exists in DB.  Ensuring Album and Artist monitored.", report.AlbumMusicBrainzId, report.Album);
 
                 ProcessAlbumReportForExistingAlbum(importList, existingAlbum);
+                QueueTagsForExistingArtist(importList, () => existingAlbum.ArtistId, existingArtistTags);
                 return;
             }
 
@@ -245,7 +250,7 @@ namespace NzbDrone.Core.ImportLists
             {
                 var monitored = importList.ShouldMonitor != ImportListMonitorType.None;
 
-                var toAddArtist = ProcessArtistReport(importList, report, listExclusions, artistsToAdd);
+                var toAddArtist = ProcessArtistReport(importList, report, listExclusions, artistsToAdd, existingArtistTags);
 
                 var toAdd = new Album
                 {
@@ -266,6 +271,10 @@ namespace NzbDrone.Core.ImportLists
                 }
 
                 albumsToAdd.Add(toAdd);
+            }
+            else
+            {
+                AddListTags(importList, albumsToAdd.First(s => s.ForeignAlbumId == report.AlbumMusicBrainzId).Artist.Value, existingArtistTags);
             }
         }
 
@@ -313,7 +322,7 @@ namespace NzbDrone.Core.ImportLists
             report.Artist = mappedArtist?.Metadata.Value?.Name;
         }
 
-        private Artist ProcessArtistReport(ImportListDefinition importList, ImportListItemInfo report, Dictionary<string, ImportListExclusion> listExclusions, List<Artist> artistsToAdd)
+        private Artist ProcessArtistReport(ImportListDefinition importList, ImportListItemInfo report, Dictionary<string, ImportListExclusion> listExclusions, List<Artist> artistsToAdd, Dictionary<int, HashSet<int>> existingArtistTags)
         {
             if (report.ArtistMusicBrainzId.IsNullOrWhiteSpace())
             {
@@ -331,6 +340,7 @@ namespace NzbDrone.Core.ImportLists
             if (existingImportArtist != null)
             {
                 _logger.Debug("{0} [{1}] Rejected, artist exists in Import.", report.ArtistMusicBrainzId, report.Artist);
+                existingImportArtist.Tags.UnionWith(importList.Tags);
 
                 return existingImportArtist;
             }
@@ -342,6 +352,8 @@ namespace NzbDrone.Core.ImportLists
                 _logger.Debug("{0} [{1}] Rejected, artist exists in DB.  Ensuring artist monitored", report.ArtistMusicBrainzId, report.Artist);
 
                 ProcessArtistReportForExistingArtist(importList, existingArtist);
+                QueueTagsForExistingArtist(importList, () => existingArtist.Id, existingArtistTags);
+
                 return existingArtist;
             }
 
@@ -359,7 +371,9 @@ namespace NzbDrone.Core.ImportLists
                 RootFolderPath = importList.RootFolderPath,
                 QualityProfileId = importList.ProfileId,
                 MetadataProfileId = importList.MetadataProfileId,
-                Tags = importList.Tags,
+
+                // A copy, since tags from other lists that name the artist are added to it
+                Tags = new HashSet<int>(importList.Tags),
                 AddOptions = new AddArtistOptions
                 {
                     SearchForMissingAlbums = importList.ShouldSearch,
@@ -384,6 +398,61 @@ namespace NzbDrone.Core.ImportLists
                 {
                     _commandQueueManager.Push(new MissingAlbumSearchCommand(existingArtist.Id));
                 }
+            }
+        }
+
+        private static void AddListTags(ImportListDefinition importList, Artist artist, Dictionary<int, HashSet<int>> existingArtistTags)
+        {
+            if (artist.Id == 0)
+            {
+                artist.Tags.UnionWith(importList.Tags);
+                return;
+            }
+
+            QueueTagsForExistingArtist(importList, () => artist.Id, existingArtistTags);
+        }
+
+        // The artist ID is read only when tagging, since an album loads its artist to give it
+        private static void QueueTagsForExistingArtist(ImportListDefinition importList, Func<int> artistId, Dictionary<int, HashSet<int>> existingArtistTags)
+        {
+            if (!importList.TagExisting || importList.Tags.Empty())
+            {
+                return;
+            }
+
+            var id = artistId();
+
+            if (!existingArtistTags.TryGetValue(id, out var tags))
+            {
+                tags = new HashSet<int>();
+                existingArtistTags.Add(id, tags);
+            }
+
+            tags.UnionWith(importList.Tags);
+        }
+
+        private void TagExistingArtists(Dictionary<int, HashSet<int>> existingArtistTags)
+        {
+            if (existingArtistTags.Empty())
+            {
+                return;
+            }
+
+            var tagged = new List<Artist>();
+
+            foreach (var artist in _artistService.GetArtists(existingArtistTags.Keys))
+            {
+                if (!existingArtistTags[artist.Id].IsSubsetOf(artist.Tags))
+                {
+                    artist.Tags.UnionWith(existingArtistTags[artist.Id]);
+                    tagged.Add(artist);
+                    _logger.Debug("{0} tagged by its import lists", artist);
+                }
+            }
+
+            if (tagged.Any())
+            {
+                _artistService.UpdateTags(tagged);
             }
         }
 

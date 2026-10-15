@@ -31,6 +31,12 @@ namespace NzbDrone.Core.Music
         Dictionary<int, string> AllArtistPaths();
         bool ArtistPathExists(string folder);
         void RemoveAddOptions(Artist artist);
+
+        // A default, so services built against develop still load
+        void UpdateTags(List<Artist> artists)
+        {
+            UpdateArtists(artists, true);
+        }
     }
 
     public class ArtistService : IArtistService
@@ -219,6 +225,12 @@ namespace NzbDrone.Core.Music
         public void RemoveAddOptions(Artist artist)
         {
             _artistRepository.SetFields(artist, s => s.AddOptions);
+        }
+
+        public void UpdateTags(List<Artist> artists)
+        {
+            _cache.Clear();
+            _artistRepository.SetFields(artists, s => s.Tags);
         }
 
         public Artist UpdateArtist(Artist artist, bool publishUpdatedEvent = true)

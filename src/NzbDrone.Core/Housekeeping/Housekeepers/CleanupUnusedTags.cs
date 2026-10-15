@@ -28,7 +28,8 @@ namespace NzbDrone.Core.Housekeeping.Housekeepers
                     "Artists", "Notifications", "DelayProfiles", "ReleaseProfiles", "ImportLists", "Indexers",
                     "AutoTagging", "DownloadClients", "TaggingProfiles"
                 }
-                .SelectMany(v => GetUsedTags(v, mapper))
+                .SelectMany(v => GetUsedTags(v, "Tags", mapper))
+                .Concat(GetUsedTags("RootFolders", "DefaultTags", mapper))
                 .Concat(GetAutoTaggingTagSpecificationTags(mapper))
                 .Distinct()
                 .ToArray();
@@ -52,11 +53,11 @@ namespace NzbDrone.Core.Housekeeping.Housekeepers
             }
         }
 
-        private int[] GetUsedTags(string table, IDbConnection mapper)
+        private int[] GetUsedTags(string table, string column, IDbConnection mapper)
         {
             return mapper
                 .Query<List<int>>(
-                    $"SELECT DISTINCT \"Tags\" FROM \"{table}\" WHERE NOT \"Tags\" = '[]' AND NOT \"Tags\" IS NULL")
+                    $"SELECT DISTINCT \"{column}\" FROM \"{table}\" WHERE NOT \"{column}\" = '[]' AND NOT \"{column}\" IS NULL")
                 .SelectMany(x => x)
                 .Distinct()
                 .ToArray();

@@ -70,6 +70,13 @@ namespace NzbDrone.Core.Configuration
         string PostgresMainDbConnectionString { get; }
         string PostgresLogDbConnectionString { get; }
         bool TrustCgnatIpAddresses { get; }
+
+        // Defaults keep implementations built against develop working
+        string OidcAuthority => string.Empty;
+        string OidcClientId => string.Empty;
+        string OidcClientSecret => string.Empty;
+        string OidcUserIdentifier => string.Empty;
+        string OidcScopes => "openid profile email";
     }
 
     public class ConfigFileProvider : IConfigFileProvider
@@ -237,6 +244,12 @@ namespace NzbDrone.Core.Configuration
         public bool TrustCgnatIpAddresses => _authOptions.TrustCgnatIpAddresses ?? GetValueBoolean("TrustCgnatIpAddresses", false, persist: false);
 
         public string AllowedHosts => _serverOptions.AllowedHosts ?? GetValue("AllowedHosts", string.Empty);
+
+        public string OidcAuthority => _authOptions.OidcAuthority ?? GetValue("OidcAuthority", string.Empty, persist: false);
+        public string OidcClientId => _authOptions.OidcClientId ?? GetValue("OidcClientId", string.Empty, persist: false);
+        public string OidcClientSecret => _authOptions.OidcClientSecret ?? GetValue("OidcClientSecret", string.Empty, persist: false);
+        public string OidcUserIdentifier => _authOptions.OidcUserIdentifier ?? GetValue("OidcUserIdentifier", string.Empty, persist: false);
+        public string OidcScopes => _authOptions.OidcScopes ?? GetValue("OidcScopes", "openid profile email", persist: false);
 
         public bool AnalyticsEnabled => _logOptions.AnalyticsEnabled ?? GetValueBoolean("AnalyticsEnabled", true, persist: false);
 

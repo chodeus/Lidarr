@@ -10,6 +10,7 @@ import ClipboardButton from 'Components/Link/ClipboardButton';
 import ConfirmModal from 'Components/Modal/ConfirmModal';
 import { icons, inputTypes, kinds } from 'Helpers/Props';
 import translate from 'Utilities/String/translate';
+import AuthenticationMethodSettings from './AuthenticationMethodSettings';
 
 export const authenticationMethodOptions = [
   {
@@ -38,6 +39,12 @@ export const authenticationMethodOptions = [
     key: 'forms',
     get value() {
       return translate('AuthForm');
+    }
+  },
+  {
+    key: 'oidc',
+    get value() {
+      return translate('Oidc');
     }
   }
 ];
@@ -127,6 +134,11 @@ class SecuritySettings extends Component {
       username,
       password,
       passwordConfirmation,
+      oidcAuthority,
+      oidcClientId,
+      oidcClientSecret,
+      oidcUserIdentifier,
+      oidcScopes,
       apiKey,
       certificateValidation,
       trustedNetworks
@@ -169,54 +181,18 @@ class SecuritySettings extends Component {
             null
         }
 
-        {
-          authenticationEnabled ?
-            <FormGroup>
-              <FormLabel>
-                {translate('Username')}
-              </FormLabel>
-
-              <FormInputGroup
-                type={inputTypes.TEXT}
-                name="username"
-                onChange={onInputChange}
-                {...username}
-              />
-            </FormGroup> :
-            null
-        }
-
-        {
-          authenticationEnabled ?
-            <FormGroup>
-              <FormLabel>
-                {translate('Password')}
-              </FormLabel>
-
-              <FormInputGroup
-                type={inputTypes.PASSWORD}
-                name="password"
-                onChange={onInputChange}
-                {...password}
-              />
-            </FormGroup> :
-            null
-        }
-
-        {
-          authenticationEnabled ?
-            <FormGroup>
-              <FormLabel>{translate('PasswordConfirmation')}</FormLabel>
-
-              <FormInputGroup
-                type={inputTypes.PASSWORD}
-                name="passwordConfirmation"
-                onChange={onInputChange}
-                {...passwordConfirmation}
-              />
-            </FormGroup> :
-            null
-        }
+        <AuthenticationMethodSettings
+          authenticationMethod={authenticationMethod}
+          username={username}
+          password={password}
+          passwordConfirmation={passwordConfirmation}
+          oidcAuthority={oidcAuthority}
+          oidcClientId={oidcClientId}
+          oidcClientSecret={oidcClientSecret}
+          oidcUserIdentifier={oidcUserIdentifier}
+          oidcScopes={oidcScopes}
+          onInputChange={onInputChange}
+        />
 
         <FormGroup>
           <FormLabel>

@@ -1,7 +1,9 @@
 using System;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
+using NzbDrone.Core.Authentication;
 using NzbDrone.Core.Configuration;
 
 namespace NzbDrone.Http.Authentication
@@ -28,7 +30,15 @@ namespace NzbDrone.Http.Authentication
         {
             if (policyName.Equals(PolicyName, StringComparison.OrdinalIgnoreCase))
             {
-                var policy = new AuthorizationPolicyBuilder(_config.AuthenticationMethod.ToString())
+                var authenticationMethod = _config.EffectiveAuthenticationMethod();
+
+                // OIDC signs into the cookie scheme; using the OIDC scheme here would send every
+                // unauthenticated request to the identity provider instead of the login page
+                var scheme = authenticationMethod == AuthenticationType.Oidc
+                    ? CookieAuthenticationDefaults.AuthenticationScheme
+                    : authenticationMethod.ToString();
+
+                var policy = new AuthorizationPolicyBuilder(scheme)
                     .AddRequirements(new BypassableDenyAnonymousAuthorizationRequirement());
 
                 return Task.FromResult(policy.Build());

@@ -57,6 +57,10 @@ function getDownloadTooltip(isGrabbing, isGrabbed, grabError) {
   return translate('AddToDownloadQueue');
 }
 
+function formatHistoryDate(date, longDateFormat, timeFormat) {
+  return formatDateTime(date, longDateFormat, timeFormat, { includeSeconds: true });
+}
+
 class InteractiveSearchRow extends Component {
 
   //
@@ -132,6 +136,8 @@ class InteractiveSearchRow extends Component {
       customFormats,
       indexerFlags = 0,
       rejections,
+      blocklisted,
+      history,
       downloadAllowed,
       isGrabbing,
       isGrabbed,
@@ -163,6 +169,33 @@ class InteractiveSearchRow extends Component {
 
         <TableRowCell className={styles.indexer}>
           {indexer}
+        </TableRowCell>
+
+        <TableRowCell className={styles.history}>
+          {
+            history ?
+              <Icon
+                name={icons.DOWNLOADING}
+                kind={history.failed ? kinds.DANGER : kinds.DEFAULT}
+                title={
+                  history.failed ?
+                    translate('FailedAt', { date: formatHistoryDate(history.failed, longDateFormat, timeFormat) }) :
+                    translate('GrabbedAt', { date: formatHistoryDate(history.grabbed, longDateFormat, timeFormat) })
+                }
+              /> :
+              null
+          }
+
+          {
+            blocklisted ?
+              <Icon
+                containerClassName={history ? styles.blocklistIconContainer : undefined}
+                name={icons.BAN}
+                kind={kinds.DANGER}
+                title={translate('Blocklisted')}
+              /> :
+              null
+          }
         </TableRowCell>
 
         <TableRowCell className={styles.size}>
@@ -280,6 +313,8 @@ InteractiveSearchRow.propTypes = {
   customFormatScore: PropTypes.number.isRequired,
   indexerFlags: PropTypes.number.isRequired,
   rejections: PropTypes.arrayOf(PropTypes.string).isRequired,
+  blocklisted: PropTypes.bool.isRequired,
+  history: PropTypes.object,
   downloadAllowed: PropTypes.bool.isRequired,
   isGrabbing: PropTypes.bool.isRequired,
   isGrabbed: PropTypes.bool.isRequired,
@@ -293,6 +328,7 @@ InteractiveSearchRow.propTypes = {
 InteractiveSearchRow.defaultProps = {
   indexerFlags: 0,
   rejections: [],
+  blocklisted: false,
   isGrabbing: false,
   isGrabbed: false
 };

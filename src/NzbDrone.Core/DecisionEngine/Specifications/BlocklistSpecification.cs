@@ -7,6 +7,8 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
 {
     public class BlocklistSpecification : IDecisionEngineSpecification
     {
+        public const string BlocklistedReason = "Release is blocklisted";
+
         private readonly IBlocklistService _blocklistService;
         private readonly Logger _logger;
 
@@ -24,7 +26,7 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
             if (_blocklistService.Blocklisted(subject.Artist.Id, subject.Release))
             {
                 _logger.Debug("{0} is blocklisted, rejecting.", subject.Release.Title);
-                return Decision.Reject("Release is blocklisted");
+                return Decision.Reject(BlocklistedReason);
             }
 
             return Decision.Accept();

@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using Lidarr.Api.V1.CustomFormats;
 using Lidarr.Http.REST;
 using NzbDrone.Core.DecisionEngine;
+using NzbDrone.Core.DecisionEngine.Specifications;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
@@ -50,6 +51,8 @@ namespace Lidarr.Api.V1.Indexers
         public int? Leechers { get; set; }
         public string Protocol { get; set; }
         public int IndexerFlags { get; set; }
+        public bool Blocklisted { get; set; }
+        public ReleaseHistoryResource History { get; set; }
 
         // Sent when queuing an unknown release
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -102,6 +105,7 @@ namespace Lidarr.Api.V1.Indexers
                 TemporarilyRejected = model.TemporarilyRejected,
                 Rejected = model.Rejected,
                 Rejections = model.Rejections.Select(r => r.Reason).ToList(),
+                Blocklisted = model.Rejections.Any(r => r.Reason == BlocklistSpecification.BlocklistedReason),
                 PublishDate = releaseInfo.PublishDate,
                 CommentUrl = releaseInfo.CommentUrl,
                 DownloadUrl = releaseInfo.DownloadUrl,

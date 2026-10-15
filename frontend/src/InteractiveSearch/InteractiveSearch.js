@@ -39,6 +39,12 @@ const columns = [
     isVisible: true
   },
   {
+    name: 'history',
+    label: () => translate('History'),
+    isSortable: false,
+    isVisible: true
+  },
+  {
     name: 'size',
     label: () => translate('Size'),
     isSortable: true,

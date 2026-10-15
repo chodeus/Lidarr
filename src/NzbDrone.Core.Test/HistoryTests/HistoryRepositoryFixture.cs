@@ -26,6 +26,21 @@ namespace NzbDrone.Core.Test.HistoryTests
         }
 
         [Test]
+        public void should_read_data_keys_back_in_camel_case()
+        {
+            var history = Builder<EntityHistory>.CreateNew()
+                .With(c => c.Quality = new QualityModel())
+                .BuildNew();
+
+            history.Data.Add("TorrentInfoHash", "abcdef0123");
+
+            Subject.Insert(history);
+
+            // ReleaseGrabHistory reads these keys
+            StoredModel.Data.Should().ContainKey("torrentInfoHash");
+        }
+
+        [Test]
         public void should_get_download_history()
         {
             var historyBluray = Builder<EntityHistory>.CreateNew()

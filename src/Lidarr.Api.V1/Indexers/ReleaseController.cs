@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using FluentValidation;
 using Lidarr.Http;
@@ -10,6 +11,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Exceptions;
+using NzbDrone.Core.History;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.IndexerSearch;
 using NzbDrone.Core.Music;
@@ -32,6 +34,7 @@ namespace Lidarr.Api.V1.Indexers
         private readonly IPrioritizeDownloadDecision _prioritizeDownloadDecision;
         private readonly IParsingService _parsingService;
         private readonly IDownloadService _downloadService;
+        private readonly IHistoryService _historyService;
         private readonly Logger _logger;
 
         private readonly ICached<RemoteAlbum> _remoteAlbumCache;
@@ -44,6 +47,7 @@ namespace Lidarr.Api.V1.Indexers
                              IPrioritizeDownloadDecision prioritizeDownloadDecision,
                              IParsingService parsingService,
                              IDownloadService downloadService,
+                             IHistoryService historyService,
                              ICacheManager cacheManager,
                              IQualityProfileService qualityProfileService,
                              Logger logger)
@@ -57,6 +61,7 @@ namespace Lidarr.Api.V1.Indexers
             _prioritizeDownloadDecision = prioritizeDownloadDecision;
             _parsingService = parsingService;
             _downloadService = downloadService;
+            _historyService = historyService;
             _logger = logger;
 
             PostValidator.RuleFor(s => s.IndexerId).ValidId();
@@ -161,7 +166,7 @@ namespace Lidarr.Api.V1.Indexers
                 var decisions = await _releaseSearchService.AlbumSearch(albumId, true, true, true);
                 var prioritizedDecisions = _prioritizeDownloadDecision.PrioritizeDecisions(decisions);
 
-                return MapDecisions(prioritizedDecisions);
+                return WithHistory(prioritizedDecisions, GrabsAndFailures(type => _historyService.GetByAlbum(albumId, type)));
             }
             catch (Exception ex)
             {
@@ -177,7 +182,7 @@ namespace Lidarr.Api.V1.Indexers
                 var decisions = await _releaseSearchService.ArtistSearch(artistId, false, true, true);
                 var prioritizedDecisions = _prioritizeDownloadDecision.PrioritizeDecisions(decisions);
 
-                return MapDecisions(prioritizedDecisions);
+                return WithHistory(prioritizedDecisions, GrabsAndFailures(type => _historyService.GetByArtist(artistId, type)));
             }
             catch (Exception ex)
             {
@@ -193,6 +198,26 @@ namespace Lidarr.Api.V1.Indexers
             var prioritizedDecisions = _prioritizeDownloadDecision.PrioritizeDecisions(decisions);
 
             return MapDecisions(prioritizedDecisions);
+        }
+
+        // Only these two events matter, and an artist's history holds an import event per track
+        private static List<EntityHistory> GrabsAndFailures(Func<EntityHistoryEventType?, List<EntityHistory>> history)
+        {
+            return history(EntityHistoryEventType.Grabbed).Concat(history(EntityHistoryEventType.DownloadFailed)).ToList();
+        }
+
+        private List<ReleaseResource> WithHistory(List<DownloadDecision> decisions, List<EntityHistory> history)
+        {
+            var resources = MapDecisions(decisions);
+
+            foreach (var (resource, decision) in resources.Zip(decisions))
+            {
+                var grab = ReleaseGrabHistory.Find(decision.RemoteAlbum.Release, history);
+
+                resource.History = grab == null ? null : new ReleaseHistoryResource { Grabbed = grab.Grabbed, Failed = grab.Failed };
+            }
+
+            return resources;
         }
 
         protected override ReleaseResource MapDecision(DownloadDecision decision, int initialWeight)

@@ -180,17 +180,75 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
             Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetArtistInfo(OtherId, 1));
         }
 
+        private static Tuple<string, Album, List<ArtistMetadata>> AlbumInfo(string artistId, int releases)
+        {
+            var album = new Album { ForeignAlbumId = MusicBrainzId, AlbumReleases = Enumerable.Range(1, releases).Select(i => new AlbumRelease { ForeignReleaseId = "release-" + i }).ToList() };
+
+            return Tuple.Create(artistId, album, new List<ArtistMetadata>());
+        }
+
         [Test]
         public void album_lookup_returns_one_source_even_when_primaries_combine()
         {
             _profile.PrimaryCombination = MetadataSourceCombination.And;
-            var album = Tuple.Create("artist-1", new Album { ForeignAlbumId = MusicBrainzId }, new List<ArtistMetadata>());
+            var album = AlbumInfo("artist-1", 1);
             GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetAlbumInfo(MusicBrainzId)).Returns(album);
             var second = GivenSource(2, MetadataSourceRole.Primary);
 
             Subject.GetAlbumInfo(MusicBrainzId).Should().BeSameAs(album);
 
             second.Verify(s => s.GetAlbumInfo(It.IsAny<string>()), Times.Never());
+        }
+
+        [Test]
+        public void album_lookup_asks_the_next_primary_when_the_first_has_no_releases()
+        {
+            var album = AlbumInfo("artist-2", 1);
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetAlbumInfo(MusicBrainzId)).Returns(AlbumInfo("artist-1", 0));
+            GivenSource(2, MetadataSourceRole.Primary).Setup(s => s.GetAlbumInfo(MusicBrainzId)).Returns(album);
+
+            Subject.GetAlbumInfo(MusicBrainzId).Should().BeSameAs(album);
+        }
+
+        [Test]
+        public void album_lookup_asks_the_fallback_when_the_primaries_have_no_releases()
+        {
+            var album = AlbumInfo("artist-2", 2);
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetAlbumInfo(MusicBrainzId)).Returns(AlbumInfo("artist-1", 0));
+            GivenSource(2, MetadataSourceRole.Fallback).Setup(s => s.GetAlbumInfo(MusicBrainzId)).Returns(album);
+
+            Subject.GetAlbumInfo(MusicBrainzId).Should().BeSameAs(album);
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void album_lookup_returns_the_first_answer_when_no_source_has_releases(bool fallbackHasIt)
+        {
+            var first = AlbumInfo("artist-1", 0);
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetAlbumInfo(MusicBrainzId)).Returns(first);
+            var fallback = GivenSource(2, MetadataSourceRole.Fallback);
+
+            if (fallbackHasIt)
+            {
+                fallback.Setup(s => s.GetAlbumInfo(MusicBrainzId)).Returns(AlbumInfo("artist-2", 0));
+            }
+            else
+            {
+                fallback.Setup(s => s.GetAlbumInfo(MusicBrainzId)).Throws(new AlbumNotFoundException(MusicBrainzId));
+            }
+
+            Subject.GetAlbumInfo(MusicBrainzId).Should().BeSameAs(first);
+        }
+
+        [Test]
+        public void album_lookup_reports_the_outage_when_the_only_answer_has_no_releases()
+        {
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetAlbumInfo(MusicBrainzId)).Returns(AlbumInfo("artist-1", 0));
+            GivenSource(2, MetadataSourceRole.Fallback).Setup(s => s.GetAlbumInfo(MusicBrainzId)).Throws(new TimeoutException("Source 2 is down"));
+
+            Assert.Throws<TimeoutException>(() => Subject.GetAlbumInfo(MusicBrainzId));
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]

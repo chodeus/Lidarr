@@ -276,7 +276,7 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
         [Test]
         public void a_supplementary_source_answers_for_its_own_albums()
         {
-            var album = Tuple.Create("other:9", new Album { ForeignAlbumId = "other:101" }, new List<ArtistMetadata>());
+            var album = Tuple.Create("other:9", new Album { ForeignAlbumId = "other:101", AlbumReleases = new List<AlbumRelease> { new AlbumRelease { ForeignReleaseId = "other:release-1" } } }, new List<ArtistMetadata>());
             GivenSource(1, MetadataSourceRole.Primary);
             GivenSource(2, MetadataSourceRole.Supplementary, OtherFamily).Setup(s => s.GetAlbumInfo("other:101")).Returns(album);
 
@@ -332,7 +332,7 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
         [Test]
         public void skips_the_album_owner_lookup_without_tagged_profiles_or_supplementary_sources()
         {
-            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetAlbumInfo(MusicBrainzId)).Returns(Tuple.Create(MusicBrainzId, new Album(), new List<ArtistMetadata>()));
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetAlbumInfo(MusicBrainzId)).Returns(AlbumInfo(MusicBrainzId, 1));
 
             Subject.GetAlbumInfo(MusicBrainzId);
 

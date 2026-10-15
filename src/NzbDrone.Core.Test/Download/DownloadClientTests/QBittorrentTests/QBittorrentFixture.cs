@@ -13,6 +13,9 @@ using NzbDrone.Core.Download.Clients;
 using NzbDrone.Core.Download.Clients.QBittorrent;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MediaFiles.TorrentInfo;
+using NzbDrone.Core.Music;
+using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Tags;
 using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.Download.DownloadClientTests.QBittorrentTests
@@ -532,6 +535,86 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.QBittorrentTests
                   .Throws(new HttpException(new HttpResponse(new HttpRequest("http://me.local/"), new HttpHeader(), Array.Empty<byte>(), System.Net.HttpStatusCode.Forbidden)));
 
             var remoteAlbum = CreateRemoteAlbum();
+
+            var id = await Subject.Download(remoteAlbum, CreateIndexer());
+
+            id.Should().NotBeNullOrEmpty();
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        private RemoteAlbum GivenArtistTags(bool addArtistTags, params int[] tagIds)
+        {
+            Subject.Definition.Settings.As<QBittorrentSettings>().AddArtistTags = addArtistTags;
+
+            Mocker.GetMock<ITagRepository>()
+                  .Setup(s => s.GetTags(It.IsAny<HashSet<int>>()))
+                  .Returns<HashSet<int>>(ids => ids.Select(id => new Tag { Id = id, Label = "tag-" + id }).ToList());
+
+            var remoteAlbum = CreateRemoteAlbum();
+            remoteAlbum.Artist = new Artist { Tags = new HashSet<int>(tagIds) };
+
+            return remoteAlbum;
+        }
+
+        [Test]
+        public async Task Download_should_add_the_artists_tags_when_enabled()
+        {
+            GivenSuccessfulDownload();
+            var remoteAlbum = GivenArtistTags(true, 1, 2);
+
+            await Subject.Download(remoteAlbum, CreateIndexer());
+
+            Mocker.GetMock<IQBittorrentProxy>()
+                  .Verify(v => v.AddTags("cbc2f069fe8bb2f544eae707d75bcd3de9dcf951", It.Is<IEnumerable<string>>(t => t.SequenceEqual(new[] { "tag-1", "tag-2" })), It.IsAny<QBittorrentSettings>()), Times.Once());
+        }
+
+        [Test]
+        public async Task Download_should_add_the_artists_tags_to_a_magnet_link()
+        {
+            GivenTorrents(new List<QBittorrentTorrent> { new QBittorrentTorrent { Hash = "CBC2F069FE8BB2F544EAE707D75BCD3DE9DCF951", Name = _title } });
+            var remoteAlbum = GivenArtistTags(true, 1);
+            remoteAlbum.Release.DownloadUrl = "magnet:?xt=urn:btih:CBC2F069FE8BB2F544EAE707D75BCD3DE9DCF951&tr=udp://tracker.example.invalid:80";
+
+            await Subject.Download(remoteAlbum, CreateIndexer());
+
+            Mocker.GetMock<IQBittorrentProxy>()
+                  .Verify(v => v.AddTags("cbc2f069fe8bb2f544eae707d75bcd3de9dcf951", It.Is<IEnumerable<string>>(t => t.SequenceEqual(new[] { "tag-1" })), It.IsAny<QBittorrentSettings>()), Times.Once());
+        }
+
+        [Test]
+        public async Task Download_should_not_add_tags_when_disabled()
+        {
+            GivenSuccessfulDownload();
+            var remoteAlbum = GivenArtistTags(false, 1, 2);
+
+            await Subject.Download(remoteAlbum, CreateIndexer());
+
+            Mocker.GetMock<IQBittorrentProxy>()
+                  .Verify(v => v.AddTags(It.IsAny<string>(), It.IsAny<IEnumerable<string>>(), It.IsAny<QBittorrentSettings>()), Times.Never());
+        }
+
+        [Test]
+        public async Task Download_should_not_add_tags_when_the_artist_has_none()
+        {
+            GivenSuccessfulDownload();
+            var remoteAlbum = GivenArtistTags(true);
+
+            await Subject.Download(remoteAlbum, CreateIndexer());
+
+            Mocker.GetMock<IQBittorrentProxy>()
+                  .Verify(v => v.AddTags(It.IsAny<string>(), It.IsAny<IEnumerable<string>>(), It.IsAny<QBittorrentSettings>()), Times.Never());
+        }
+
+        [Test]
+        public async Task Download_should_not_fail_if_tags_cannot_be_added()
+        {
+            GivenSuccessfulDownload();
+            var remoteAlbum = GivenArtistTags(true, 1);
+
+            Mocker.GetMock<IQBittorrentProxy>()
+                  .Setup(v => v.AddTags(It.IsAny<string>(), It.IsAny<IEnumerable<string>>(), It.IsAny<QBittorrentSettings>()))
+                  .Throws(new NotSupportedException("qBittorrent's v1 API has no tags"));
 
             var id = await Subject.Download(remoteAlbum, CreateIndexer());
 

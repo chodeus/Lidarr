@@ -266,6 +266,11 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
             }
         }
 
+        public void AddTags(string hash, IEnumerable<string> tags, QBittorrentSettings settings)
+        {
+            throw new NotSupportedException("qBittorrent's v1 API has no tags");
+        }
+
         public void SetForceStart(string hash, bool enabled, QBittorrentSettings settings)
         {
             var request = BuildRequest(settings).Resource("/command/setForceStart")

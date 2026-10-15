@@ -14,6 +14,7 @@ using NzbDrone.Core.Localization;
 using NzbDrone.Core.MediaFiles.TorrentInfo;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.RemotePathMappings;
+using NzbDrone.Core.Tags;
 using NzbDrone.Core.Validation;
 
 namespace NzbDrone.Core.Download.Clients.QBittorrent
@@ -21,12 +22,28 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
     public class QBittorrent : TorrentClientBase<QBittorrentSettings>
     {
         private readonly IQBittorrentProxySelector _proxySelector;
+        private readonly ITagRepository _tagRepository;
         private readonly ICached<SeedingTimeCacheEntry> _seedingTimeCache;
 
         private class SeedingTimeCacheEntry
         {
             public DateTime LastFetched { get; set; }
             public long SeedingTime { get; set; }
+        }
+
+        // Develop's constructor, kept for plugins built against it; artist tags can't be added without the tag repository
+        public QBittorrent(IQBittorrentProxySelector proxySelector,
+                           ITorrentFileInfoReader torrentFileInfoReader,
+                           IHttpClient httpClient,
+                           IConfigService configService,
+                           IDiskProvider diskProvider,
+                           IRemotePathMappingService remotePathMappingService,
+                           ICacheManager cacheManager,
+                           ILocalizationService localizationService,
+                           IBlocklistService blocklistService,
+                           Logger logger)
+            : this(proxySelector, torrentFileInfoReader, httpClient, configService, diskProvider, remotePathMappingService, cacheManager, localizationService, blocklistService, null, logger)
+        {
         }
 
         public QBittorrent(IQBittorrentProxySelector proxySelector,
@@ -38,10 +55,12 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
                            ICacheManager cacheManager,
                            ILocalizationService localizationService,
                            IBlocklistService blocklistService,
+                           ITagRepository tagRepository,
                            Logger logger)
             : base(torrentFileInfoReader, httpClient, configService, diskProvider, remotePathMappingService, localizationService, blocklistService, logger)
         {
             _proxySelector = proxySelector;
+            _tagRepository = tagRepository;
 
             _seedingTimeCache = cacheManager.GetCache<SeedingTimeCacheEntry>(GetType(), "seedingTime");
         }
@@ -83,7 +102,7 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
 
             Proxy.AddTorrentFromUrl(magnetLink, addHasSetShareLimits && setShareLimits ? remoteAlbum.SeedConfiguration : null, Settings);
 
-            if ((!addHasSetShareLimits && setShareLimits) || moveToTop || forceStart)
+            if ((!addHasSetShareLimits && setShareLimits) || moveToTop || forceStart || ShouldAddArtistTags(remoteAlbum))
             {
                 if (!WaitForTorrent(hash))
                 {
@@ -125,6 +144,8 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
                         _logger.Warn(ex, "Failed to set ForceStart for {0}.", hash);
                     }
                 }
+
+                AddArtistTags(remoteAlbum, hash);
             }
 
             return hash;
@@ -140,7 +161,7 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
 
             Proxy.AddTorrentFromFile(filename, fileContent, addHasSetShareLimits ? remoteAlbum.SeedConfiguration : null, Settings);
 
-            if ((!addHasSetShareLimits && setShareLimits) || moveToTop || forceStart)
+            if ((!addHasSetShareLimits && setShareLimits) || moveToTop || forceStart || ShouldAddArtistTags(remoteAlbum))
             {
                 if (!WaitForTorrent(hash))
                 {
@@ -182,9 +203,34 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
                         _logger.Warn(ex, "Failed to set ForceStart for {0}.", hash);
                     }
                 }
+
+                AddArtistTags(remoteAlbum, hash);
             }
 
             return hash;
+        }
+
+        private bool ShouldAddArtistTags(RemoteAlbum remoteAlbum)
+        {
+            return Settings.AddArtistTags && remoteAlbum.Artist.Tags.Count > 0;
+        }
+
+        // Only qBittorrent's own labels change; the torrent, its files and seeding stay as they are
+        private void AddArtistTags(RemoteAlbum remoteAlbum, string hash)
+        {
+            if (!ShouldAddArtistTags(remoteAlbum))
+            {
+                return;
+            }
+
+            try
+            {
+                Proxy.AddTags(hash.ToLower(), _tagRepository.GetTags(remoteAlbum.Artist.Tags).Select(tag => tag.Label), Settings);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "Failed to add the artist's tags to {0}.", hash);
+            }
         }
 
         protected bool WaitForTorrent(string hash)

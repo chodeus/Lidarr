@@ -82,6 +82,9 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
         [FieldDefinition(14, Label = "DownloadClientQbittorrentSettingsContentLayout", Type = FieldType.Select, SelectOptions = typeof(QBittorrentContentLayout), HelpText = "DownloadClientQbittorrentSettingsContentLayoutHelpText")]
         public int ContentLayout { get; set; }
 
+        [FieldDefinition(15, Label = "DownloadClientQbittorrentSettingsAddArtistTags", Type = FieldType.Checkbox, HelpText = "DownloadClientQbittorrentSettingsAddArtistTagsHelpText")]
+        public bool AddArtistTags { get; set; }
+
         public NzbDroneValidationResult Validate()
         {
             return new NzbDroneValidationResult(Validator.Validate(this));

@@ -101,6 +101,14 @@ function createMatchingTaggingProfilesSelector() {
   );
 }
 
+function createMatchingMetadataSourceProfilesSelector() {
+  return createSelector(
+    (state, { metadataSourceProfileIds }) => metadataSourceProfileIds,
+    (state) => state.settings.metadataSourceProfiles.items,
+    findMatchingItems
+  );
+}
+
 function createMapStateToProps() {
   return createSelector(
     createMatchingArtistSelector(),
@@ -112,7 +120,8 @@ function createMapStateToProps() {
     createMatchingDownloadClientsSelector(),
     createMatchingAutoTagsSelector(),
     createMatchingTaggingProfilesSelector(),
-    (artist, delayProfiles, importLists, notifications, releaseProfiles, indexers, downloadClients, autoTags, taggingProfiles) => {
+    createMatchingMetadataSourceProfilesSelector(),
+    (artist, delayProfiles, importLists, notifications, releaseProfiles, indexers, downloadClients, autoTags, taggingProfiles, metadataSourceProfiles) => {
       return {
         artist,
         delayProfiles,
@@ -122,7 +131,8 @@ function createMapStateToProps() {
         indexers,
         downloadClients,
         autoTags,
-        taggingProfiles
+        taggingProfiles,
+        metadataSourceProfiles
       };
     }
   );

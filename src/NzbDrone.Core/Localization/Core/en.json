@@ -778,6 +778,7 @@
   "MetadataSourceCombinationOr": "Or",
   "MetadataSourceEnableHelpText": "Use this source in metadata source profiles",
   "MetadataSourceProfileTagsHelpText": "Applies to artists with at least one matching tag",
+  "MetadataSourceProfile": "Metadata Source Profile",
   "MetadataSourceProfiles": "Metadata Source Profiles",
   "MetadataSourceRoleFallback": "Fallback",
   "MetadataSourceRolePrimary": "Primary",

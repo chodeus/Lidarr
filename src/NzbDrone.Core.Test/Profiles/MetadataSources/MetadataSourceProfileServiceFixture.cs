@@ -52,6 +52,16 @@ namespace NzbDrone.Core.Test.Profiles.MetadataSources
         }
 
         [Test]
+        public void all_for_tag_returns_the_profiles_using_the_tag()
+        {
+            var first = GivenProfile("First", 5);
+            GivenProfile("Second", 6);
+            var third = GivenProfile("Third", 5, 6);
+
+            Subject.AllForTag(5).Select(p => p.Id).Should().BeEquivalentTo(new[] { first.Id, third.Id });
+        }
+
+        [Test]
         public void best_for_tags_picks_the_first_profile_sharing_a_tag()
         {
             var first = GivenProfile("First", 5);

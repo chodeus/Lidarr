@@ -19,6 +19,7 @@ export interface TagDetail extends ModelBase {
   restrictionIds: number[];
   artistIds: number[];
   taggingProfileIds: number[];
+  metadataSourceProfileIds: number[];
 }
 
 export interface TagDetailAppState

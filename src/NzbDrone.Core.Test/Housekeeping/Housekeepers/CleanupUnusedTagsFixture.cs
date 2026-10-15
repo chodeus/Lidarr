@@ -6,6 +6,7 @@ using NzbDrone.Core.AutoTagging;
 using NzbDrone.Core.AutoTagging.Specifications;
 using NzbDrone.Core.Housekeeping.Housekeepers;
 using NzbDrone.Core.Profiles.Releases;
+using NzbDrone.Core.Profiles.Tagging;
 using NzbDrone.Core.Tags;
 using NzbDrone.Core.Test.Framework;
 
@@ -78,6 +79,22 @@ namespace NzbDrone.Core.Test.Housekeeping.Housekeepers
 
             Subject.Clean();
             AllStoredModels.Should().HaveCount(1);
+        }
+
+        [Test]
+        public void should_not_delete_tags_only_tagging_profiles_use()
+        {
+            var tags = Builder<Tag>
+                .CreateListOfSize(2)
+                .All()
+                .With(x => x.Id = 0)
+                .BuildList();
+            Db.InsertMany(tags);
+
+            Db.Insert(new TaggingProfile { Name = "Profile Name", Tags = new HashSet<int> { tags[0].Id } });
+
+            Subject.Clean();
+            AllStoredModels.Should().ContainSingle().Which.Id.Should().Be(tags[0].Id);
         }
     }
 }

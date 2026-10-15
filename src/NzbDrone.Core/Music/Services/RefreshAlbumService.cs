@@ -77,12 +77,12 @@ namespace NzbDrone.Core.Music
         {
             var result = new RemoteData();
 
-            // remove not in remote list and ShouldDelete is true, unless the source has no usable copy of the album
+            // remove not in remote list and ShouldDelete is true, unless a synced album has no usable copy at the source
             if (remote != null &&
                 !remote.Any(x => x.ForeignAlbumId == local.ForeignAlbumId || x.OldForeignAlbumIds.Contains(local.ForeignAlbumId)) &&
                 ShouldDelete(local))
             {
-                result.MissingFromSource = !SourceHasAlbum(local);
+                result.MissingFromSource = HasSomethingToKeep(local) && !SourceHasAlbum(local);
                 return result;
             }
 
@@ -93,14 +93,14 @@ namespace NzbDrone.Core.Music
             }
             catch (AlbumNotFoundException)
             {
-                result.MissingFromSource = true;
+                result.MissingFromSource = HasSomethingToKeep(local);
                 return result;
             }
 
             if (tuple.Item2.AlbumReleases.Value.Count == 0)
             {
                 _logger.Debug($"{local} has no valid releases");
-                result.MissingFromSource = true;
+                result.MissingFromSource = HasSomethingToKeep(local);
                 return result;
             }
 
@@ -168,6 +168,12 @@ namespace NzbDrone.Core.Music
             // not manually added and has no files
             return local.AddOptions.AddType != AlbumAddType.Manual &&
                 !_mediaFileService.GetFilesByAlbum(local.Id).Any();
+        }
+
+        // An album the source listed but never had a usable copy of is deleted, as develop does on every refresh
+        private bool HasSomethingToKeep(Album local)
+        {
+            return local.LastInfoSync > DateTime.MinValue || !ShouldDelete(local);
         }
 
         protected override void MarkMissingFromSource(Album local)

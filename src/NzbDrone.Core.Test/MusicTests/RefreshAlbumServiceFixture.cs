@@ -48,6 +48,7 @@ namespace NzbDrone.Core.Test.MusicTests
                 .With(s => s.ForeignAlbumId = "1")
                 .With(s => s.AlbumReleases = _releases)
                 .With(s => s.MetadataMissingSince = null)
+                .With(s => s.LastInfoSync = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc))
                 .Build();
 
             _albums = new List<Album> { album1 };
@@ -229,6 +230,88 @@ namespace NzbDrone.Core.Test.MusicTests
             GivenNewAlbumInfo(withoutReleases);
 
             Subject.RefreshAlbumInfo(album, new List<Album>(), false);
+
+            VerifyKeptAndMarked(album);
+            ExceptionVerification.ExpectedErrors(1);
+        }
+
+        private Album GivenNeverSynced(bool minValue)
+        {
+            var album = _albums.First();
+            album.LastInfoSync = minValue ? DateTime.MinValue : null;
+
+            return album;
+        }
+
+        private void VerifyDeletedNotMarked(Album album)
+        {
+            Mocker.GetMock<IAlbumService>()
+                .Verify(x => x.DeleteAlbum(album.Id, true, false), Times.Once());
+            Mocker.GetMock<IAlbumService>()
+                .Verify(x => x.UpdateMetadataMissingSince(It.IsAny<List<Album>>()), Times.Never());
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_delete_never_synced_album_with_no_valid_releases(bool minValue)
+        {
+            var album = GivenNeverSynced(minValue);
+            var withoutReleases = album.JsonClone();
+            withoutReleases.AlbumReleases = new List<AlbumRelease>();
+            GivenNewAlbumInfo(withoutReleases);
+
+            Subject.RefreshAlbumInfo(album, null, false);
+
+            VerifyDeletedNotMarked(album);
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_delete_never_synced_album_the_source_does_not_have(bool minValue)
+        {
+            var album = GivenNeverSynced(minValue);
+
+            Subject.RefreshAlbumInfo(album, null, false);
+
+            VerifyDeletedNotMarked(album);
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_delete_unlisted_never_synced_album_without_asking_the_source()
+        {
+            var album = GivenNeverSynced(true);
+
+            Subject.RefreshAlbumInfo(album, new List<Album>(), false);
+
+            VerifyDeletedNotMarked(album);
+            Mocker.GetMock<IProvideAlbumInfo>()
+                .Verify(x => x.GetAlbumInfo(It.IsAny<string>()), Times.Never());
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_keep_and_mark_never_synced_album_with_files()
+        {
+            var album = GivenNeverSynced(true);
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(x => x.GetFilesByAlbum(album.Id))
+                .Returns(new List<TrackFile> { new TrackFile() });
+
+            Subject.RefreshAlbumInfo(album, null, false);
+
+            VerifyKeptAndMarked(album);
+            ExceptionVerification.ExpectedErrors(1);
+        }
+
+        [Test]
+        public void should_keep_and_mark_never_synced_album_added_by_hand()
+        {
+            var album = GivenNeverSynced(true);
+            album.AddOptions = new AddAlbumOptions { AddType = AlbumAddType.Manual };
+
+            Subject.RefreshAlbumInfo(album, null, false);
 
             VerifyKeptAndMarked(album);
             ExceptionVerification.ExpectedErrors(1);

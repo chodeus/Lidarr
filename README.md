@@ -64,6 +64,8 @@
   - A token in a metadata server's URL path, such as `/t/<token>/api/v0.4`, is hidden in logs.
 - **Usenet blocklist per indexer** — branch [`feat/usenet-blocklist-same-indexer`](https://github.com/chodeus/Lidarr/tree/feat/usenet-blocklist-same-indexer), not submitted
   - A blocklisted NZB blocks only the same post from the same indexer (same published date). A similar post from another indexer, or one within 2 minutes and 2 MB, is no longer blocked.
+- **Every matching Plex library** — branch [`feat/plex-every-matching-library`](https://github.com/chodeus/Lidarr/tree/feat/plex-every-matching-library), not submitted
+  - A Plex Media Server refresh updates every music library whose folder matches the artist's root folder, not just the first. With no match, every music library is updated, as before.
 - **Keep what the metadata source no longer has** — branch [`fix/keep-unlisted-metadata`](https://github.com/chodeus/Lidarr/tree/fix/keep-unlisted-metadata), not submitted
   - An artist the metadata source no longer has is kept and marked instead of deleted. An album it no longer has (not found, or no usable releases) is kept and marked when it has files, was added by hand or was synced before; one the source never had a usable copy of is deleted, as develop does. A health check lists the marked albums. An album without files that drops out of its artist's list is still removed when the source still has it (excluded by the metadata profile, or moved to another artist). Migration 908.
 - **Metadata source profiles** — branch [`feat/metadata-source-profiles`](https://github.com/chodeus/Lidarr/tree/feat/metadata-source-profiles), builds on `fix/profile-order-and-tags`, not submitted

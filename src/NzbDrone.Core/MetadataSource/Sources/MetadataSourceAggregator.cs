@@ -76,7 +76,7 @@ namespace NzbDrone.Core.MetadataSource.Sources
         {
             var route = RouteFor(ProfileForAlbum(id), id);
 
-            return Lookup(route, s => s.GetAlbumInfo(id), () => new AlbumNotFoundException(id), null);
+            return Lookup(route, s => s.GetAlbumInfo(id), () => new AlbumNotFoundException(id), null, HasReleases);
         }
 
         public HashSet<string> GetChangedAlbums(DateTime startTime)
@@ -125,14 +125,33 @@ namespace NzbDrone.Core.MetadataSource.Sources
             _sourceCache.Clear();
         }
 
-        private T Lookup<T>(Route route, Func<IMetadataSource, T> call, Func<Exception> notFound, Func<T, T, T> merge)
+        private T Lookup<T>(Route route, Func<IMetadataSource, T> call, Func<Exception> notFound, Func<T, T, T> merge, Func<T, bool> usable = null)
         {
             Exception outage = null;
             var found = new List<T>();
+            var unusable = new List<T>();
+
+            bool Answered(IMetadataSource source, out T result)
+            {
+                if (!TryAsk(source, call, ref outage, out result))
+                {
+                    return false;
+                }
+
+                if (usable == null || usable(result))
+                {
+                    return true;
+                }
+
+                _logger.Debug("{0} has nothing usable for it, asking the next source", source.Definition?.Name);
+                unusable.Add(result);
+
+                return false;
+            }
 
             foreach (var source in route.Primary)
             {
-                if (!TryAsk(source, call, ref outage, out var result))
+                if (!Answered(source, out var result))
                 {
                     continue;
                 }
@@ -158,7 +177,7 @@ namespace NzbDrone.Core.MetadataSource.Sources
 
             foreach (var source in route.Fallback)
             {
-                if (TryAsk(source, call, ref outage, out var result))
+                if (Answered(source, out var result))
                 {
                     return result;
                 }
@@ -170,7 +189,18 @@ namespace NzbDrone.Core.MetadataSource.Sources
                 ExceptionDispatchInfo.Capture(outage).Throw();
             }
 
+            if (unusable.Any())
+            {
+                return unusable.First();
+            }
+
             throw notFound();
+        }
+
+        // An album without releases is no answer while another source might have them
+        private static bool HasReleases(Tuple<string, Album, List<ArtistMetadata>> info)
+        {
+            return info.Item2.AlbumReleases.Value.Any();
         }
 
         private List<T> Search<T>(Route route, Func<IMetadataSource, List<T>> call, Func<T, string> key)

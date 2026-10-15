@@ -1,6 +1,6 @@
 # Add metadata source profiles
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`fix/profile-order-and-tags`](https://github.com/chodeus/Lidarr/tree/fix/profile-order-and-tags). Reviewed in [#32](https://github.com/chodeus/Lidarr/pull/32).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`fix/profile-order-and-tags`](https://github.com/chodeus/Lidarr/tree/fix/profile-order-and-tags). Reviewed in [#32](https://github.com/chodeus/Lidarr/pull/32) and [#40](https://github.com/chodeus/Lidarr/pull/40).
 
 - Metadata sources are providers, in a new Metadata Sources section on Settings → Metadata. Built in: Lidarr's own server, and any server that answers like it (URL setting, with Test). Plugins can add sources by implementing `IMetadataSource`.
 - Metadata source profiles (Settings → Profiles) choose the sources per artist by tag, like tagging profiles. Each source is Primary or Fallback. Primaries combine with Or (the first that has the artist) or And (every primary; albums only some of them have are added). The default profile has no tags.

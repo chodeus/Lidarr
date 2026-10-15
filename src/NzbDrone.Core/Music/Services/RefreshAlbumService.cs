@@ -170,7 +170,7 @@ namespace NzbDrone.Core.Music
                 !_mediaFileService.GetFilesByAlbum(local.Id).Any();
         }
 
-        // An album the source listed but never had a usable copy of is deleted, as develop does on every refresh
+        // Kept and marked only with files, a manual add or a past sync; anything else is deleted as develop does
         private bool HasSomethingToKeep(Album local)
         {
             return local.LastInfoSync > DateTime.MinValue || !ShouldDelete(local);

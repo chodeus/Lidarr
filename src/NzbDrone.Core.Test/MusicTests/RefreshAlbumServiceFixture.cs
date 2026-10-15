@@ -291,27 +291,29 @@ namespace NzbDrone.Core.Test.MusicTests
             ExceptionVerification.ExpectedWarns(1);
         }
 
-        [Test]
-        public void should_keep_and_mark_never_synced_album_with_files()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_keep_and_mark_never_synced_album_with_files(bool unlisted)
         {
             var album = GivenNeverSynced(true);
             Mocker.GetMock<IMediaFileService>()
                 .Setup(x => x.GetFilesByAlbum(album.Id))
                 .Returns(new List<TrackFile> { new TrackFile() });
 
-            Subject.RefreshAlbumInfo(album, null, false);
+            Subject.RefreshAlbumInfo(album, unlisted ? new List<Album>() : null, false);
 
             VerifyKeptAndMarked(album);
             ExceptionVerification.ExpectedErrors(1);
         }
 
-        [Test]
-        public void should_keep_and_mark_never_synced_album_added_by_hand()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_keep_and_mark_never_synced_album_added_by_hand(bool unlisted)
         {
             var album = GivenNeverSynced(true);
             album.AddOptions = new AddAlbumOptions { AddType = AlbumAddType.Manual };
 
-            Subject.RefreshAlbumInfo(album, null, false);
+            Subject.RefreshAlbumInfo(album, unlisted ? new List<Album>() : null, false);
 
             VerifyKeptAndMarked(album);
             ExceptionVerification.ExpectedErrors(1);

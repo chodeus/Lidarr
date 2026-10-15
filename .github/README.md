@@ -4,7 +4,7 @@ Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom)
 
 - An artist the metadata source reports as not found is kept, whether or not it has files. It stays marked removed and listed by the existing removed-artist health check; its folder is no longer deleted.
 - An album the source no longer has (not found, or no releases with tracks) is kept and marked with the date it went missing (`Albums.MetadataMissingSince`, migration 908) when there is something to keep: it has files, was added by hand, or was synced from the source at least once. An album the source listed but never had a usable copy of (a video-only release, say) is deleted, as develop does. The first date is kept; the mark clears when the source has the album again.
-- An album without files that drops out of its artist's list is removed as before if it was never synced. Otherwise it is checked against the source first: if the source still has it (excluded by the metadata profile, or moved to another artist) it is removed as before; if not, it is kept and marked. If that check fails (timeout, 5xx) the album is left alone until the next refresh.
+- An album without files and not added by hand that drops out of its artist's list is removed as before if it was never synced. Otherwise it is checked against the source first: if the source still has it (excluded by the metadata profile, or moved to another artist) it is removed as before; if not, it is kept and marked. If that check fails (timeout, 5xx) the album is left alone until the next refresh.
 - A new health check lists the marked albums.
 - New `IAlbumService` and `IAlbumRepository` members have default bodies.
 

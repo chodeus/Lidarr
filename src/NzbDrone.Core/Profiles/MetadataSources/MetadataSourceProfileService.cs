@@ -15,6 +15,7 @@ namespace NzbDrone.Core.Profiles.MetadataSources
         MetadataSourceProfile Update(MetadataSourceProfile profile);
         void Delete(int id);
         List<MetadataSourceProfile> All();
+        List<MetadataSourceProfile> AllForTag(int tagId);
         MetadataSourceProfile Get(int id);
         MetadataSourceProfile GetDefaultProfile();
         MetadataSourceProfile BestForTags(HashSet<int> tagIds);
@@ -72,6 +73,11 @@ namespace NzbDrone.Core.Profiles.MetadataSources
         public List<MetadataSourceProfile> All()
         {
             return _repo.All().ToList();
+        }
+
+        public List<MetadataSourceProfile> AllForTag(int tagId)
+        {
+            return _repo.All().Where(p => p.Tags.Contains(tagId)).ToList();
         }
 
         public MetadataSourceProfile Get(int id)

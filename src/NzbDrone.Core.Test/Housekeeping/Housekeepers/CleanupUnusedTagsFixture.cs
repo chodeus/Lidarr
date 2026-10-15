@@ -5,6 +5,7 @@ using NUnit.Framework;
 using NzbDrone.Core.AutoTagging;
 using NzbDrone.Core.AutoTagging.Specifications;
 using NzbDrone.Core.Housekeeping.Housekeepers;
+using NzbDrone.Core.Profiles.MetadataSources;
 using NzbDrone.Core.Profiles.Releases;
 using NzbDrone.Core.Profiles.Tagging;
 using NzbDrone.Core.RootFolders;
@@ -109,6 +110,22 @@ namespace NzbDrone.Core.Test.Housekeeping.Housekeepers
             Db.InsertMany(tags);
 
             Db.Insert(new RootFolder { Name = "Music", Path = "/music", DefaultTags = new HashSet<int> { tags[0].Id } });
+
+            Subject.Clean();
+            AllStoredModels.Should().ContainSingle().Which.Id.Should().Be(tags[0].Id);
+        }
+
+        [Test]
+        public void should_not_delete_tags_only_metadata_source_profiles_use()
+        {
+            var tags = Builder<Tag>
+                .CreateListOfSize(2)
+                .All()
+                .With(x => x.Id = 0)
+                .BuildList();
+            Db.InsertMany(tags);
+
+            Db.Insert(new MetadataSourceProfile { Name = "Profile Name", Tags = new HashSet<int> { tags[0].Id } });
 
             Subject.Clean();
             AllStoredModels.Should().ContainSingle().Which.Id.Should().Be(tags[0].Id);

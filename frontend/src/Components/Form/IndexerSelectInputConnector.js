@@ -63,7 +63,7 @@ class IndexerSelectInputConnector extends Component {
   // Listeners
 
   onChange = ({ name, value }) => {
-    this.props.onChange({ name, value: parseInt(value) });
+    this.props.onChange({ name, value: Array.isArray(value) ? value : parseInt(value) });
   };
 
   //
@@ -83,7 +83,7 @@ IndexerSelectInputConnector.propTypes = {
   isFetching: PropTypes.bool.isRequired,
   isPopulated: PropTypes.bool.isRequired,
   name: PropTypes.string.isRequired,
-  value: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
+  value: PropTypes.oneOfType([PropTypes.number, PropTypes.string, PropTypes.arrayOf(PropTypes.number)]).isRequired,
   values: PropTypes.arrayOf(PropTypes.object).isRequired,
   includeAny: PropTypes.bool.isRequired,
   onChange: PropTypes.func.isRequired,

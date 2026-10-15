@@ -14,7 +14,7 @@ const newReleaseProfile = {
   includePreferredWhenRenaming: false,
   tags: [],
   excludedTags: [],
-  indexerId: 0
+  indexerIds: []
 };
 
 function createMapStateToProps() {

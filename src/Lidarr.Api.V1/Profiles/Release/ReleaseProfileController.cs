@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using FluentValidation;
 using Lidarr.Http;
 using Lidarr.Http.REST;
@@ -28,9 +29,12 @@ namespace Lidarr.Api.V1.Profiles.Release
                     context.AddFailure("Either 'Must contain' or 'Must not contain' is required");
                 }
 
-                if (restriction.Enabled && restriction.IndexerId != 0 && !_indexerFactory.Exists(restriction.IndexerId))
+                if (restriction.Enabled)
                 {
-                    context.AddFailure(nameof(ReleaseProfile.IndexerId), "Indexer does not exist");
+                    foreach (var indexerId in restriction.MapIndexerIds().Where(i => !_indexerFactory.Exists(i)))
+                    {
+                        context.AddFailure(nameof(ReleaseProfile.IndexerIds), $"Indexer does not exist: {indexerId}");
+                    }
                 }
             });
 

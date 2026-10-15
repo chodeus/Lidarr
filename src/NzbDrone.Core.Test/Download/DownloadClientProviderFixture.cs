@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
@@ -324,6 +325,196 @@ namespace NzbDrone.Core.Test.Download
             WithTorrentIndexer(5);
 
             Assert.Throws<DownloadClientUnavailableException>(() => Subject.GetDownloadClient(nameof(TorrentDownloadProtocol), 1));
+        }
+
+        [Test]
+        public void should_return_all_available_clients_for_protocol()
+        {
+            WithUsenetClient();
+            WithTorrentClient();
+            WithTorrentClient();
+            WithTorrentClient();
+
+            var clients = Subject.GetDownloadClients(nameof(TorrentDownloadProtocol));
+
+            clients.Select(c => c.Definition.Id).Should().BeEquivalentTo(new[] { 2, 3, 4 });
+        }
+
+        [Test]
+        public void should_return_no_clients_when_none_has_the_protocol()
+        {
+            WithUsenetClient();
+            WithUsenetClient();
+
+            Subject.GetDownloadClients(nameof(TorrentDownloadProtocol)).Should().BeEmpty();
+        }
+
+        [Test]
+        public void should_order_clients_by_priority_then_by_id()
+        {
+            WithTorrentClient(priority: 1);
+            WithTorrentClient(priority: 0);
+            WithTorrentClient(priority: 0);
+            WithTorrentClient(priority: 2);
+
+            Subject.GetDownloadClients(nameof(TorrentDownloadProtocol)).Select(c => c.Definition.Id).Should().Equal(2, 3, 1, 4);
+        }
+
+        [Test]
+        public void should_start_after_the_last_client_that_took_a_release()
+        {
+            WithTorrentClient();
+            WithTorrentClient();
+            WithTorrentClient();
+
+            Subject.GetDownloadClients(nameof(TorrentDownloadProtocol)).First().Definition.Id.Should().Be(1);
+
+            Subject.ReportSuccessfulDownloadClient(nameof(TorrentDownloadProtocol), 2);
+
+            Subject.GetDownloadClients(nameof(TorrentDownloadProtocol)).Select(c => c.Definition.Id).Should().Equal(3, 1, 2);
+        }
+
+        [Test]
+        public void should_start_after_the_last_client_that_took_a_release_when_it_is_no_longer_listed()
+        {
+            WithTorrentClient();
+            WithTorrentClient();
+            WithTorrentClient();
+
+            Subject.ReportSuccessfulDownloadClient(nameof(TorrentDownloadProtocol), 2);
+            GivenBlockedClient(2);
+
+            Subject.GetDownloadClients(nameof(TorrentDownloadProtocol), filterBlockedClients: true).Select(c => c.Definition.Id).Should().Equal(3, 1);
+        }
+
+        [Test]
+        public void should_keep_the_last_used_client_of_each_protocol_apart()
+        {
+            WithTorrentClient();
+            WithTorrentClient();
+
+            Subject.ReportSuccessfulDownloadClient(nameof(UsenetDownloadProtocol), 1);
+
+            Subject.GetDownloadClients(nameof(TorrentDownloadProtocol)).Select(c => c.Definition.Id).Should().Equal(1, 2);
+        }
+
+        [Test]
+        public void should_list_only_clients_with_a_matching_tag()
+        {
+            var artistTags = new HashSet<int> { 1, 2 };
+
+            WithTorrentClient(tags: new HashSet<int> { 1 });
+            WithTorrentClient(tags: new HashSet<int> { 3 });
+            WithTorrentClient(tags: new HashSet<int> { 2 });
+            WithTorrentClient();
+
+            Subject.GetDownloadClients(nameof(TorrentDownloadProtocol), tags: artistTags).Select(c => c.Definition.Id).Should().BeEquivalentTo(new[] { 1, 3 });
+        }
+
+        [Test]
+        public void should_list_untagged_clients_when_no_tag_matches()
+        {
+            var artistTags = new HashSet<int> { 5 };
+
+            WithTorrentClient(tags: new HashSet<int> { 1 });
+            WithTorrentClient(tags: new HashSet<int> { 2 });
+            WithTorrentClient();
+            WithTorrentClient();
+
+            Subject.GetDownloadClients(nameof(TorrentDownloadProtocol), tags: artistTags).Select(c => c.Definition.Id).Should().BeEquivalentTo(new[] { 3, 4 });
+        }
+
+        [Test]
+        public void should_refuse_a_list_when_every_client_has_another_tag()
+        {
+            var artistTags = new HashSet<int> { 5 };
+
+            WithTorrentClient(tags: new HashSet<int> { 1 });
+            WithTorrentClient(tags: new HashSet<int> { 2 });
+
+            Assert.Throws<DownloadClientUnavailableException>(() => Subject.GetDownloadClients(nameof(TorrentDownloadProtocol), tags: artistTags));
+        }
+
+        [Test]
+        public void should_list_only_the_indexers_own_client()
+        {
+            WithTorrentClient();
+            WithTorrentClient();
+            WithTorrentClient();
+            WithTorrentIndexer(2);
+
+            Subject.GetDownloadClients(nameof(TorrentDownloadProtocol), indexerId: 1).Select(c => c.Definition.Id).Should().Equal(2);
+        }
+
+        [Test]
+        public void should_refuse_a_list_when_the_indexers_client_does_not_exist()
+        {
+            WithTorrentClient();
+            WithTorrentClient();
+            WithTorrentIndexer(5);
+
+            Assert.Throws<DownloadClientUnavailableException>(() => Subject.GetDownloadClients(nameof(TorrentDownloadProtocol), indexerId: 1));
+        }
+
+        [Test]
+        public void should_leave_out_blocked_clients()
+        {
+            WithTorrentClient();
+            WithTorrentClient();
+            WithTorrentClient();
+
+            GivenBlockedClient(2);
+
+            Subject.GetDownloadClients(nameof(TorrentDownloadProtocol), filterBlockedClients: true).Select(c => c.Definition.Id).Should().Equal(1, 3);
+        }
+
+        [Test]
+        public void should_refuse_a_list_when_every_client_is_blocked_and_blocked_clients_are_filtered()
+        {
+            WithTorrentClient();
+            WithTorrentClient();
+
+            GivenBlockedClient(1);
+            GivenBlockedClient(2);
+
+            Assert.Throws<DownloadClientUnavailableException>(() => Subject.GetDownloadClients(nameof(TorrentDownloadProtocol), filterBlockedClients: true));
+        }
+
+        [Test]
+        public void should_list_blocked_clients_when_every_client_is_blocked()
+        {
+            WithTorrentClient();
+            WithTorrentClient();
+
+            GivenBlockedClient(1);
+            GivenBlockedClient(2);
+
+            Subject.GetDownloadClients(nameof(TorrentDownloadProtocol)).Select(c => c.Definition.Id).Should().Equal(1, 2);
+        }
+
+        [Test]
+        public void should_refuse_a_list_when_the_indexers_client_is_blocked_and_blocked_clients_are_filtered()
+        {
+            WithTorrentClient();
+            WithTorrentClient();
+            WithTorrentIndexer(2);
+
+            GivenBlockedClient(2);
+
+            Assert.Throws<DownloadClientUnavailableException>(() => Subject.GetDownloadClients(nameof(TorrentDownloadProtocol), indexerId: 1, filterBlockedClients: true));
+        }
+
+        [Test]
+        public void should_order_tagged_clients_by_priority()
+        {
+            var artistTags = new HashSet<int> { 1 };
+
+            WithTorrentClient(priority: 1, tags: new HashSet<int> { 1 });
+            WithTorrentClient(priority: 0, tags: new HashSet<int> { 1 });
+            WithTorrentClient(priority: 0, tags: new HashSet<int> { 2 });
+            WithTorrentClient(priority: 2);
+
+            Subject.GetDownloadClients(nameof(TorrentDownloadProtocol), tags: artistTags).Select(c => c.Definition.Id).Should().Equal(2, 1);
         }
     }
 }

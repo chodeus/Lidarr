@@ -13,6 +13,18 @@ namespace NzbDrone.Core.Download
         IDownloadClient GetDownloadClient(string downloadProtocol, int indexerId = 0, bool filterBlockedClients = false, HashSet<int> tags = null);
         IEnumerable<IDownloadClient> GetDownloadClients(bool filterBlockedClients = false);
         IDownloadClient Get(int id);
+
+        // Defaults keep plugins built against develop working: one client, no rotation
+        IEnumerable<IDownloadClient> GetDownloadClients(string downloadProtocol, int indexerId = 0, bool filterBlockedClients = false, HashSet<int> tags = null)
+        {
+            var client = GetDownloadClient(downloadProtocol, indexerId, filterBlockedClients, tags);
+
+            return client == null ? Enumerable.Empty<IDownloadClient>() : new[] { client };
+        }
+
+        void ReportSuccessfulDownloadClient(string downloadProtocol, int downloadClientId)
+        {
+        }
     }
 
     public class DownloadClientProvider : IProvideDownloadClient
@@ -38,6 +50,74 @@ namespace NzbDrone.Core.Download
 
         public IDownloadClient GetDownloadClient(string downloadProtocol, int indexerId = 0, bool filterBlockedClients = false, HashSet<int> tags = null)
         {
+            var availableProviders = GetFilteredDownloadClients(downloadProtocol, indexerId, filterBlockedClients, tags, forSingleClient: true).ToList();
+
+            if (availableProviders.Empty())
+            {
+                return null;
+            }
+
+            // Use the first priority clients first
+            availableProviders = availableProviders.GroupBy(v => (v.Definition as DownloadClientDefinition).Priority)
+                                                   .OrderBy(v => v.Key)
+                                                   .First().OrderBy(v => v.Definition.Id).ToList();
+
+            var lastId = _lastUsedDownloadClient.Find(downloadProtocol);
+
+            var provider = availableProviders.FirstOrDefault(v => v.Definition.Id > lastId) ?? availableProviders.First();
+
+            _lastUsedDownloadClient.Set(downloadProtocol, provider.Definition.Id);
+
+            return provider;
+        }
+
+        public IEnumerable<IDownloadClient> GetDownloadClients(bool filterBlockedClients = false)
+        {
+            var enabledClients = _downloadClientFactory.GetAvailableProviders();
+
+            if (filterBlockedClients)
+            {
+                return FilterBlockedDownloadClients(enabledClients).ToList();
+            }
+
+            return enabledClients;
+        }
+
+        public IEnumerable<IDownloadClient> GetDownloadClients(string downloadProtocol, int indexerId = 0, bool filterBlockedClients = false, HashSet<int> tags = null)
+        {
+            var filteredClients = GetFilteredDownloadClients(downloadProtocol, indexerId, filterBlockedClients, tags, forSingleClient: false).ToList();
+
+            if (filteredClients.Empty())
+            {
+                return Enumerable.Empty<IDownloadClient>();
+            }
+
+            var lastUsedId = _lastUsedDownloadClient.Find(downloadProtocol);
+            var orderedClients = new List<IDownloadClient>();
+
+            foreach (var priorityGroup in filteredClients.GroupBy(v => (v.Definition as DownloadClientDefinition).Priority).OrderBy(g => g.Key))
+            {
+                var clientsInGroup = priorityGroup.OrderBy(v => v.Definition.Id).ToList();
+
+                orderedClients.AddRange(clientsInGroup.Where(v => v.Definition.Id > lastUsedId));
+                orderedClients.AddRange(clientsInGroup.Where(v => v.Definition.Id <= lastUsedId));
+            }
+
+            return orderedClients;
+        }
+
+        public IDownloadClient Get(int id)
+        {
+            return _downloadClientFactory.GetAvailableProviders().Single(d => d.Definition.Id == id);
+        }
+
+        public void ReportSuccessfulDownloadClient(string downloadProtocol, int downloadClientId)
+        {
+            _lastUsedDownloadClient.Set(downloadProtocol, downloadClientId);
+        }
+
+        private IEnumerable<IDownloadClient> GetFilteredDownloadClients(string downloadProtocol, int indexerId, bool filterBlockedClients, HashSet<int> tags, bool forSingleClient)
+        {
             // Tags aren't required, but download clients with tags should not be picked unless there is at least one matching tag.
             // Defaulting to an empty HashSet ensures this is always checked.
             tags ??= new HashSet<int>();
@@ -45,9 +125,9 @@ namespace NzbDrone.Core.Download
             var blockedProviders = new HashSet<int>(_downloadClientStatusService.GetBlockedProviders().Select(v => v.ProviderId));
             var availableProviders = _downloadClientFactory.GetAvailableProviders().Where(v => v.Protocol == downloadProtocol).ToList();
 
-            if (!availableProviders.Any())
+            if (availableProviders.Empty())
             {
-                return null;
+                return Enumerable.Empty<IDownloadClient>();
             }
 
             var matchingTagsClients = availableProviders.Where(i => i.Definition.Tags.Intersect(tags).Any()).ToList();
@@ -79,7 +159,7 @@ namespace NzbDrone.Core.Download
                         throw new DownloadClientUnavailableException($"Indexer specified download client is not available due to recent failures for {indexer.Name}");
                     }
 
-                    return client;
+                    return new[] { client };
                 }
             }
 
@@ -97,39 +177,11 @@ namespace NzbDrone.Core.Download
                 }
                 else
                 {
-                    _logger.Trace("No non-blocked Download Client available, retrying blocked one.");
+                    _logger.Trace("No non-blocked Download Client available{0}.", forSingleClient ? ", retrying blocked one" : $" for {downloadProtocol}, trying all of them");
                 }
             }
 
-            // Use the first priority clients first
-            availableProviders = availableProviders.GroupBy(v => (v.Definition as DownloadClientDefinition).Priority)
-                                                   .OrderBy(v => v.Key)
-                                                   .First().OrderBy(v => v.Definition.Id).ToList();
-
-            var lastId = _lastUsedDownloadClient.Find(downloadProtocol.ToString());
-
-            var provider = availableProviders.FirstOrDefault(v => v.Definition.Id > lastId) ?? availableProviders.First();
-
-            _lastUsedDownloadClient.Set(downloadProtocol.ToString(), provider.Definition.Id);
-
-            return provider;
-        }
-
-        public IEnumerable<IDownloadClient> GetDownloadClients(bool filterBlockedClients = false)
-        {
-            var enabledClients = _downloadClientFactory.GetAvailableProviders();
-
-            if (filterBlockedClients)
-            {
-                return FilterBlockedDownloadClients(enabledClients).ToList();
-            }
-
-            return enabledClients;
-        }
-
-        public IDownloadClient Get(int id)
-        {
-            return _downloadClientFactory.GetAvailableProviders().Single(d => d.Definition.Id == id);
+            return availableProviders;
         }
 
         private IEnumerable<IDownloadClient> FilterBlockedDownloadClients(IEnumerable<IDownloadClient> clients)

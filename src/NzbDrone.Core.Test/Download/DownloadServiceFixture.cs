@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
 using FizzWare.NBuilder;
 using Moq;
@@ -14,6 +15,7 @@ using NzbDrone.Core.Indexers;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.Download
 {
@@ -32,8 +34,8 @@ namespace NzbDrone.Core.Test.Download
                 .Returns(_downloadClients);
 
             Mocker.GetMock<IProvideDownloadClient>()
-                .Setup(v => v.GetDownloadClient(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<HashSet<int>>()))
-                .Returns<string, int, bool, HashSet<int>>((v, i, f, t) => _downloadClients.FirstOrDefault(d => d.Protocol == v));
+                .Setup(v => v.GetDownloadClients(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<HashSet<int>>()))
+                .Returns<string, int, bool, HashSet<int>>((v, i, f, t) => _downloadClients.Where(d => d.Protocol == v));
 
             var episodes = Builder<Album>.CreateListOfSize(2)
                 .TheFirst(1).With(s => s.Id = 12)
@@ -240,6 +242,133 @@ namespace NzbDrone.Core.Test.Download
 
             mockTorrent.Verify(c => c.Download(It.IsAny<RemoteAlbum>(), It.IsAny<IIndexer>()), Times.Never());
             mockUsenet.Verify(c => c.Download(It.IsAny<RemoteAlbum>(), It.IsAny<IIndexer>()), Times.Once());
+        }
+
+        private Mock<IDownloadClient> WithNamedUsenetClient(int id)
+        {
+            var mock = new Mock<IDownloadClient>(MockBehavior.Default);
+            mock.SetupGet(s => s.Definition).Returns(new DownloadClientDefinition { Id = id, Name = "Client " + id });
+            mock.SetupGet(v => v.Protocol).Returns(nameof(UsenetDownloadProtocol));
+
+            _downloadClients.Add(mock.Object);
+
+            return mock;
+        }
+
+        private static Exception Unreachable(string client)
+        {
+            return new DownloadClientUnavailableException($"Unable to connect to {client}", new HttpRequestException(HttpRequestError.ConnectionError, "Connection refused"));
+        }
+
+        private static IEnumerable<Exception> ClientNeverTookIt()
+        {
+            yield return Unreachable("Client 1");
+            yield return new DownloadClientException("Unable to connect to Client 1", new HttpRequestException(HttpRequestError.NameResolutionError, "Unknown host"));
+            yield return new DownloadClientUnavailableException("Unable to connect to Client 1", new HttpRequestException(HttpRequestError.SecureConnectionError, "TLS handshake failed"));
+            yield return new DownloadClientUnavailableException("Unable to connect to Client 1", new HttpRequestException(HttpRequestError.ProxyTunnelError, "Proxy tunnel failed"));
+            yield return new DownloadClientAuthenticationException("Failed to authenticate with Client 1");
+        }
+
+        private static IEnumerable<Exception> ClientMayHaveTakenIt()
+        {
+            yield return new DownloadClientUnavailableException("Unable to connect to Client 1", new WebException("Http request timed out", WebExceptionStatus.Timeout));
+            yield return new DownloadClientException("Unable to connect to Client 1", new HttpRequestException(HttpRequestError.ResponseEnded, "Response ended"));
+            yield return new DownloadClientException("Error response received from Client 1");
+        }
+
+        [TestCaseSource(nameof(ClientNeverTookIt))]
+        public async Task should_fall_back_to_the_next_client_when_one_could_not_take_it(Exception failure)
+        {
+            var first = WithNamedUsenetClient(1);
+            var second = WithNamedUsenetClient(2);
+            first.Setup(s => s.Download(It.IsAny<RemoteAlbum>(), It.IsAny<IIndexer>())).Throws(failure);
+            second.Setup(s => s.Download(It.IsAny<RemoteAlbum>(), It.IsAny<IIndexer>())).ReturnsAsync("download-2");
+
+            await Subject.DownloadReport(_parseResult, null);
+
+            first.Verify(c => c.Download(It.IsAny<RemoteAlbum>(), It.IsAny<IIndexer>()), Times.Once());
+            second.Verify(c => c.Download(It.IsAny<RemoteAlbum>(), It.IsAny<IIndexer>()), Times.Once());
+            Mocker.GetMock<IProvideDownloadClient>().Verify(v => v.ReportSuccessfulDownloadClient(nameof(UsenetDownloadProtocol), 2), Times.Once());
+            Mocker.GetMock<IDownloadClientStatusService>().Verify(v => v.RecordSuccess(2), Times.Once());
+            VerifyEventPublished<AlbumGrabbedEvent>();
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_not_fall_back_when_the_release_itself_fails()
+        {
+            var first = WithNamedUsenetClient(1);
+            var second = WithNamedUsenetClient(2);
+            first.Setup(s => s.Download(It.IsAny<RemoteAlbum>(), It.IsAny<IIndexer>())).Throws(new ReleaseUnavailableException(_parseResult.Release, "Gone"));
+
+            Assert.ThrowsAsync<ReleaseUnavailableException>(async () => await Subject.DownloadReport(_parseResult, null));
+
+            second.Verify(c => c.Download(It.IsAny<RemoteAlbum>(), It.IsAny<IIndexer>()), Times.Never());
+        }
+
+        [TestCaseSource(nameof(ClientMayHaveTakenIt))]
+        public void should_not_fall_back_when_the_client_may_have_taken_it(Exception failure)
+        {
+            var first = WithNamedUsenetClient(1);
+            var second = WithNamedUsenetClient(2);
+            first.Setup(s => s.Download(It.IsAny<RemoteAlbum>(), It.IsAny<IIndexer>())).Throws(failure);
+
+            Assert.ThrowsAsync(failure.GetType(), async () => await Subject.DownloadReport(_parseResult, null));
+
+            second.Verify(c => c.Download(It.IsAny<RemoteAlbum>(), It.IsAny<IIndexer>()), Times.Never());
+            VerifyEventNotPublished<AlbumGrabbedEvent>();
+        }
+
+        [Test]
+        public void should_not_fall_back_when_the_indexer_cannot_be_reached()
+        {
+            var first = WithNamedUsenetClient(1);
+            var second = WithNamedUsenetClient(2);
+            first.Setup(s => s.Download(It.IsAny<RemoteAlbum>(), It.IsAny<IIndexer>()))
+                 .Throws(new ReleaseDownloadException(_parseResult.Release, "Unable to fetch the release", new HttpRequestException(HttpRequestError.ConnectionError, "Connection refused")));
+
+            Assert.ThrowsAsync<ReleaseDownloadException>(async () => await Subject.DownloadReport(_parseResult, null));
+
+            second.Verify(c => c.Download(It.IsAny<RemoteAlbum>(), It.IsAny<IIndexer>()), Times.Never());
+        }
+
+        [Test]
+        public void should_report_the_last_clients_error_when_every_client_fails()
+        {
+            WithNamedUsenetClient(1).Setup(s => s.Download(It.IsAny<RemoteAlbum>(), It.IsAny<IIndexer>())).Throws(Unreachable("Client 1"));
+            WithNamedUsenetClient(2).Setup(s => s.Download(It.IsAny<RemoteAlbum>(), It.IsAny<IIndexer>())).Throws(new WebException("Client 2 is down"));
+
+            Assert.ThrowsAsync<WebException>(async () => await Subject.DownloadReport(_parseResult, null));
+
+            Mocker.GetMock<IProvideDownloadClient>().Verify(v => v.ReportSuccessfulDownloadClient(It.IsAny<string>(), It.IsAny<int>()), Times.Never());
+            VerifyEventNotPublished<AlbumGrabbedEvent>();
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_not_send_to_another_client_once_one_took_the_release()
+        {
+            var first = WithNamedUsenetClient(1);
+            var second = WithNamedUsenetClient(2);
+            first.Setup(s => s.Download(It.IsAny<RemoteAlbum>(), It.IsAny<IIndexer>())).ReturnsAsync("download-1");
+            Mocker.GetMock<IDownloadClientStatusService>().Setup(v => v.RecordSuccess(1)).Throws(new InvalidOperationException("Database is locked"));
+
+            Assert.ThrowsAsync<InvalidOperationException>(async () => await Subject.DownloadReport(_parseResult, null));
+
+            second.Verify(c => c.Download(It.IsAny<RemoteAlbum>(), It.IsAny<IIndexer>()), Times.Never());
+        }
+
+        [Test]
+        public void should_only_use_the_chosen_client()
+        {
+            var first = WithNamedUsenetClient(1);
+            var second = WithNamedUsenetClient(2);
+            first.Setup(s => s.Download(It.IsAny<RemoteAlbum>(), It.IsAny<IIndexer>())).Throws(Unreachable("Client 1"));
+            Mocker.GetMock<IProvideDownloadClient>().Setup(v => v.Get(1)).Returns(first.Object);
+
+            Assert.ThrowsAsync<DownloadClientUnavailableException>(async () => await Subject.DownloadReport(_parseResult, 1));
+
+            second.Verify(c => c.Download(It.IsAny<RemoteAlbum>(), It.IsAny<IIndexer>()), Times.Never());
         }
 
         [Test]

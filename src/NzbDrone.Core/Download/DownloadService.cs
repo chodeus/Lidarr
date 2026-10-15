@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net.Http;
 using System.Threading.Tasks;
 using NLog;
 using NzbDrone.Common.EnsureThat;
@@ -56,34 +59,27 @@ namespace NzbDrone.Core.Download
 
             var tags = remoteAlbum.Artist?.Tags;
 
-            var downloadClient = downloadClientId.HasValue
-                ? _downloadClientProvider.Get(downloadClientId.Value)
-                : _downloadClientProvider.GetDownloadClient(remoteAlbum.Release.DownloadProtocol, remoteAlbum.Release.IndexerId, filterBlockedClients, tags);
+            var downloadClients = downloadClientId.HasValue
+                ? new List<IDownloadClient> { _downloadClientProvider.Get(downloadClientId.Value) }
+                : _downloadClientProvider.GetDownloadClients(remoteAlbum.Release.DownloadProtocol, remoteAlbum.Release.IndexerId, filterBlockedClients, tags).ToList();
 
-            await DownloadReport(remoteAlbum, downloadClient);
+            await DownloadReport(remoteAlbum, downloadClients);
         }
 
-        private async Task DownloadReport(RemoteAlbum remoteAlbum, IDownloadClient downloadClient)
+        private async Task DownloadReport(RemoteAlbum remoteAlbum, List<IDownloadClient> downloadClients)
         {
             Ensure.That(remoteAlbum.Artist, () => remoteAlbum.Artist).IsNotNull();
             Ensure.That(remoteAlbum.Albums, () => remoteAlbum.Albums).HasItems();
 
             var downloadTitle = remoteAlbum.Release.Title;
 
-            if (downloadClient == null)
+            if (downloadClients.Empty())
             {
                 throw new DownloadClientUnavailableException($"{remoteAlbum.Release.DownloadProtocol} Download client isn't configured yet");
             }
 
             // Get the seed configuration for this release.
             remoteAlbum.SeedConfiguration = _seedConfigProvider.GetSeedConfiguration(remoteAlbum);
-
-            // Limit grabs to 2 per second.
-            if (remoteAlbum.Release.DownloadUrl.IsNotNullOrWhiteSpace() && !remoteAlbum.Release.DownloadUrl.StartsWith("magnet:"))
-            {
-                var url = new HttpUri(remoteAlbum.Release.DownloadUrl);
-                await _rateLimitService.WaitAndPulseAsync(url.Host, TimeSpan.FromSeconds(2));
-            }
 
             IIndexer indexer = null;
 
@@ -92,10 +88,11 @@ namespace NzbDrone.Core.Download
                 indexer = _indexerFactory.GetInstance(_indexerFactory.Get(remoteAlbum.Release.IndexerId));
             }
 
+            IDownloadClient downloadClient;
             string downloadClientId;
             try
             {
-                downloadClientId = await downloadClient.Download(remoteAlbum, indexer);
+                (downloadClient, downloadClientId) = await SendToFirstClientThatTakesIt(remoteAlbum, indexer, downloadClients);
                 _downloadClientStatusService.RecordSuccess(downloadClient.Definition.Id);
                 _indexerStatusService.RecordSuccess(remoteAlbum.Release.IndexerId);
             }
@@ -140,6 +137,54 @@ namespace NzbDrone.Core.Download
 
             _logger.ProgressInfo("Report sent to {0} from indexer {1}. {2}", downloadClient.Definition.Name, remoteAlbum.Release.Indexer, downloadTitle);
             _eventAggregator.PublishEvent(albumGrabbedEvent);
+        }
+
+        // Only the hand-off falls back: a problem with the release would repeat on every client, and the last client's error is reported as before
+        private async Task<(IDownloadClient Client, string DownloadId)> SendToFirstClientThatTakesIt(RemoteAlbum remoteAlbum, IIndexer indexer, List<IDownloadClient> downloadClients)
+        {
+            foreach (var downloadClient in downloadClients.SkipLast(1))
+            {
+                try
+                {
+                    return await SendTo(downloadClient, remoteAlbum, indexer);
+                }
+                catch (Exception ex) when (ClientNeverTookIt(ex))
+                {
+                    _logger.Warn(ex, "Download client {0} could not take {1}, trying the next one", downloadClient.Definition.Name, remoteAlbum.Release.Title);
+                }
+            }
+
+            return await SendTo(downloadClients.Last(), remoteAlbum, indexer);
+        }
+
+        // A timeout or a lost or error response can follow an add that worked; only a failed connection or a refused login proves it did not
+        private static bool ClientNeverTookIt(Exception ex)
+        {
+            var chain = new List<Exception>();
+
+            for (var inner = ex; inner != null; inner = inner.InnerException)
+            {
+                chain.Add(inner);
+            }
+
+            return !chain.Any(e => e is ReleaseDownloadException) &&
+                   chain.Any(e => e is DownloadClientAuthenticationException ||
+                                  e is HttpRequestException { HttpRequestError: HttpRequestError.NameResolutionError or HttpRequestError.ConnectionError or HttpRequestError.SecureConnectionError or HttpRequestError.ProxyTunnelError });
+        }
+
+        private async Task<(IDownloadClient Client, string DownloadId)> SendTo(IDownloadClient downloadClient, RemoteAlbum remoteAlbum, IIndexer indexer)
+        {
+            // One grab per host every 2 seconds; each attempt fetches the release again
+            if (remoteAlbum.Release.DownloadUrl.IsNotNullOrWhiteSpace() && !remoteAlbum.Release.DownloadUrl.StartsWith("magnet:"))
+            {
+                var url = new HttpUri(remoteAlbum.Release.DownloadUrl);
+                await _rateLimitService.WaitAndPulseAsync(url.Host, TimeSpan.FromSeconds(2));
+            }
+
+            var downloadId = await downloadClient.Download(remoteAlbum, indexer);
+            _downloadClientProvider.ReportSuccessfulDownloadClient(remoteAlbum.Release.DownloadProtocol, downloadClient.Definition.Id);
+
+            return (downloadClient, downloadId);
         }
     }
 }

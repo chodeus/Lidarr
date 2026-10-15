@@ -13,6 +13,7 @@ const newReleaseProfile = {
   ignored: [],
   includePreferredWhenRenaming: false,
   tags: [],
+  excludedTags: [],
   indexerId: 0
 };
 

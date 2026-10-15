@@ -33,6 +33,12 @@ namespace Lidarr.Api.V1.Profiles.Release
                     context.AddFailure(nameof(ReleaseProfile.IndexerId), "Indexer does not exist");
                 }
             });
+
+            SharedValidator.RuleFor(r => r.ExcludedTags)
+                .Cascade(CascadeMode.Stop)
+                .NotNull()
+                .Must((restriction, excludedTags) => restriction.Tags == null || !excludedTags.Overlaps(restriction.Tags))
+                .WithMessage("A tag cannot be in both 'Tags' and 'Excluded Tags'");
         }
 
         public override ReleaseProfileResource GetResourceById(int id)

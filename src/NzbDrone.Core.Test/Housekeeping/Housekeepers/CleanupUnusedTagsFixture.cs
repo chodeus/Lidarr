@@ -54,6 +54,27 @@ namespace NzbDrone.Core.Test.Housekeeping.Housekeepers
         }
 
         [Test]
+        public void should_not_delete_tags_release_profiles_exclude()
+        {
+            var tags = Builder<Tag>
+                .CreateListOfSize(2)
+                .All()
+                .With(x => x.Id = 0)
+                .BuildList();
+
+            Db.InsertMany(tags);
+
+            var releaseProfile = Builder<ReleaseProfile>.CreateNew()
+                .With(x => x.Id = 0)
+                .With(v => v.ExcludedTags.Add(tags[0].Id))
+                .Build();
+            Db.Insert(releaseProfile);
+
+            Subject.Clean();
+            AllStoredModels.Should().ContainSingle().Which.Id.Should().Be(tags[0].Id);
+        }
+
+        [Test]
         public void should_not_delete_used_auto_tagging_tag_specification_tags()
         {
             var tags = Builder<Tag>

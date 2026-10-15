@@ -61,6 +61,7 @@ class ReleaseProfile extends Component {
       required,
       ignored,
       tags,
+      excludedTags,
       indexerId,
       tagList,
       indexerList
@@ -132,6 +133,12 @@ class ReleaseProfile extends Component {
           tagList={tagList}
         />
 
+        <TagList
+          tags={excludedTags}
+          tagList={tagList}
+          kind={kinds.DANGER}
+        />
+
         <div>
           {
             !enabled &&
@@ -181,6 +188,7 @@ ReleaseProfile.propTypes = {
   required: PropTypes.arrayOf(PropTypes.string).isRequired,
   ignored: PropTypes.arrayOf(PropTypes.string).isRequired,
   tags: PropTypes.arrayOf(PropTypes.number).isRequired,
+  excludedTags: PropTypes.arrayOf(PropTypes.number).isRequired,
   indexerId: PropTypes.number.isRequired,
   tagList: PropTypes.arrayOf(PropTypes.object).isRequired,
   indexerList: PropTypes.arrayOf(PropTypes.object).isRequired,
@@ -191,6 +199,7 @@ ReleaseProfile.defaultProps = {
   enabled: true,
   required: [],
   ignored: [],
+  excludedTags: [],
   indexerId: 0
 };
 

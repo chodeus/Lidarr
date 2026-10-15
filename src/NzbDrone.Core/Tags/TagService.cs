@@ -98,6 +98,7 @@ namespace NzbDrone.Core.Tags
             var importLists = _importListFactory.AllForTag(tagId);
             var notifications = _notificationFactory.AllForTag(tagId);
             var restrictions = _releaseProfileService.AllForTag(tagId);
+            var excludedReleaseProfiles = _releaseProfileService.AllExcludedForTag(tagId);
             var artist = _artistService.AllForTag(tagId);
             var rootFolders = _rootFolderService.AllForTag(tagId);
             var indexers = _indexerService.AllForTag(tagId);
@@ -114,6 +115,7 @@ namespace NzbDrone.Core.Tags
                 ImportListIds = importLists.Select(c => c.Id).ToList(),
                 NotificationIds = notifications.Select(c => c.Id).ToList(),
                 RestrictionIds = restrictions.Select(c => c.Id).ToList(),
+                ExcludedReleaseProfileIds = excludedReleaseProfiles.Select(c => c.Id).ToList(),
                 ArtistIds = artist.Select(c => c.Id).ToList(),
                 RootFolderIds = rootFolders.Select(c => c.Id).ToList(),
                 IndexerIds = indexers.Select(c => c.Id).ToList(),
@@ -151,6 +153,7 @@ namespace NzbDrone.Core.Tags
                     ImportListIds = importLists.Where(c => c.Tags.Contains(tag.Id)).Select(c => c.Id).ToList(),
                     NotificationIds = notifications.Where(c => c.Tags.Contains(tag.Id)).Select(c => c.Id).ToList(),
                     RestrictionIds = restrictions.Where(c => c.Tags.Contains(tag.Id)).Select(c => c.Id).ToList(),
+                    ExcludedReleaseProfileIds = restrictions.Where(c => c.ExcludedTags.Contains(tag.Id)).Select(c => c.Id).ToList(),
                     ArtistIds = artists.Where(c => c.Value.Contains(tag.Id)).Select(c => c.Key).ToList(),
                     RootFolderIds = rootFolders.Where(c => c.DefaultTags.Contains(tag.Id)).Select(c => c.Id).ToList(),
                     IndexerIds = indexers.Where(c => c.Tags.Contains(tag.Id)).Select(c => c.Id).ToList(),

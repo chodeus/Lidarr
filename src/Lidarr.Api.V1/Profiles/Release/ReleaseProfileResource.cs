@@ -12,10 +12,12 @@ namespace Lidarr.Api.V1.Profiles.Release
         public List<string> Ignored { get; set; }
         public int IndexerId { get; set; }
         public HashSet<int> Tags { get; set; }
+        public HashSet<int> ExcludedTags { get; set; }
 
         public ReleaseProfileResource()
         {
             Tags = new HashSet<int>();
+            ExcludedTags = new HashSet<int>();
         }
     }
 
@@ -36,7 +38,8 @@ namespace Lidarr.Api.V1.Profiles.Release
                 Required = model.Required,
                 Ignored = model.Ignored,
                 IndexerId = model.IndexerId,
-                Tags = new HashSet<int>(model.Tags)
+                Tags = new HashSet<int>(model.Tags),
+                ExcludedTags = new HashSet<int>(model.ExcludedTags)
             };
         }
 
@@ -55,7 +58,8 @@ namespace Lidarr.Api.V1.Profiles.Release
                 Required = resource.Required,
                 Ignored = resource.Ignored,
                 IndexerId = resource.IndexerId,
-                Tags = new HashSet<int>(resource.Tags)
+                Tags = new HashSet<int>(resource.Tags),
+                ExcludedTags = new HashSet<int>(resource.ExcludedTags)
             };
         }
 

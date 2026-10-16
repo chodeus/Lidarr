@@ -1,0 +1,4 @@
+# Advisories build.sh audit accepts: the advisory URL, then why.
+https://github.com/advisories/GHSA-5f2m-466j-3848 System.Private.Uri 4.3.0: a .NET Standard 1.x placeholder with no files; net8.0 uses the runtime's own copy
+https://github.com/advisories/GHSA-xhfc-gr8f-ffwc System.Private.Uri 4.3.0: as above
+https://github.com/advisories/GHSA-x5qj-9vmx-7g6g System.Private.Uri 4.3.0: as above

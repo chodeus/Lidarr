@@ -47,6 +47,8 @@
   - Import matching removes a bracketed "(feat. …)" up to its own closing bracket, so "Song (feat. Guest) (Remixer Remix)" is compared as "Song (Remixer Remix)" instead of "Song".
 - **qBittorrent duplicate torrents** — branch [`fix/qbittorrent-existing-torrent`](https://github.com/chodeus/Lidarr/tree/fix/qbittorrent-existing-torrent), not submitted
   - qBittorrent's 409 for a torrent it already has is a rejected release, not a connection failure, so a manual grab no longer fails with HTTP 500.
+- **Backend package advisories** — branch [`chore/backend-dependency-advisories`](https://github.com/chodeus/Lidarr/tree/chore/backend-dependency-advisories), not submitted
+  - System.Security.Cryptography.Pkcs pinned to 8.0.2 over the 8.0.1 that MailKit pulls in, which has two .NET denial of service advisories. Drop it once `develop` resolves 8.0.2 or later.
 - **Log cleansing, housekeeping and backup paths** — branch [`fix/log-cleansing-housekeeping-backups`](https://github.com/chodeus/Lidarr/tree/fix/log-cleansing-housekeeping-backups), not submitted
   - The `r=` key in logged RSS URLs is hidden, housekeeping runs only while no other task is running, and copying a file whose path has repeated slashes (backups) no longer fails.
 - **Custom format upgrades and Minimum Upgrade Score** — branch [`feat/custom-format-upgrades`](https://github.com/chodeus/Lidarr/tree/feat/custom-format-upgrades), not submitted
@@ -105,5 +107,6 @@
 - `build.sh source` merges the branches into `develop` in the listed order. If one no longer merges, the build fails and names it; rebase that branch onto `develop`.
 - Each branch, except the two open upstream PRs, has a `.github/README.md` with its PR description and CodeRabbit's summary, shown on its branch page. `build.sh source` keeps only the first of those files, so they never clash. Drop that commit before opening a branch as an upstream PR.
 - Branches that add translation keys at the same sorted spot in `en.json` keep both sides' keys. If the merged file sets a key twice, or isn't valid JSON, the build fails.
+- The daily `audit` workflow runs `build.sh audit` on the merged source: NuGet advisories, transitive ones included, in the projects the image ships (Lidarr, Lidarr.Update, Lidarr.Mono), and in the production frontend packages. A finding is posted to Discord. Patch it in a branch, as `chore/backend-dependency-advisories` does, and drop that branch once `develop` catches up; or list the advisory in `audit-ignore.txt` with the reason.
 - To add or drop a change, edit `pr_branches`. Drop a change once upstream has merged it.
 - Build-only migrations are numbered from 900 so upstream's own numbers can't collide. Before a change goes upstream, give its migration the next upstream number and correct the live database's `VersionInfo`.

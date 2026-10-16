@@ -1,0 +1,45 @@
+name: audit
+
+on:
+  schedule:
+    - cron: '41 22 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Merge Sources
+        run: ./build.sh source
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: _src/global.json
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20.x
+
+      - name: Audit
+        run: ./build.sh audit
+
+  notify:
+    needs: audit
+    if: failure()
+    uses: chodeus/chodeus-ops/.github/workflows/notify-discord.yml@579feb04e3219248963bd27843298a8c2ea6b2fd # main
+    with:
+      event_type: workflow
+      status: failure
+      title: "⚠️ Lidarr image package advisory: ${{ github.ref_name }}"
+      description: "The daily audit found an advisory in a package the image ships, or could not run; the Audit step lists it. Patch it in a branch, as `chore/backend-dependency-advisories` does, or add it to `audit-ignore.txt` with the reason. If Merge Sources failed, the update workflow has reported it too."
+      commit_sha: ${{ github.sha }}
+    secrets:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}

@@ -5,6 +5,7 @@ if [[ -z ${1:-} ]]; then
     echo "       ./build.sh source"
     echo "       ./build.sh migrations"
     echo "       ./build.sh compile"
+    echo "       ./build.sh audit"
     echo "       ./build.sh amd64"
     echo "       ./build.sh packages <image>"
     exit 1
@@ -96,6 +97,34 @@ fi
 if [[ ${1} == "compile" ]]; then
     (cd _src && ./build.sh --backend --frontend --packages -r linux-musl-x64 -f net8.0)
     tar -czf lidarr.tar.gz -C _src/_artifacts/linux-musl-x64/net8.0 Lidarr
+fi
+
+if [[ ${1} == "audit" ]]; then
+    # The shipped projects; SDK 8 audits only direct packages unless told otherwise. Upstream's NuGetAuditSuppress still applies.
+    for project in NzbDrone.Console/Lidarr.Console NzbDrone.Update/Lidarr.Update NzbDrone.Mono/Lidarr.Mono; do
+        dotnet restore "_src/src/${project}.csproj" --force -v quiet -p:NuGetAudit=true -p:NuGetAuditMode=all -p:NuGetAuditLevel=low -p:TreatWarningsAsErrors=false
+    done | tee _src/audit-nuget.log
+    # NU1900: the vulnerability data could not be read, so nothing was checked.
+    if grep -q 'NU1900' _src/audit-nuget.log; then
+        echo "NuGet could not read vulnerability data." >&2
+        exit 1
+    fi
+    found=$(sed -nE "s/.*warning NU190[1-4]: Package '([^']+)' ([^ ]+) has a known ([a-z]+) severity vulnerability, (https:[^ ]+).*/\4 \1 \2 \3/p" _src/audit-nuget.log)
+    # Production packages only; the dev tooling never reaches the image. yarn exits non-zero on any finding.
+    (cd _src && yarn audit --groups dependencies --json) > _src/audit-yarn.log || true
+    if ! grep -q '"type":"auditSummary"' _src/audit-yarn.log; then
+        cat _src/audit-yarn.log >&2
+        echo "yarn audit did not finish." >&2
+        exit 1
+    fi
+    found+=$'\n'$(jq -r 'select(.type == "auditAdvisory") | .data.advisory | [.url, .module_name, .findings[0].version, .severity] | join(" ")' < _src/audit-yarn.log)
+    remaining=$(awk 'NR == FNR { ignore[$1]; next } NF && !($1 in ignore)' audit-ignore.txt - <<< "${found}" | sort -u)
+    if [[ -n ${remaining} ]]; then
+        echo "Advisories not in audit-ignore.txt (advisory, package, version, severity):" >&2
+        echo "${remaining}" >&2
+        exit 1
+    fi
+    echo "Audit: no advisories outside audit-ignore.txt"
 fi
 
 if [[ ${1} == "amd64" ]]; then

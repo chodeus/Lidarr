@@ -1,23 +1,19 @@
-# New: Fail downloads containing executable or potentially dangerous files per indexer
+# Keep the grab history mapping when a queued download is remapped
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Reviewed in [#14](https://github.com/chodeus/Lidarr/pull/14).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`feat/fail-downloads`](https://github.com/chodeus/Lidarr/tree/feat/fail-downloads), which changes the same mapping code. Reviewed in [#51](https://github.com/chodeus/Lidarr/pull/51).
 
-Ported from Sonarr's per-indexer Fail Downloads option (`FailDownloads`, `CachedIndexerSettingsProvider`, `RejectedImportService`, `TrackedDownload.Fail`, and the potentially dangerous extension list), in Sonarr's names and structure.
+- A queued download is remapped when an album is removed or deleted, or an artist is added or deleted. The remap used only the client's title, so a download that first mapped through its grab history lost its artist and albums. The remap now runs the same mapping as first tracking (`MapRemoteAlbum`): the client title, the grab history fallback, release info, aggregation and custom formats.
+- All of that runs inside the existing error handling. A failed step keeps what the earlier steps mapped. The grab history is read first, as in develop, so a failing read keeps the previous mapping, as does a failing title lookup. A grab history lookup that fails for a deleted artist leaves the download unmapped instead of pointing at the deleted artist.
+- A remap that maps nothing, from either the client title or the grab history, clears the mapping.
+- First tracking still restores the state and, for an incomplete import, its messages from the download history. That now runs after the mapping, with its own error handling: a failed read or a bad entry loses only the state or the messages, never the mapping, and can't drop the download from the queue. A remap no longer reads the download history.
+- The remap no longer needs `feat/fail-downloads`' step that kept the old release, since it rebuilds the release from the grab.
+- A download with no albums mapped no longer counts as already imported. `IsImported` returned true for it: with an artist, the download was marked imported with nothing imported; without one, `VerifyImport` threw reading the artist and the download stayed in Importing.
 
-- Each of Lidarr's indexers gets an advanced **Fail Downloads** multi-select: Executables, Potentially Dangerous.
-- The folder check in `DownloadedTracksImportService` now returns a typed `ImportRejection` (`ExecutableFile` or `DangerousFile`), and also rejects Sonarr's potentially dangerous extensions (.arj, .lnk, .lzh, .ps1, .scr, .vbs, .zipx).
-- When a download's indexer fails that file type, `RejectedImportService` marks it failed (`DownloadFailedPending`), so the existing failed-download handling blocklists it and searches again. Otherwise it warns, as before.
-
-Differences from Sonarr, both for the custom build:
-- `IIndexerSettings.FailDownloads` has a default implementation (empty). Plugin indexer settings compiled against develop implement `IIndexerSettings` without this member, and would otherwise fail to load.
-- Lidarr rejections are plain `Rejection`s with a text reason, so `ImportRejection` subclasses it with `ImportRejectionReason` rather than Sonarr's generic `Rejection<T>`. `CompletedDownloadService` calls `RejectedImportService` only for a folder-level rejection, the branch that already warned; a single rejected track keeps Lidarr's import-failed handling.
-
-Tests: `RejectedImportServiceFixture` (each option and reason, missing settings, no release, not rejected), `CachedIndexerSettingsProviderFixture` (including settings without the property), the typed reasons in `DownloadedTracksImportServiceFixture`, and both outcomes of the `CompletedDownloadService` hook. Eight mutations, all building, each fail a test.
+Tests: a remap keeps the grab history mapping; a failing grab history read or title lookup keeps the previous mapping; a new download whose download history can't be read is still mapped; a deleted artist whose grab history remains leaves the download unmapped without throwing; an unparsable title is unmapped once its history is gone; an incomplete import's messages are restored with their text, and an unreadable or `null` entry still leaves the download tracked; `IsImported` is false with nothing mapped; an import with no albums mapped, with or without an artist, ends ImportFailed instead of imported or stuck. Each rule was broken on purpose and caught by a test.
 
 ## Summary by CodeRabbit
 
-* **New Features**
-  * Configure supported indexers to fail downloads containing executable or potentially dangerous files.
-  * During completed-download import, risky files are identified. Depending on indexer settings, affected downloads are marked as failed and removable, or remain pending with a warning.
 * **Bug Fixes**
-  * Import warnings now distinguish between executable files and potentially dangerous files, including shortcuts and scripts.
+  * Downloads without mapped albums are no longer marked as imported, including when album information is missing or a track is rejected.
+  * Existing album mappings are retained during remaps when title lookup or history reads fail; mappings are cleared when the artist is deleted or grab history is gone and the title cannot be parsed.
+  * Incomplete imports can display status messages, while missing or malformed status data no longer interrupts download tracking.

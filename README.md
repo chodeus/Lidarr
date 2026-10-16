@@ -95,6 +95,8 @@
 - **Must Not Contain terms for metadata profiles** — branch [`metadata-profile-must-not-contain`](https://github.com/chodeus/Lidarr/tree/metadata-profile-must-not-contain), builds on `feat/metadata-supplementary-sources`, not submitted
   - Whole-word terms or regexes that keep matching albums (such as live recordings) out of an artist's albums on refresh, whichever metadata source they come from. Albums with files or added by hand stay.
   - Migration 900.
+- **Excluded tags and multiple indexers on release profiles** — branch [`feat/release-profile-tags-indexers`](https://github.com/chodeus/Lidarr/tree/feat/release-profile-tags-indexers), builds on `metadata-profile-must-not-contain`, not submitted
+  - Release profiles get Excluded Tags: a profile doesn't apply to an artist with any of them, and a tag used only that way still counts as in use. A profile can list several indexers instead of one (none means every indexer); the API keeps `indexerId` for older clients. Migrations 911 and 912.
 
 ## How the build works
 

@@ -66,6 +66,32 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
         }
 
         [Test]
+        public void should_return_false_if_no_albums_are_mapped()
+        {
+            _historyItems.Add(Builder<EntityHistory>.CreateNew()
+                                                    .With(h => h.EventType = EntityHistoryEventType.DownloadImported)
+                                                    .Build());
+
+            Subject.IsImported(_trackedDownload, _historyItems)
+                   .Should()
+                   .BeFalse();
+        }
+
+        [Test]
+        public void should_return_false_if_nothing_is_mapped()
+        {
+            _trackedDownload.RemoteAlbum = null;
+
+            _historyItems.Add(Builder<EntityHistory>.CreateNew()
+                                                    .With(h => h.EventType = EntityHistoryEventType.DownloadImported)
+                                                    .Build());
+
+            Subject.IsImported(_trackedDownload, _historyItems)
+                   .Should()
+                   .BeFalse();
+        }
+
+        [Test]
         public void should_return_false_if_single_episode_download_is_not_imported()
         {
             GivenEpisodes(1);

@@ -250,6 +250,34 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
             AssertNotImported();
         }
 
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_not_mark_as_imported_when_no_albums_are_mapped_but_the_download_has_history(bool withArtist)
+        {
+            _trackedDownload.RemoteAlbum = new RemoteAlbum { Artist = withArtist ? new Artist { Id = 5 } : null };
+
+            Mocker.SetConstant<ITrackedDownloadAlreadyImported>(Mocker.Resolve<TrackedDownloadAlreadyImported>());
+
+            Mocker.GetMock<IHistoryService>()
+                  .Setup(s => s.FindByDownloadId(It.IsAny<string>()))
+                  .Returns(Builder<EntityHistory>.CreateListOfSize(1).All().With(h => h.EventType = EntityHistoryEventType.Grabbed).BuildList());
+
+            Mocker.GetMock<IDownloadedTracksImportService>()
+                .Setup(v => v.ProcessPath(It.IsAny<string>(), It.IsAny<ImportMode>(), It.IsAny<Artist>(), It.IsAny<DownloadClientItem>()))
+                .Returns(new List<ImportResult>
+                {
+                    new ImportResult(
+                        new ImportDecision<LocalTrack>(
+                            new LocalTrack { Path = @"C:\TestPath\Droned.S01E01.mkv".AsOsAgnostic() },
+                            new Rejection("Unknown Artist")),
+                        "Unknown Artist")
+                });
+
+            Subject.Import(_trackedDownload);
+
+            AssertNotImported();
+        }
+
         [Test]
         public void should_not_mark_as_imported_if_all_files_were_skipped()
         {

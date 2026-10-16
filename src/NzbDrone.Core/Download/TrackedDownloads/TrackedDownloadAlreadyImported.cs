@@ -30,9 +30,11 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                 return false;
             }
 
-            if (trackedDownload.RemoteAlbum == null || trackedDownload.RemoteAlbum.Albums == null)
+            // All() below is true for an empty list, which would count an unmapped download as imported
+            if (trackedDownload.RemoteAlbum?.Albums == null || trackedDownload.RemoteAlbum.Albums.Empty())
             {
-                return true;
+                _logger.Trace("No albums mapped for {0}", trackedDownload.DownloadItem.Title);
+                return false;
             }
 
             var allAlbumsImportedInHistory = trackedDownload.RemoteAlbum.Albums.All(album =>

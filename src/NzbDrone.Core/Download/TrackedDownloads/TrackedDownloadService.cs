@@ -68,18 +68,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
 
         private void UpdateCachedItem(TrackedDownload trackedDownload)
         {
-            var parsedAlbumInfo = Parser.Parser.ParseAlbumTitle(trackedDownload.DownloadItem.Title);
-            var release = trackedDownload.RemoteAlbum?.Release;
-
-            trackedDownload.RemoteAlbum = parsedAlbumInfo == null ? null : _parsingService.Map(parsedAlbumInfo);
-
-            // Remapping changes the albums, not the grab: Fail Downloads finds the indexer through this release
-            if (trackedDownload.RemoteAlbum != null)
-            {
-                trackedDownload.RemoteAlbum.Release ??= release;
-            }
-
-            _aggregationService.Augment(trackedDownload.RemoteAlbum);
+            MapRemoteAlbum(trackedDownload);
         }
 
         public void StopTracking(string downloadId)
@@ -126,8 +115,49 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                 IsTrackable = true
             };
 
+            MapRemoteAlbum(trackedDownload);
+            RestoreFromDownloadHistory(trackedDownload);
+
+            LogItemChange(trackedDownload, existingItem?.DownloadItem, trackedDownload.DownloadItem);
+
+            _cache.Set(trackedDownload.DownloadItem.DownloadId, trackedDownload);
+            return trackedDownload;
+        }
+
+        // Own error handling, so a failed read or a bad entry loses only what this restores, never the mapping
+        private void RestoreFromDownloadHistory(TrackedDownload trackedDownload)
+        {
             try
             {
+                var downloadHistory = _downloadHistoryService.GetLatestDownloadHistoryItem(trackedDownload.DownloadItem.DownloadId);
+
+                if (downloadHistory == null)
+                {
+                    return;
+                }
+
+                trackedDownload.State = GetStateFromHistory(downloadHistory.EventType);
+
+                if (downloadHistory.EventType == DownloadHistoryEventType.DownloadImportIncomplete)
+                {
+                    var messages = Json.Deserialize<List<TrackedDownloadStatusMessage>>(downloadHistory.Data["statusMessages"]).ToArray();
+                    trackedDownload.Warn(messages);
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.Debug(e, "Failed to restore download history for " + trackedDownload.DownloadItem.Title);
+            }
+        }
+
+        // Shared by first tracking and remaps after artist or album changes; a failed step keeps what the earlier steps mapped
+        private void MapRemoteAlbum(TrackedDownload trackedDownload)
+        {
+            var downloadItem = trackedDownload.DownloadItem;
+
+            try
+            {
+                // Read before anything is cleared, so a failed read keeps the previous mapping
                 var historyItems = _historyService.FindByDownloadId(downloadItem.DownloadId)
                     .OrderByDescending(h => h.Date)
                     .ToList();
@@ -139,19 +169,9 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                 {
                     trackedDownload.RemoteAlbum = _parsingService.Map(parsedAlbumInfo);
                 }
-
-                var downloadHistory = _downloadHistoryService.GetLatestDownloadHistoryItem(downloadItem.DownloadId);
-
-                if (downloadHistory != null)
+                else
                 {
-                    var state = GetStateFromHistory(downloadHistory.EventType);
-                    trackedDownload.State = state;
-
-                    if (downloadHistory.EventType == DownloadHistoryEventType.DownloadImportIncomplete)
-                    {
-                        var messages = Json.Deserialize<List<TrackedDownloadStatusMessage>>(downloadHistory.Data["statusMessages"]).ToArray();
-                        trackedDownload.Warn(messages);
-                    }
+                    trackedDownload.RemoteAlbum = null;
                 }
 
                 if (historyItems.Any())
@@ -243,11 +263,6 @@ namespace NzbDrone.Core.Download.TrackedDownloads
 
                 trackedDownload.Warn("Unable to parse albums from title");
             }
-
-            LogItemChange(trackedDownload, existingItem?.DownloadItem, trackedDownload.DownloadItem);
-
-            _cache.Set(trackedDownload.DownloadItem.DownloadId, trackedDownload);
-            return trackedDownload;
         }
 
         public List<TrackedDownload> GetTrackedDownloads()

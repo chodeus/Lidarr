@@ -1,21 +1,24 @@
-# New: Must Not Contain terms for metadata profiles
+# Add excluded tags and multiple indexers to release profiles
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`feat/metadata-supplementary-sources`](https://github.com/chodeus/Lidarr/tree/feat/metadata-supplementary-sources), the top of the metadata sources stack. Reviewed in [#3](https://github.com/chodeus/Lidarr/pull/3).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`metadata-profile-must-not-contain`](https://github.com/chodeus/Lidarr/tree/metadata-profile-must-not-contain), the top of the metadata stack, so the tag screens and tag tests include every profile type. Reviewed in [#49](https://github.com/chodeus/Lidarr/pull/49).
 
-Adds Must Not Contain terms to metadata profiles (upstream request #4923):
-- A refresh leaves out albums whose title contains a term as a whole word, case-insensitively. Albums with files, or added by hand, are kept.
-- The terms apply to every metadata source's albums (Deezer, Discogs and any other), checked once in the metadata source aggregator after the sources answer and the supplementary sources add theirs.
-- A term written as `/pattern/flags` is a regex anchored at both slashes. A plain term such as `Live // Unplugged` stays plain.
-- Whole-word matching uses lookarounds, not `\b`, so terms that start or end with punctuation, like `(live)`, still match.
-- The validator rejects invalid regexes and regexes that match an empty title.
-- Migration 900 adds `MetadataProfiles.Ignored`. The 900+ range is reserved for build-only changes.
+- Release profiles get Excluded Tags: a profile does not apply to an artist with any of them. A tag cannot be in both Tags and Excluded Tags, and `excludedTags: null` is rejected.
+- A release profile can list several indexers instead of one. An empty list means every indexer. Migration 911 adds `ExcludedTags`; migration 912 adds `IndexerIds`, filled from `IndexerId` in one update.
+- The API keeps `indexerId` for older clients: `indexerIds` wins when sent, `indexerId` alone becomes a one-indexer list, and `0` means every indexer. Responses carry both, with the first listed indexer as `indexerId`.
+- `ReleaseProfile.IndexerId` stays for plugins, read from and written to `IndexerIds`. It is still stored, so an older build reading the table keeps a one-indexer profile on its indexer; reads set it before the later `IndexerIds` column, so the full list wins. The controller keeps develop's constructor.
+- A tag used only as an excluded tag counts as in use: the tag screen lists the profile, the tag cannot be deleted, and the unused-tag cleanup keeps it.
+- The settings card shows excluded tags in red and every listed indexer.
+- The new `IReleaseProfileService.AllExcludedForTag` has a default body, and `TagDetails.ExcludedReleaseProfileIds` starts empty. The unused `IndexerIdHelpText` string is removed.
 
-`SkyHookProxy` is unchanged apart from using the shared album filter, so plugins still construct it with develop's constructor. The aggregator builds its own `TermMatcherService`, since the whole-word match isn't on `ITermMatcherService`.
+Tests: tag filtering with excluded tags, the indexer filter, tag details and the delete guard, the cleanup, the repository round trip (the full list read back, the first indexer in the legacy column), develop's `IndexerId`, a new `TagDetails` list, the migration, the API mapping (including `indexerId` 0) and validation (including null excluded tags). Each rule was broken on purpose and caught by a test.
 
 ## Summary by CodeRabbit
 
 * **New Features**
-  * Metadata profiles now include a “Must Not Contain” list for excluding albums with specified title terms. Terms match as whole words, regardless of case, and regular-expression terms are supported.
-  * Add terms using Tab or Enter. Matching terms are shown as labels in the profile.
+  * Release profiles can now apply to multiple indexers. Profiles without a selected indexer remain available across all indexers.
+  * Release profiles can exclude tags, preventing them from applying when matching tags are present.
+  * Tag details show when a tag is referenced by an excluded release profile.
+
 * **Bug Fixes**
-  * Invalid regular expressions and terms that match an empty title are rejected when saving a metadata profile.
+  * Tags used by excluded release profiles are retained and can’t be deleted while still in use.
+  * Release profile settings reject overlapping included and excluded tags.

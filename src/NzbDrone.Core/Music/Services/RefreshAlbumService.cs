@@ -348,7 +348,9 @@ namespace NzbDrone.Core.Music
 
             foreach (var album in albums)
             {
+                // An album the artist refresh just added has no releases yet, and the changed list can't vouch for it
                 if (forceAlbumRefresh ||
+                    NeverSynced(album) ||
                     (updatedMusicbrainzAlbums is not { Count: not 0 } && _checkIfAlbumShouldBeRefreshed.ShouldRefresh(album)) ||
                     (updatedMusicbrainzAlbums is { Count: > 0 } && updatedMusicbrainzAlbums.Contains(album.ForeignAlbumId)))
                 {
@@ -368,6 +370,11 @@ namespace NzbDrone.Core.Music
             }
 
             return updated;
+        }
+
+        private static bool NeverSynced(Album album)
+        {
+            return !album.LastInfoSync.HasValue || album.LastInfoSync.Value == DateTime.MinValue;
         }
 
         public bool RefreshAlbumInfo(Album album, List<Album> remoteAlbums, bool forceUpdateFileTags)

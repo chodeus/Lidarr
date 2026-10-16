@@ -160,6 +160,45 @@ namespace NzbDrone.Core.Test.MusicTests
             ExceptionVerification.ExpectedWarns(1);
         }
 
+        private void GivenChangedAlbums(params string[] foreignAlbumIds)
+        {
+            Mocker.GetMock<IProvideAlbumInfo>()
+                .Setup(s => s.GetChangedAlbums(It.IsAny<DateTime>()))
+                .Returns(new HashSet<string>(foreignAlbumIds));
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_refresh_never_synced_album_missing_from_changed_albums(bool nullLastInfoSync)
+        {
+            var album = _albums.First();
+            album.LastInfoSync = nullLastInfoSync ? null : DateTime.MinValue;
+
+            GivenChangedAlbums("another-album");
+
+            Subject.RefreshAlbumInfo(_albums, null, false, false, DateTime.UtcNow.AddDays(-1));
+
+            Mocker.GetMock<IProvideAlbumInfo>()
+                .Verify(x => x.GetAlbumInfo(album.ForeignAlbumId), Times.Once());
+
+            // the fixture's album is not found at the source, so the refresh deletes it
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_skip_synced_album_missing_from_changed_albums()
+        {
+            var album = _albums.First();
+            album.LastInfoSync = DateTime.UtcNow.AddDays(-2);
+
+            GivenChangedAlbums("another-album");
+
+            Subject.RefreshAlbumInfo(_albums, null, false, false, DateTime.UtcNow.AddDays(-1));
+
+            Mocker.GetMock<IProvideAlbumInfo>()
+                .Verify(x => x.GetAlbumInfo(It.IsAny<string>()), Times.Never());
+        }
+
         [Test]
         public void should_remove_album_with_no_valid_releases()
         {

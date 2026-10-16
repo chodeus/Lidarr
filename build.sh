@@ -47,7 +47,8 @@ if [[ ${1} == "source" ]]; then
     git -C _src checkout --quiet --detach "${lidarr_sha}"
     # Each branch describes itself in .github/README.md; keep the first so those never clash.
     git -C _src config merge.keepfirst.driver true
-    echo ".github/README.md merge=keepfirst" > _src/.git/info/attributes
+    # Branches adding translation keys at the same sorted spot keep both; the check after the merges catches a key set twice.
+    printf '%s\n' ".github/README.md merge=keepfirst" "src/NzbDrone.Core/Localization/Core/en.json merge=union" > _src/.git/info/attributes
     # Merged in pr_branches order, so a failure names the branch that stopped fitting.
     for i in "${!pr_branches[@]}"; do
         if ! git -C _src -c user.name=build -c user.email=build@localhost merge --quiet --no-edit "${pr_shas[i]}"; then
@@ -55,6 +56,15 @@ if [[ ${1} == "source" ]]; then
             exit 1
         fi
     done
+    en_json=src/NzbDrone.Core/Localization/Core/en.json
+    if ! repeated=$(jq -nr --stream '[inputs | select(length == 2) | .[0][0]] | group_by(.) | map(select(length > 1)[0]) | join(" ")' < "_src/${en_json}"); then
+        echo "The merged ${en_json} is not valid JSON." >&2
+        exit 1
+    fi
+    if [[ -n ${repeated} ]]; then
+        echo "The merged ${en_json} sets ${repeated} more than once: rebase one of the branches that add it." >&2
+        exit 1
+    fi
 fi
 
 if [[ ${1} == "source" || ${1} == "migrations" ]]; then

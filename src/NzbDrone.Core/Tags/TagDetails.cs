@@ -16,7 +16,7 @@ namespace NzbDrone.Core.Tags
         public List<int> IndexerIds { get; set; }
         public List<int> AutoTagIds { get; set; }
         public List<int> DownloadClientIds { get; set; }
-        public List<int> TaggingProfileIds { get; set; }
+        public List<int> TaggingProfileIds { get; set; } = new List<int>();
 
         public bool InUse => ArtistIds.Any() ||
                              NotificationIds.Any() ||

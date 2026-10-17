@@ -379,7 +379,7 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             var results = Import(album);
 
-            ExceptionVerification.ExpectedWarns(2);
+            ExceptionVerification.ExpectedWarns(1);
             results.Should().OnlyContain(r => r.Result != ImportResultType.Imported);
             AlbumShouldBeAsBefore(album);
             Directory.Exists(Path.Combine(_artist.Path, ".lidarr-replaced")).Should().BeFalse();

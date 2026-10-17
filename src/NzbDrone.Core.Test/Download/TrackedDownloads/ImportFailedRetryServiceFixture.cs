@@ -4,7 +4,10 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.TrackedDownloads;
+using NzbDrone.Core.Messaging.Commands;
+using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Music;
+using NzbDrone.Core.Music.Commands;
 using NzbDrone.Core.Music.Events;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Test.Framework;
@@ -50,12 +53,23 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
             return trackedDownload;
         }
 
+        private void CommandFinished(Command command)
+        {
+            Subject.Handle(new CommandExecutedEvent(new CommandModel { Body = command }));
+        }
+
+        private void Refresh()
+        {
+            Subject.Handle(new AlbumUpdatedEvent(_refreshedAlbum));
+            CommandFinished(new RefreshArtistCommand());
+        }
+
         [Test]
         public void should_retry_failed_import_for_the_refreshed_artist()
         {
             var trackedDownload = GivenTrackedDownload(TrackedDownloadState.ImportFailed);
 
-            Subject.Handle(new AlbumUpdatedEvent(_refreshedAlbum));
+            Refresh();
 
             trackedDownload.State.Should().Be(TrackedDownloadState.ImportBlocked);
         }
@@ -65,7 +79,7 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
         {
             var trackedDownload = GivenTrackedDownload(TrackedDownloadState.ImportFailed);
 
-            Subject.Handle(new AlbumUpdatedEvent(_refreshedAlbum));
+            Refresh();
 
             trackedDownload.RemoteAlbum.Albums.Should().ContainSingle().Which.Should().BeSameAs(_refreshedAlbum);
         }
@@ -75,7 +89,7 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
         {
             var trackedDownload = GivenTrackedDownload(TrackedDownloadState.ImportFailed, artistMetadataId: 8);
 
-            Subject.Handle(new AlbumUpdatedEvent(_refreshedAlbum));
+            Refresh();
 
             trackedDownload.State.Should().Be(TrackedDownloadState.ImportFailed);
             Mocker.GetMock<IAlbumService>().Verify(s => s.GetAlbums(It.IsAny<IEnumerable<int>>()), Times.Never());
@@ -90,7 +104,7 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
         {
             var trackedDownload = GivenTrackedDownload(state);
 
-            Subject.Handle(new AlbumUpdatedEvent(_refreshedAlbum));
+            Refresh();
 
             trackedDownload.State.Should().Be(state);
         }
@@ -101,9 +115,69 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
             var trackedDownload = GivenTrackedDownload(TrackedDownloadState.ImportFailed);
             trackedDownload.RemoteAlbum = null;
 
+            Refresh();
+
+            trackedDownload.State.Should().Be(TrackedDownloadState.ImportFailed);
+        }
+
+        [Test]
+        public void should_wait_for_the_refresh_to_finish()
+        {
+            var trackedDownload = GivenTrackedDownload(TrackedDownloadState.ImportFailed);
+
             Subject.Handle(new AlbumUpdatedEvent(_refreshedAlbum));
 
             trackedDownload.State.Should().Be(TrackedDownloadState.ImportFailed);
+        }
+
+        [Test]
+        public void should_retry_after_a_single_album_refresh()
+        {
+            var trackedDownload = GivenTrackedDownload(TrackedDownloadState.ImportFailed);
+
+            Subject.Handle(new AlbumUpdatedEvent(_refreshedAlbum));
+            CommandFinished(new RefreshAlbumCommand(_refreshedAlbum.Id));
+
+            trackedDownload.State.Should().Be(TrackedDownloadState.ImportBlocked);
+        }
+
+        [Test]
+        public void should_not_retry_when_another_command_finishes()
+        {
+            var trackedDownload = GivenTrackedDownload(TrackedDownloadState.ImportFailed);
+
+            Subject.Handle(new AlbumUpdatedEvent(_refreshedAlbum));
+            CommandFinished(new RefreshMonitoredDownloadsCommand());
+
+            trackedDownload.State.Should().Be(TrackedDownloadState.ImportFailed);
+        }
+
+        [Test]
+        public void should_retry_once_however_many_albums_the_refresh_changed()
+        {
+            var trackedDownload = GivenTrackedDownload(TrackedDownloadState.ImportFailed);
+
+            Subject.Handle(new AlbumUpdatedEvent(_refreshedAlbum));
+            Subject.Handle(new AlbumUpdatedEvent(new Album { Id = 9, ArtistMetadataId = 7 }));
+            CommandFinished(new RefreshArtistCommand());
+
+            // The retry failed again; a later refresh that changed nothing must not retry it
+            trackedDownload.State = TrackedDownloadState.ImportFailed;
+            CommandFinished(new RefreshArtistCommand());
+
+            Mocker.GetMock<IAlbumService>().Verify(s => s.GetAlbums(It.IsAny<IEnumerable<int>>()), Times.Once());
+        }
+
+        [Test]
+        public void should_skip_a_download_whose_albums_no_longer_map()
+        {
+            var trackedDownload = GivenTrackedDownload(TrackedDownloadState.ImportFailed);
+            trackedDownload.RemoteAlbum.Albums = new List<Album>();
+
+            Refresh();
+
+            trackedDownload.State.Should().Be(TrackedDownloadState.ImportFailed);
+            Mocker.GetMock<IAlbumService>().Verify(s => s.GetAlbums(It.IsAny<IEnumerable<int>>()), Times.Never());
         }
     }
 }

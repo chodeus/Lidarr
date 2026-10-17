@@ -17,6 +17,7 @@ namespace Lidarr.Api.V1.Tags
         public List<int> AutoTagIds { get; set; }
         public List<int> ArtistIds { get; set; }
         public List<int> TaggingProfileIds { get; set; }
+        public List<int> RootFolderIds { get; set; }
     }
 
     public static class TagDetailsResourceMapper
@@ -40,7 +41,8 @@ namespace Lidarr.Api.V1.Tags
                 DownloadClientIds = model.DownloadClientIds,
                 AutoTagIds = model.AutoTagIds,
                 ArtistIds = model.ArtistIds,
-                TaggingProfileIds = model.TaggingProfileIds
+                TaggingProfileIds = model.TaggingProfileIds,
+                RootFolderIds = model.RootFolderIds
             };
         }
 

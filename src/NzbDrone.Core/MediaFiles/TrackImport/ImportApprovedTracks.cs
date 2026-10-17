@@ -995,7 +995,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             if (row == null && _diskProvider.FileExists(path))
             {
                 var onDisk = _diskProvider.GetFiles(_diskProvider.GetParentFolder(path), false);
-                var resolved = onDisk.Contains(path) ? null : onDisk.FirstOrDefault(f => string.Equals(f.Normalize(), path.Normalize(), StringComparison.OrdinalIgnoreCase));
+                var resolved = onDisk.FirstOrDefault(f => f != path && string.Equals(f.Normalize(), path.Normalize(), StringComparison.OrdinalIgnoreCase));
                 row = resolved == null ? null : _mediaFileService.GetFileWithPath(resolved);
             }
 

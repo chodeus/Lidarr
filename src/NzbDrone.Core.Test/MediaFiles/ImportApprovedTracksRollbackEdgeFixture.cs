@@ -591,6 +591,43 @@ namespace NzbDrone.Core.Test.MediaFiles
         }
 
         [Test]
+        public void should_still_put_the_album_back_when_removing_the_unlinked_new_rows_fails()
+        {
+            var album = GivenAlbum("A", "A", "A");
+            var newPath = Path.Combine(_artist.Path, "A", "new.flac");
+
+            Mocker.GetMock<IUpgradeMediaFiles>()
+                  .Setup(s => s.UpgradeTrackFile(It.IsAny<TrackFile>(), It.IsAny<LocalTrack>(), It.IsAny<bool>()))
+                  .Returns<TrackFile, LocalTrack, bool>((f, l, c) =>
+                  {
+                      f.Path = newPath;
+                      File.WriteAllText(f.Path, "new");
+                      return new TrackFileMoveResult { TrackFile = f };
+                  });
+
+            var tracks = new Mock<ITrackService>();
+            tracks.Setup(s => s.GetTracksByFileId(It.IsAny<IEnumerable<int>>())).Returns<IEnumerable<int>>(ids => _trackService.GetTracksByFileId(ids));
+            tracks.Setup(s => s.GetTracksByReleases(It.IsAny<List<int>>())).Returns<List<int>>(ids => _trackService.GetTracksByReleases(ids));
+            tracks.Setup(s => s.SetFileIds(It.Is<List<Track>>(t => t.Any(x => x.Id == album.NewTrack.Id)))).Throws(new InvalidOperationException("database is locked"));
+            tracks.Setup(s => s.SetFileIds(It.Is<List<Track>>(t => t.All(x => x.Id != album.NewTrack.Id)))).Callback<List<Track>>(t => _trackService.SetFileIds(t));
+            Mocker.SetConstant(tracks.Object);
+
+            var files = new Mock<IMediaFileService>();
+            files.Setup(s => s.GetFilesByAlbum(It.IsAny<int>())).Returns<int>(id => _mediaFileService.GetFilesByAlbum(id));
+            files.Setup(s => s.Delete(It.IsAny<TrackFile>(), It.IsAny<DeleteMediaFileReason>())).Callback<TrackFile, DeleteMediaFileReason>((f, r) => _mediaFileService.Delete(f, r));
+            files.Setup(s => s.AddMany(It.IsAny<List<TrackFile>>())).Callback<List<TrackFile>>(f => _mediaFileService.AddMany(f));
+            files.Setup(s => s.GetFileWithPath(It.IsAny<string>())).Returns<string>(p => _mediaFileService.GetFileWithPath(p));
+            files.Setup(s => s.DeleteMany(It.IsAny<List<TrackFile>>(), It.IsAny<DeleteMediaFileReason>())).Throws(new InvalidOperationException("database is locked"));
+            Mocker.SetConstant(files.Object);
+
+            Assert.Catch<InvalidOperationException>(() => Import(Incoming(album)));
+
+            ExceptionVerification.ExpectedWarns(1);
+            album.OldPaths.Select(File.ReadAllText).Should().BeEquivalentTo(new[] { "A old 1", "A old 2" });
+            Db.All<Track>().Where(t => t.TrackFileId > 0).Select(t => t.Id).Should().BeEquivalentTo(album.OldTracks.Select(t => t.Id));
+        }
+
+        [Test]
         public void should_keep_a_lyric_waiting_with_the_track_file_that_cannot_go_back()
         {
             Mocker.SetConstant<IExtraFileRepository<LyricFile>>(Mocker.Resolve<LyricFileRepository>());

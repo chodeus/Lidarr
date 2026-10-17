@@ -8,6 +8,7 @@ using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
+using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Extras.Lyrics;
 using NzbDrone.Core.Extras.Metadata.Files;
@@ -246,16 +247,32 @@ namespace NzbDrone.Core.Test.MediaFiles
         public void should_report_the_new_release_as_monitored_in_the_track_imported_events()
         {
             var album = GivenAlbum("A");
-            GivenNewFileLandsAs("01 - Single.flac");
+            var secondTrack = Builder<Track>.CreateNew().With(t => t.Id = 0).With(t => t.ForeignTrackId = "A-new-2").With(t => t.AlbumReleaseId = album.NewRelease.Id).With(t => t.TrackFileId = 0).Build();
+            Db.Insert(secondTrack);
+
+            Mocker.GetMock<IUpgradeMediaFiles>()
+                  .Setup(s => s.UpgradeTrackFile(It.IsAny<TrackFile>(), It.IsAny<LocalTrack>(), It.IsAny<bool>()))
+                  .Returns<TrackFile, LocalTrack, bool>((f, l, c) =>
+                  {
+                      f.Path = Path.Combine(album.Folder, l.Tracks[0].ForeignTrackId + ".flac");
+                      File.WriteAllText(f.Path, "new");
+                      return new TrackFileMoveResult { TrackFile = f };
+                  });
+
             var imported = new List<TrackImportedEvent>();
             Mocker.GetMock<IEventAggregator>()
                   .Setup(s => s.PublishEvent(It.IsAny<TrackImportedEvent>()))
                   .Callback<TrackImportedEvent>(e => imported.Add(e));
 
-            Import(Incoming(album, album.NewRelease, album.NewTrack));
+            // A second copy of the album whose releases aren't loaded: the import loop hands it the cached list
+            var second = Incoming(album, album.NewRelease, secondTrack);
+            second.Item.Album = new Album { Id = album.Album.Id, ForeignAlbumId = album.Album.ForeignAlbumId, Artist = _artist, AlbumReleases = new LazyLoaded<List<AlbumRelease>>() };
+
+            Import(Incoming(album, album.NewRelease, album.NewTrack), second);
 
             // develop switched the release before the import, so its events already carried the new one
-            imported.Should().ContainSingle().Which.TrackInfo.Album.AlbumReleases.Value.Single(r => r.Monitored).Id.Should().Be(album.NewRelease.Id);
+            imported.Should().HaveCount(2);
+            imported.Select(e => e.TrackInfo.Album.AlbumReleases.Value.Single(r => r.Monitored).Id).Should().OnlyContain(id => id == album.NewRelease.Id);
         }
 
         [Test]

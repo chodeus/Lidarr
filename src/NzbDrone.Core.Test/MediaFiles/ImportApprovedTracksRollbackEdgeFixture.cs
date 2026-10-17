@@ -284,6 +284,32 @@ namespace NzbDrone.Core.Test.MediaFiles
               .Should().BeEquivalentTo(Array.Empty<string>(), "every file is back on disk and in the library");
         }
 
+        [Test]
+        public void should_keep_other_deletion_history_when_it_puts_files_back()
+        {
+            Mocker.SetConstant<IHistoryRepository>(Mocker.Resolve<EntityHistoryRepository>());
+            var history = Mocker.Resolve<EntityHistoryService>();
+            _deletedHandlers.Add(e => history.Handle(e));
+            Mocker.SetConstant<IHistoryService>(history);
+
+            var album = GivenAlbum("A", "A", "A", "A");
+            GivenOnlyTheseImport();
+            EntityHistory Deleted(int trackId, DateTime date)
+            {
+                var entry = new EntityHistory { EventType = EntityHistoryEventType.TrackFileDeleted, Date = date, Quality = new QualityModel(Quality.MP3_320), SourceTitle = "kept " + trackId, ArtistId = _artist.Id, AlbumId = album.Album.Id, TrackId = trackId };
+                entry.Data.Add("Reason", "Upgrade");
+                return entry;
+            }
+
+            // An earlier upgrade of a file it puts back, and a track whose file it doesn't
+            Db.Insert(Deleted(album.OldTracks[0].Id, DateTime.UtcNow.AddDays(-1)));
+            Db.Insert(Deleted(album.NewTrack.Id, DateTime.UtcNow.AddMinutes(5)));
+
+            Import(Incoming(album));
+
+            Db.All<EntityHistory>().Select(h => h.SourceTitle).Should().BeEquivalentTo(new[] { "kept " + album.OldTracks[0].Id, "kept " + album.NewTrack.Id });
+        }
+
         // Error says the switch failed, but the in-memory flags flipped first and the events go out after
         [Test]
         public void should_report_the_release_the_database_kept_when_switching_fails()

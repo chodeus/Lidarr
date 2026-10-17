@@ -36,6 +36,11 @@ jobs:
       - name: Compile
         run: ./build.sh compile
 
+      - name: Check Plugins
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./build.sh plugins
+
       - name: Upload Tarball
         uses: actions/upload-artifact@v7
         with:
@@ -173,7 +178,7 @@ jobs:
       event_type: workflow
       status: failure
       title: "❌ Lidarr image build failed: ${{ github.ref_name }}"
-      description: "No new image was published, so the running image stays on the last good build. If the Merge Sources step failed, rebase the branch it names onto develop; if compile failed, upstream develop changed code one of meta.json's `pr_branches` relies on."
+      description: "No new image was published, so the running image stays on the last good build. If the Merge Sources step failed, rebase the branch it names onto develop; if compile failed, upstream develop changed code one of meta.json's `pr_branches` relies on; if Check Plugins failed, the step names the Lidarr type or member a plugin in `plugin_repos` uses that the build lacks, or the release it could not download."
       commit_sha: ${{ github.sha }}
     secrets:
       DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}

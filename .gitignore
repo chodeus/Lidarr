@@ -3,3 +3,6 @@ meta.json.bak
 _src/
 lidarr.tar.gz
 smoketest.log
+_plugins/
+plugincheck/bin/
+plugincheck/obj/

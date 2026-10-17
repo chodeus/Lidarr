@@ -6,6 +6,7 @@ if [[ -z ${1:-} ]]; then
     echo "       ./build.sh migrations"
     echo "       ./build.sh compile"
     echo "       ./build.sh audit"
+    echo "       ./build.sh plugins [lidarr-bin-dir]"
     echo "       ./build.sh amd64"
     echo "       ./build.sh packages <image>"
     exit 1
@@ -125,6 +126,23 @@ if [[ ${1} == "audit" ]]; then
         exit 1
     fi
     echo "Audit: no advisories outside audit-ignore.txt"
+fi
+
+if [[ ${1} == "plugins" ]]; then
+    # The latest release of each plugin, against the compiled build: a type or member it uses that the build lacks fails it at load or call time.
+    lidarr=${2:-_src/_artifacts/linux-musl-x64/net8.0/Lidarr}
+    dotnet build plugincheck -c Release -v quiet -o _plugins/check
+    for repo in $(jq -re '.plugin_repos' < meta.json); do
+        dir=_plugins/${repo//\//_}
+        tag=$(gh release view -R "${repo}" --json tagName --jq .tagName)
+        rm -rf "${dir}"
+        gh release download "${tag}" -R "${repo}" --pattern '*.net8.0.zip' -D "${dir}"
+        unzip -q "${dir}"/*.zip -d "${dir}"
+        for plugin in "${dir}"/Lidarr.Plugin.*.dll; do
+            echo "${repo} ${tag}:"
+            dotnet _plugins/check/plugincheck.dll "${plugin}" "${lidarr}"
+        done
+    done
 fi
 
 if [[ ${1} == "amd64" ]]; then

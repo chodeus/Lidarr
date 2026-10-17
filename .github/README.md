@@ -10,8 +10,6 @@ This adds a quality profile option, off by default and shown only when upgrades 
 - Library files that a rescan joined into the import are not counted as incoming.
 - An album set to one specific release is not switched: `ReleaseWantedSpecification` rejects any other release unless the album accepts any release.
 
-Replacing the album's files on a download import no longer recycles them first. They move into a hidden `.lidarr-replaced` folder beside the album (disk scans skip dot folders), and their rows follow them. Once at least one file of the new release imports, they go to the recycle bin and their rows are deleted, as before. If none imports (destination exists, permissions, any move error), they move back, the rows get their paths back, and the album returns to its previous release. A failure while moving them aside puts back what was moved and fails the import, as a recycle bin failure did.
-
 Migration 901 adds `QualityProfiles.AllowSmallerReleaseUpgrades` (default false).
 
 ## Summary by CodeRabbit

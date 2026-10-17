@@ -29,9 +29,6 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
 
     public class ImportApprovedTracks : IImportApprovedTracks
     {
-        // Hidden, so a disk scan skips the files waiting here (DiskScanService.ExcludedSubFoldersRegex)
-        private const string ReplacedFolderName = ".lidarr-replaced";
-
         private readonly IUpgradeMediaFiles _trackFileUpgrader;
         private readonly IMediaFileService _mediaFileService;
         private readonly IAudioTagService _audioTagService;
@@ -97,7 +94,6 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             var albumDecisions = decisions.Where(e => e.Item.Album != null && e.Approved)
                 .GroupBy(e => e.Item.Album.ForeignAlbumId).ToList();
 
-            var replacements = new List<ReplacedAlbum>();
             var iDecision = 1;
             foreach (var albumDecision in albumDecisions)
             {
@@ -123,7 +119,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
 
                 if (replaceExisting)
                 {
-                    replacements.Add(MoveExistingTrackFilesAside(artist, album, decisionList));
+                    RemoveExistingTrackFiles(artist, album);
                 }
 
                 // set the correct release to be monitored before importing the new files
@@ -316,11 +312,6 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                 }
             }
 
-            foreach (var replacement in replacements)
-            {
-                FinishReplacing(replacement, importResults);
-            }
-
             var watch = new System.Diagnostics.Stopwatch();
             watch.Start();
             _mediaFileService.AddMany(filesToAdd);
@@ -483,158 +474,23 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             }
         }
 
-        // Aside rather than recycled, so the album keeps its release and files when nothing of the new one imports
-        private ReplacedAlbum MoveExistingTrackFilesAside(Artist artist, Album album, List<ImportDecision<LocalTrack>> decisions)
+        private void RemoveExistingTrackFiles(Artist artist, Album album)
         {
-            var replacement = new ReplacedAlbum
-            {
-                Artist = artist,
-                Album = album,
-                PreviousRelease = album.AlbumReleases?.Value?.SingleOrDefault(r => r.Monitored)
-            };
-
+            var rootFolder = _diskProvider.GetParentFolder(artist.Path);
             var previousFiles = _mediaFileService.GetFilesByAlbum(album.Id);
 
-            _logger.Debug($"Moving {previousFiles.Count} existing files for {album} aside");
+            _logger.Debug($"Deleting {previousFiles.Count} existing files for {album}");
 
-            try
+            foreach (var previousFile in previousFiles)
             {
-                foreach (var previousFile in previousFiles)
+                var subfolder = rootFolder.GetRelativePath(_diskProvider.GetParentFolder(previousFile.Path));
+                if (_diskProvider.FileExists(previousFile.Path))
                 {
-                    var file = new ReplacedFile { TrackFile = previousFile, OriginalPath = previousFile.Path };
-                    replacement.Files.Add(file);
-
-                    if (!_diskProvider.FileExists(previousFile.Path))
-                    {
-                        continue;
-                    }
-
-                    var asideFolder = Path.Combine(_diskProvider.GetParentFolder(previousFile.Path), ReplacedFolderName);
-                    var asidePath = FreePath(asideFolder, Path.GetFileName(previousFile.Path));
-
-                    _diskProvider.CreateFolder(asideFolder);
-                    _diskProvider.MoveFile(previousFile.Path, asidePath);
-
-                    file.AsidePath = asidePath;
-                    previousFile.Path = asidePath;
+                    _logger.Debug("Removing existing track file: {0}", previousFile);
+                    _recycleBinProvider.DeleteFile(previousFile.Path, subfolder);
                 }
 
-                // The rows follow the files, so an upgrade of the same release still finds them and a crash leaves them valid
-                _mediaFileService.Update(previousFiles);
-
-                // Import specs loaded these tracks' files before the move, as copies at the old paths
-                var moved = previousFiles.ToDictionary(f => f.Id);
-
-                foreach (var track in decisions.SelectMany(d => d.Item.Tracks).Where(t => moved.ContainsKey(t.TrackFileId)))
-                {
-                    track.TrackFile = moved[track.TrackFileId];
-                }
-            }
-            catch
-            {
-                MoveBack(replacement);
-                throw;
-            }
-
-            return replacement;
-        }
-
-        // A file an interrupted import left here keeps its name; this one gets a suffix, as in the recycle bin
-        private string FreePath(string folder, string fileName)
-        {
-            var path = Path.Combine(folder, fileName);
-
-            for (var index = 2; _diskProvider.FileExists(path); index++)
-            {
-                path = Path.Combine(folder, $"{Path.GetFileNameWithoutExtension(fileName)}_{index}{Path.GetExtension(fileName)}");
-            }
-
-            return path;
-        }
-
-        private void FinishReplacing(ReplacedAlbum replacement, List<ImportResult> importResults)
-        {
-            if (importResults.Any(r => r.Result == ImportResultType.Imported && r.ImportDecision.Item.Album?.Id == replacement.Album.Id))
-            {
-                RecycleReplaced(replacement);
-                return;
-            }
-
-            _logger.Warn("No track of {0} imported, keeping its previous release and files", replacement.Album);
-
-            _mediaFileService.Update(MoveBack(replacement));
-
-            if (replacement.PreviousRelease != null)
-            {
-                replacement.Album.AlbumReleases = _releaseService.SetMonitored(replacement.PreviousRelease);
-                _eventAggregator.PublishEvent(new AlbumEditedEvent(replacement.Album, replacement.Album));
-            }
-        }
-
-        private void RecycleReplaced(ReplacedAlbum replacement)
-        {
-            var rootFolder = _diskProvider.GetParentFolder(replacement.Artist.Path);
-            var remaining = _mediaFileService.GetFilesByAlbum(replacement.Album.Id).Select(f => f.Id).ToHashSet();
-
-            foreach (var file in replacement.Files)
-            {
-                if (file.AsidePath != null && _diskProvider.FileExists(file.AsidePath))
-                {
-                    var subfolder = rootFolder.GetRelativePath(_diskProvider.GetParentFolder(file.OriginalPath));
-
-                    try
-                    {
-                        _logger.Debug("Removing existing track file: {0}", file.OriginalPath);
-                        _recycleBinProvider.DeleteFile(file.AsidePath, subfolder);
-                    }
-                    catch (Exception e)
-                    {
-                        _logger.Warn(e, "Couldn't recycle replaced track file, left at {0}", file.AsidePath);
-                    }
-                }
-
-                // An upgrade of the same release has already removed its own files
-                if (remaining.Contains(file.TrackFile.Id))
-                {
-                    file.TrackFile.Path = file.OriginalPath;
-                    _mediaFileService.Delete(file.TrackFile, DeleteMediaFileReason.Upgrade);
-                }
-            }
-
-            DeleteEmptyReplacedFolders(replacement);
-        }
-
-        private List<TrackFile> MoveBack(ReplacedAlbum replacement)
-        {
-            var restored = new List<TrackFile>();
-
-            foreach (var file in replacement.Files.Where(f => f.AsidePath != null && _diskProvider.FileExists(f.AsidePath)))
-            {
-                try
-                {
-                    _diskProvider.MoveFile(file.AsidePath, file.OriginalPath);
-                    file.TrackFile.Path = file.OriginalPath;
-                    restored.Add(file.TrackFile);
-                }
-                catch (Exception e)
-                {
-                    _logger.Warn(e, "Couldn't move {0} back to {1}", file.AsidePath, file.OriginalPath);
-                }
-            }
-
-            DeleteEmptyReplacedFolders(replacement);
-
-            return restored;
-        }
-
-        private void DeleteEmptyReplacedFolders(ReplacedAlbum replacement)
-        {
-            foreach (var folder in replacement.Files.Where(f => f.AsidePath != null).Select(f => _diskProvider.GetParentFolder(f.AsidePath)).Distinct())
-            {
-                if (_diskProvider.FolderExists(folder) && _diskProvider.FolderEmpty(folder))
-                {
-                    _diskProvider.DeleteFolder(folder, false);
-                }
+                _mediaFileService.Delete(previousFile, DeleteMediaFileReason.Upgrade);
             }
         }
 
@@ -673,21 +529,6 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             }
 
             return Path.GetFileName(path);
-        }
-
-        private class ReplacedAlbum
-        {
-            public Artist Artist { get; set; }
-            public Album Album { get; set; }
-            public AlbumRelease PreviousRelease { get; set; }
-            public List<ReplacedFile> Files { get; } = new List<ReplacedFile>();
-        }
-
-        private class ReplacedFile
-        {
-            public TrackFile TrackFile { get; set; }
-            public string OriginalPath { get; set; }
-            public string AsidePath { get; set; }
         }
     }
 }

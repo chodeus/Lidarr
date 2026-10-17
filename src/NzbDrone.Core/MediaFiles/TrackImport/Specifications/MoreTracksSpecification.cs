@@ -108,7 +108,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Specifications
             var imports = _historyService.GetByAlbum(albumId, EntityHistoryEventType.TrackFileImported);
             var grabs = new List<EntityHistory>();
 
-            foreach (var downloadId in existingTracks.Select(t => imports.Where(x => x.TrackId == t.Id).MaxBy(x => x.Date)?.DownloadId).Distinct())
+            foreach (var downloadId in existingTracks.Select(t => ImportedDownloadId(t, imports)).Distinct())
             {
                 var grab = FindGrab(downloadId);
 
@@ -121,6 +121,15 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Specifications
             }
 
             return grabs;
+        }
+
+        // A file a rescan added after the track's last import didn't come from that import's grab
+        private static string ImportedDownloadId(Track track, List<EntityHistory> imports)
+        {
+            var import = imports.Where(x => x.TrackId == track.Id).MaxBy(x => x.Date);
+            var file = track.TrackFile?.Value;
+
+            return import != null && file != null && import.Date.AddMinutes(1) >= file.DateAdded ? import.DownloadId : null;
         }
 
         private static List<CustomFormat> BestScored(IEnumerable<List<CustomFormat>> candidates, QualityProfile profile)

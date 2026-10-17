@@ -317,5 +317,15 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Specifications
 
             Subject.IsSatisfiedBy(Incoming(_singleRelease, Quality.FLAC), GivenGrabs(("WEB", 1))).Accepted.Should().BeTrue();
         }
+
+        [Test]
+        public void should_not_credit_a_file_a_rescan_added_later_with_an_older_grab()
+        {
+            GivenExistingFiles("WEB", Quality.FLAC, Quality.FLAC, Quality.FLAC);
+            GivenExistingGrab("existing-1", "CD", 1, 2, 3);
+            _existingRelease.Tracks.Value.ForEach(x => x.TrackFile.Value.DateAdded = DateTime.UtcNow.AddDays(-1));
+
+            Subject.IsSatisfiedBy(Incoming(_singleRelease, Quality.FLAC), GivenGrabs(("WEB", 1))).Accepted.Should().BeFalse();
+        }
     }
 }

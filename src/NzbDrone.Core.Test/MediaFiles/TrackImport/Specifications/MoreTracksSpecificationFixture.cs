@@ -327,5 +327,11 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Specifications
 
             Subject.IsSatisfiedBy(Incoming(_singleRelease, Quality.FLAC), GivenGrabs(("WEB", 1))).Accepted.Should().BeFalse();
         }
+
+        [Test]
+        public void should_reject_a_smaller_release_when_built_with_develops_constructor()
+        {
+            new MoreTracksSpecification(TestLogger).IsSatisfiedBy(Incoming(_singleRelease, Quality.FLAC), null).Accepted.Should().BeFalse();
+        }
     }
 }

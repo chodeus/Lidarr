@@ -21,6 +21,12 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Specifications
         private readonly IHistoryService _historyService;
         private readonly Logger _logger;
 
+        // Develop's constructor, kept for plugins built against it; without the services a smaller release is rejected, as in develop
+        public MoreTracksSpecification(Logger logger)
+            : this(null, null, null, logger)
+        {
+        }
+
         public MoreTracksSpecification(IUpgradableSpecification upgradableSpecification, ICustomFormatCalculationService formatService, IHistoryService historyService, Logger logger)
         {
             _upgradableSpecification = upgradableSpecification;
@@ -61,7 +67,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Specifications
             var artist = incoming.FirstOrDefault()?.Artist;
             var profile = artist?.QualityProfile?.Value;
 
-            if (profile?.UpgradeAllowed != true || !profile.AllowSmallerReleaseUpgrades || incoming.Any(x => x.Quality == null) || existingFiles.Any(x => x?.Quality == null))
+            if (_upgradableSpecification == null || profile?.UpgradeAllowed != true || !profile.AllowSmallerReleaseUpgrades || incoming.Any(x => x.Quality == null) || existingFiles.Any(x => x?.Quality == null))
             {
                 return false;
             }

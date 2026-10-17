@@ -15,7 +15,7 @@
 - **Artists sharing a clean name** — branch [`fix/ambiguous-artist-disambiguation`](https://github.com/chodeus/Lidarr/tree/fix/ambiguous-artist-disambiguation), upstream PR [#5840](https://github.com/Lidarr/Lidarr/pull/5840)
   - When two artists reduce to the same clean name, the parsed album picks the artist instead of failing with "found multiple artists".
 - **Retry failed imports after a refresh** — branch [`feat/retry-import-failed`](https://github.com/chodeus/Lidarr/tree/feat/retry-import-failed), not submitted
-  - When a metadata refresh changes an album, that artist's `importFailed` downloads get fresh album data and are imported again, so a MusicBrainz fix clears the queue without a manual import.
+  - When a metadata refresh changes an album, that artist's `importFailed` downloads get fresh album data and are imported again once the refresh finishes, so a MusicBrainz fix clears the queue without a manual import. Each refresh retries a download once. Downloads whose albums no longer map, or that a manual import has just finished, are left alone.
 - **Allow Smaller Release Upgrades** — branch [`feat/smaller-release-upgrades`](https://github.com/chodeus/Lidarr/tree/feat/smaller-release-upgrades), not submitted
   - A quality profile option, off by default, under Upgrades Allowed.
   - Lets an album switch to a release with fewer tracks when no incoming file is worse than any file on disk and at least one is better, such as a FLAC single replacing a 3-track MP3 single. The old files go to the recycle bin.

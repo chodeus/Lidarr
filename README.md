@@ -11,6 +11,7 @@
 - **Delay and tagging profile ordering** — branch [`fix/profile-order-and-tags`](https://github.com/chodeus/Lidarr/tree/fix/profile-order-and-tags), builds on `tagging-profiles`, not submitted
   - Dragging a delay profile moves it where it's dropped instead of to the top, and both profile lists stay numbered 1..n with the default last. The unused-tag cleanup keeps tags that only tagging profiles or root folder defaults use.
   - Saving a profile keeps its position, and a request without tags no longer fails.
+  - Reorders, deletes and saves no longer undo each other, a new profile stays last even after an old max-order one, and the deleted profile stops applying at once. Tags used by a root folder show as used, and the profile lists reload after a delete.
 - **Artists sharing a clean name** — branch [`fix/ambiguous-artist-disambiguation`](https://github.com/chodeus/Lidarr/tree/fix/ambiguous-artist-disambiguation), upstream PR [#5840](https://github.com/Lidarr/Lidarr/pull/5840)
   - When two artists reduce to the same clean name, the parsed album picks the artist instead of failing with "found multiple artists".
 - **Retry failed imports after a refresh** — branch [`feat/retry-import-failed`](https://github.com/chodeus/Lidarr/tree/feat/retry-import-failed), not submitted

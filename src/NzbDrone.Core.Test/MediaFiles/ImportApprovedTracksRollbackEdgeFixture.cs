@@ -310,6 +310,23 @@ namespace NzbDrone.Core.Test.MediaFiles
             Db.All<EntityHistory>().Select(h => h.SourceTitle).Should().BeEquivalentTo(new[] { "kept " + album.OldTracks[0].Id, "kept " + album.NewTrack.Id });
         }
 
+        [Test]
+        public void should_still_restore_the_album_when_removing_its_deletion_history_fails()
+        {
+            Mocker.GetMock<IHistoryService>()
+                  .Setup(s => s.RemoveTrackFileDeleted(It.IsAny<int>(), It.IsAny<List<int>>(), It.IsAny<DateTime>()))
+                  .Throws(new InvalidOperationException("database is locked"));
+            var album = GivenAlbum("A", "A", "A", "A");
+            GivenOnlyTheseImport();
+
+            Import(Incoming(album));
+
+            ExceptionVerification.ExpectedErrors(0);
+            ExceptionVerification.ExpectedWarns(3);
+            album.OldPaths.Should().OnlyContain(p => File.Exists(p));
+            Db.All<TrackFile>().Select(f => f.Path).Should().BeEquivalentTo(album.OldPaths);
+        }
+
         // Error says the switch failed, but the in-memory flags flipped first and the events go out after
         [Test]
         public void should_report_the_release_the_database_kept_when_switching_fails()

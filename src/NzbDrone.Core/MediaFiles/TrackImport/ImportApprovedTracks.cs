@@ -136,54 +136,45 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             var replacements = new List<ReplacedAlbum>();
             var releaseSwitches = new List<(Album Album, AlbumRelease Release)>();
             var iDecision = 1;
-            foreach (var albumDecision in albumDecisions)
-            {
-                _logger.ProgressInfo($"Importing album {iDecision++}/{albumDecisions.Count}");
-
-                var decisionList = albumDecision.ToList();
-
-                var artist = EnsureArtistAdded(decisionList, addedArtists);
-
-                if (artist == null)
-                {
-                    // failed to add the artist, carry on with next album
-                    continue;
-                }
-
-                var album = EnsureAlbumAdded(decisionList);
-
-                if (album == null)
-                {
-                    // failed to add the album, carry on with next one
-                    continue;
-                }
-
-                // An album added since identification has Id 0 here; the decisions now carry the database copy
-                album = decisionList.First().Item.Album;
-
-                if (replaceExisting)
-                {
-                    try
-                    {
-                        replacements.Add(BackUpExistingTrackFiles(artist, album));
-                        RemoveExistingTrackFiles(artist, album);
-                    }
-                    catch
-                    {
-                        // Nothing has imported yet, so every album replaced so far goes back
-                        replacements.ForEach(TryRestore);
-                        throw;
-                    }
-                }
-
-                // The tracks carry their release through the import; the album switches once one of them has imported
-                releaseSwitches.Add((album, albumDecision.First().Item.Release));
-            }
-
             List<ImportDecision<LocalTrack>> qualifiedImports;
 
             try
             {
+                foreach (var albumDecision in albumDecisions)
+                {
+                    _logger.ProgressInfo($"Importing album {iDecision++}/{albumDecisions.Count}");
+
+                    var decisionList = albumDecision.ToList();
+
+                    var artist = EnsureArtistAdded(decisionList, addedArtists);
+
+                    if (artist == null)
+                    {
+                        // failed to add the artist, carry on with next album
+                        continue;
+                    }
+
+                    var album = EnsureAlbumAdded(decisionList);
+
+                    if (album == null)
+                    {
+                        // failed to add the album, carry on with next one
+                        continue;
+                    }
+
+                    // An album added since identification has Id 0 here; the decisions now carry the database copy
+                    album = decisionList.First().Item.Album;
+
+                    if (replaceExisting)
+                    {
+                        replacements.Add(BackUpExistingTrackFiles(artist, album));
+                        RemoveExistingTrackFiles(artist, album);
+                    }
+
+                    // The tracks carry their release through the import; the album switches once one of them has imported
+                    releaseSwitches.Add((album, albumDecision.First().Item.Release));
+                }
+
                 qualifiedImports = decisions
                     .Where(decision => decision.Approved)
                     .GroupBy(decision => decision.Item.Artist.Id)
@@ -194,7 +185,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             }
             catch
             {
-                // Loading a quality profile reads the database; nothing has imported yet
+                // Adding albums and loading quality profiles read the database; nothing has imported yet, so every album moved aside goes back
                 replacements.ForEach(TryRestore);
                 throw;
             }
@@ -390,7 +381,8 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             }
             catch
             {
-                // The new files have no rows, so the albums they were replacing go back
+                // Rows saved before the failure never linked; they go first, so the old files can take their paths back
+                DeleteUnlinkedRows(filesToAdd);
                 replacements.ForEach(TryRestore);
                 throw;
             }
@@ -919,7 +911,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             try
             {
                 // RemoveExistingTrackFiles recorded these as deleted
-                _historyService.RemoveTrackFileDeleted(replacement.Album.Id, back.SelectMany(f => f.TrackIds).ToList(), replacement.Started);
+                _historyService.RemoveTrackFileDeleted(replacement.Album.Id, back.SelectMany(f => f.TrackIds, (f, id) => (id, f.TrackFile.Path)).ToDictionary(x => x.id, x => x.Path), replacement.Started);
             }
             catch (Exception e)
             {
@@ -927,51 +919,98 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             }
         }
 
+        // One file that can't move leaves the rest to go back, and waits where the error says
         private void MoveBack(ReplacedAlbum replacement)
         {
             foreach (var file in replacement.Files.Where(f => _diskProvider.FileExists(f.BackupPath)))
             {
-                var row = _mediaFileService.GetFileWithPath(file.TrackFile.Path);
-
-                // Another album imported a file at this path; it keeps it, and this one goes to the bin as develop's upgrade sent it
-                file.Recycled = row != null && replacement.Files.All(f => f.TrackFile.Id != row.Id);
-                file.Restored = TryMoveBack(replacement, file.BackupPath, file.TrackFile.Path, file.Recycled) && !file.Recycled;
+                try
+                {
+                    // Another album's import holds this path; it keeps its file, and this one goes to the bin as develop's upgrade sent it
+                    var held = HeldByAnotherImport(replacement, file.TrackFile.Path);
+                    PutBack(replacement, file.BackupPath, file.TrackFile.Path, held);
+                    file.Recycled = held;
+                    file.Restored = !held;
+                }
+                catch (Exception e)
+                {
+                    _logger.Error(e, "Couldn't move the previous file {0} out of {1}", file.TrackFile.Path, _diskProvider.GetParentFolder(file.BackupPath));
+                }
             }
 
+            // An extra follows its track file, and waits with one that couldn't move
             foreach (var extra in replacement.Extras.Where(e => _diskProvider.FileExists(e.BackupPath)))
             {
-                TryMoveBack(replacement, extra.BackupPath, extra.OriginalPath, replacement.Files.Single(f => f.TrackFile.Id == extra.TrackFileId).Recycled);
+                var file = replacement.Files.Single(f => f.TrackFile.Id == extra.TrackFileId);
+
+                if (!file.Recycled && !file.Restored)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    PutBack(replacement, extra.BackupPath, extra.OriginalPath, file.Recycled);
+                }
+                catch (Exception e)
+                {
+                    _logger.Error(e, "Couldn't move the previous file {0} out of {1}", extra.OriginalPath, _diskProvider.GetParentFolder(extra.BackupPath));
+                }
             }
-
-            replacement.BackupFolders(_diskProvider).ForEach(DeleteIfEmpty);
-        }
-
-        // One file that can't go back leaves the rest to go back, and waits where the error says
-        private bool TryMoveBack(ReplacedAlbum replacement, string backupPath, string original, bool recycle)
-        {
-            var subfolder = replacement.RootFolder.GetRelativePath(_diskProvider.GetParentFolder(original));
 
             try
             {
-                if (recycle)
-                {
-                    _recycleBinProvider.DeleteFile(backupPath, subfolder);
-                    return true;
-                }
-
-                // Nothing of this album imported, so a file on the old path is one whose import failed after its transfer
-                if (_diskProvider.FileExists(original))
-                {
-                    _recycleBinProvider.DeleteFile(original, subfolder);
-                }
-
-                _diskProvider.MoveFile(backupPath, original);
-                return true;
+                replacement.BackupFolders(_diskProvider).ForEach(DeleteIfEmpty);
             }
             catch (Exception e)
             {
-                _logger.Error(e, recycle ? "Couldn't recycle the replaced file for {0}; it is in {1}" : "Couldn't put {0} back; it is in {1}", original, _diskProvider.GetParentFolder(backupPath));
-                return false;
+                _logger.Warn(e, "Couldn't remove the emptied folders {0}", string.Join(", ", replacement.BackupFolders(_diskProvider)));
+            }
+        }
+
+        private void PutBack(ReplacedAlbum replacement, string backupPath, string original, bool recycle)
+        {
+            var subfolder = replacement.RootFolder.GetRelativePath(_diskProvider.GetParentFolder(original));
+
+            if (recycle)
+            {
+                _recycleBinProvider.DeleteFile(backupPath, subfolder);
+                return;
+            }
+
+            // This album's import failed, so a file on the old path is one of its new files
+            if (_diskProvider.FileExists(original))
+            {
+                _recycleBinProvider.DeleteFile(original, subfolder);
+            }
+
+            _diskProvider.MoveFile(backupPath, original);
+        }
+
+        // A case- or normalisation-insensitive file system resolves the old path to a file another import named differently
+        private bool HeldByAnotherImport(ReplacedAlbum replacement, string path)
+        {
+            var row = _mediaFileService.GetFileWithPath(path);
+
+            if (row == null && _diskProvider.FileExists(path))
+            {
+                var onDisk = _diskProvider.GetFiles(_diskProvider.GetParentFolder(path), false);
+                var resolved = onDisk.Contains(path) ? null : onDisk.FirstOrDefault(f => string.Equals(f.Normalize(), path.Normalize(), StringComparison.OrdinalIgnoreCase));
+                row = resolved == null ? null : _mediaFileService.GetFileWithPath(resolved);
+            }
+
+            return row != null && replacement.Files.All(f => f.TrackFile.Id != row.Id);
+        }
+
+        private void DeleteUnlinkedRows(List<TrackFile> files)
+        {
+            try
+            {
+                _mediaFileService.DeleteMany(files.Where(f => f.Id > 0).ToList(), DeleteMediaFileReason.ManualOverride);
+            }
+            catch (Exception e)
+            {
+                _logger.Warn(e, "Couldn't remove the rows of the new files that didn't link");
             }
         }
 

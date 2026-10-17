@@ -29,7 +29,7 @@ namespace NzbDrone.Core.History
         string FindDownloadId(TrackImportedEvent trackedDownload);
         List<EntityHistory> Since(DateTime date, EntityHistoryEventType? eventType);
         void UpdateMany(IList<EntityHistory> items);
-        void RemoveTrackFileDeleted(int albumId, List<int> trackIds, DateTime since);
+        void RemoveTrackFileDeleted(int albumId, Dictionary<int, string> pathsByTrack, DateTime since);
     }
 
     public class EntityHistoryService : IHistoryService,
@@ -439,10 +439,10 @@ namespace NzbDrone.Core.History
         }
 
         // For an import that put back the files it was replacing; stored keys are camelCase
-        public void RemoveTrackFileDeleted(int albumId, List<int> trackIds, DateTime since)
+        public void RemoveTrackFileDeleted(int albumId, Dictionary<int, string> pathsByTrack, DateTime since)
         {
             var entries = _historyRepository.GetByAlbum(albumId, EntityHistoryEventType.TrackFileDeleted)
-                .Where(h => h.Date >= since && trackIds.Contains(h.TrackId) && h.Data.GetValueOrDefault("reason") == nameof(DeleteMediaFileReason.Upgrade))
+                .Where(h => h.Date >= since && pathsByTrack.TryGetValue(h.TrackId, out var path) && h.SourceTitle == path && h.Data.GetValueOrDefault("reason") == nameof(DeleteMediaFileReason.Upgrade))
                 .Select(h => h.Id)
                 .ToList();
 

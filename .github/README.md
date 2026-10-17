@@ -14,8 +14,22 @@ The unused-tag cleanup also keeps tags that only tagging profiles use, and tags 
 
 Tests: `ProfileOrderFixture` covers each reorder case, plus Add/Update/cache tests in both service fixtures and a resource test for missing tags (the API test project now references `Lidarr.Api.V1`). Twelve mutations, all of which build, each fail a test. The existing delay reorder tests pass unchanged. Two cleanup tests cover the kept tags; each fails without its fix. `TagDetailsFixture` checks a `TagDetails` with only develop's lists set is not in use, and fails when the list starts unset.
 
+Second round, from an audit of the branch:
+
+- **Adding after an old max-order profile.** An older reorder could leave a tagged profile at `int.MaxValue`. `Next` then overflowed, and the new profile sorted first. `ProfileOrder.MakeRoom` now renumbers first when a tagged profile is at or next to `int.MaxValue`. Otherwise `Add` still leaves existing rows alone.
+- **Lost updates.** `Reorder`, and the renumber after `Delete`, wrote every column of every row. A save that landed in between was undone, for example the default tagging profile's audio tag setting from Settings > Metadata. They now write only `Order`. `Add`, `Update`, `Delete` and `Reorder` are also serialised per service, so an `Update` can't write back an order that a concurrent `Reorder` has just changed.
+- **Delete.** If the renumber failed after the delete committed, the best-for-tags cache kept serving the deleted profile for up to 30 seconds. The cache is now cleared either way.
+- **Tags page.** Tag details from the API left out root folders. A tag used only as a root folder default showed "No links", and its Delete button failed with a 409. Root folders now count, and they show on the card and in the details.
+- **Profile list after a delete.** The server renumbers the remaining profiles, but the page kept the old orders, so the next added profile could show in the wrong place until a reload. Both lists now reload after a delete.
+
+Tests: `DelayProfileServiceDbFixture` and `TaggingProfileServiceDbFixture` run the real services over the test database. The races are injected at the repository, and the Update/Reorder race runs on two threads. Each new case failed before the fix. Four mutations (always renumbering, the overflow threshold, and each lock) each fail a test. `TagDetailsResourceFixture` covers the root folder mapping. Full Core suite: 3284 pass, and the 3 hardlink tests that fail on this Mac fail as before.
+
 ## Summary by CodeRabbit
 
 * **Bug Fixes**
   * Delay and tagging profiles now maintain consistent ordering when profiles are added, updated, deleted, or reordered. The default profile remains last, and unchanged reorder requests no longer alter the list.
-  * Profiles with missing tag data now load with no tags instead of failing during conversion.
+  * Profiles with missing tag data now load with no tags.
+  * Drag-and-drop reordering now follows the displayed profile positions.
+  * Tags used by tagging profiles or added by default through root folders are retained.
+* **New Features**
+  * Tag details now show associated root folders and their names or paths.

@@ -860,7 +860,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             }
             catch (Exception e)
             {
-                _logger.Error(e, "Couldn't restore the previous files of {0}; they are in {1}", replacement.Album, string.Join(", ", replacement.BackupFolders(_diskProvider)));
+                _logger.Error(e, "Couldn't finish restoring the previous files of {0}; any left aside are in {1}", replacement.Album, string.Join(", ", replacement.BackupFolders(_diskProvider)));
             }
         }
 
@@ -916,8 +916,15 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                 }
             }
 
-            // RemoveExistingTrackFiles recorded these as deleted
-            _historyService.RemoveTrackFileDeleted(replacement.Album.Id, back.SelectMany(f => f.TrackIds).ToList(), replacement.Started);
+            try
+            {
+                // RemoveExistingTrackFiles recorded these as deleted
+                _historyService.RemoveTrackFileDeleted(replacement.Album.Id, back.SelectMany(f => f.TrackIds).ToList(), replacement.Started);
+            }
+            catch (Exception e)
+            {
+                _logger.Warn(e, "Couldn't remove the deletion history of the files put back for {0}", replacement.Album);
+            }
         }
 
         private void MoveBack(ReplacedAlbum replacement)
@@ -963,7 +970,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             }
             catch (Exception e)
             {
-                _logger.Error(e, "Couldn't put {0} back; it is in {1}", original, _diskProvider.GetParentFolder(backupPath));
+                _logger.Error(e, recycle ? "Couldn't recycle the replaced file for {0}; it is in {1}" : "Couldn't put {0} back; it is in {1}", original, _diskProvider.GetParentFolder(backupPath));
                 return false;
             }
         }

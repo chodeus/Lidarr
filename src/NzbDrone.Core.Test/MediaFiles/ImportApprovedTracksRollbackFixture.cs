@@ -307,6 +307,35 @@ namespace NzbDrone.Core.Test.MediaFiles
         }
 
         [Test]
+        public void should_not_duplicate_the_rows_a_partial_delete_left_when_it_puts_the_album_back()
+        {
+            var album = GivenAlbum("A");
+            var files = Mocker.Resolve<MediaFileService>();
+            var secondId = Db.All<TrackFile>().Single(f => f.Path == album.OldPaths[1]).Id;
+
+            // RemoveExistingTrackFiles deletes the first row, then the database refuses the second
+            var failing = new Mock<IMediaFileService>();
+            failing.Setup(s => s.GetFilesByAlbum(It.IsAny<int>())).Returns<int>(id => files.GetFilesByAlbum(id));
+            failing.Setup(s => s.GetFileWithPath(It.IsAny<string>())).Returns<string>(p => files.GetFileWithPath(p));
+            failing.Setup(s => s.AddMany(It.IsAny<List<TrackFile>>())).Callback<List<TrackFile>>(l => files.AddMany(l));
+            failing.Setup(s => s.Delete(It.IsAny<TrackFile>(), It.IsAny<DeleteMediaFileReason>()))
+                   .Callback<TrackFile, DeleteMediaFileReason>((f, r) =>
+                   {
+                       if (f.Id == secondId)
+                       {
+                           throw new InvalidOperationException("database is locked");
+                       }
+
+                       files.Delete(f, r);
+                   });
+            Mocker.SetConstant(failing.Object);
+
+            Assert.Catch<InvalidOperationException>(() => Import(Incoming(album, album.NewRelease, album.NewTrack)));
+
+            AlbumShouldBeAsBefore(album);
+        }
+
+        [Test]
         public void should_recycle_what_an_interrupted_import_left_aside()
         {
             var album = GivenAlbum("A");

@@ -30,6 +30,9 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
 
     public class ImportApprovedTracks : IImportApprovedTracks
     {
+        // Hidden, so a disk scan skips the files waiting here (DiskScanService.ExcludedSubFoldersRegex)
+        private const string BackupFolderName = ".lidarr-replaced";
+
         private readonly IUpgradeMediaFiles _trackFileUpgrader;
         private readonly IMediaFileService _mediaFileService;
         private readonly IAudioTagService _audioTagService;
@@ -95,6 +98,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             var albumDecisions = decisions.Where(e => e.Item.Album != null && e.Approved)
                 .GroupBy(e => e.Item.Album.ForeignAlbumId).ToList();
 
+            var replacements = new List<ReplacedAlbum>();
             var iDecision = 1;
             foreach (var albumDecision in albumDecisions)
             {
@@ -118,15 +122,25 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                     continue;
                 }
 
-                if (replaceExisting)
+                try
                 {
-                    RemoveExistingTrackFiles(artist, album);
-                }
+                    if (replaceExisting)
+                    {
+                        replacements.Add(BackUpExistingTrackFiles(artist, album));
+                        RemoveExistingTrackFiles(artist, album);
+                    }
 
-                // set the correct release to be monitored before importing the new files
-                var newRelease = albumDecision.First().Item.Release;
-                _logger.Debug("Updating release to {0} [{1} tracks]", newRelease, newRelease.TrackCount);
-                album.AlbumReleases = _releaseService.SetMonitored(newRelease);
+                    // set the correct release to be monitored before importing the new files
+                    var newRelease = albumDecision.First().Item.Release;
+                    _logger.Debug("Updating release to {0} [{1} tracks]", newRelease, newRelease.TrackCount);
+                    album.AlbumReleases = _releaseService.SetMonitored(newRelease);
+                }
+                catch
+                {
+                    // Nothing has imported yet, so every album replaced so far goes back
+                    replacements.ForEach(TryRestore);
+                    throw;
+                }
 
                 // Publish album edited event.
                 // Deliberately don't put in the old album since we don't want to trigger an ArtistScan.
@@ -318,6 +332,11 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                     _logger.Warn(e, "Couldn't import track " + localTrack);
                     importResults.Add(new ImportResult(importDecision, "Failed to import track"));
                 }
+            }
+
+            foreach (var replacement in replacements)
+            {
+                FinishReplacing(replacement, importResults);
             }
 
             var watch = new System.Diagnostics.Stopwatch();
@@ -636,6 +655,202 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             }
 
             return Path.GetFileName(path);
+        }
+
+        // Moved aside before RemoveExistingTrackFiles, which then only deletes their rows, so a failed import can put the album back
+        private ReplacedAlbum BackUpExistingTrackFiles(Artist artist, Album album)
+        {
+            var replacement = new ReplacedAlbum
+            {
+                Album = album,
+                RootFolder = _diskProvider.GetParentFolder(artist.Path),
+                PreviousRelease = album.AlbumReleases?.Value?.SingleOrDefault(r => r.Monitored)
+            };
+
+            var previousFiles = _mediaFileService.GetFilesByAlbum(album.Id);
+            var tracks = _trackService.GetTracksByFileId(previousFiles.Select(f => f.Id));
+
+            try
+            {
+                foreach (var previousFile in previousFiles.Where(f => _diskProvider.FileExists(f.Path)))
+                {
+                    var backupFolder = Path.Combine(_diskProvider.GetParentFolder(previousFile.Path), BackupFolderName);
+                    var backupPath = FreePath(backupFolder, Path.GetFileName(previousFile.Path));
+
+                    _diskProvider.CreateFolder(backupFolder);
+                    _diskProvider.MoveFile(previousFile.Path, backupPath);
+
+                    replacement.Files.Add(new ReplacedFile
+                    {
+                        TrackFile = previousFile,
+                        BackupPath = backupPath,
+                        TrackIds = tracks.Where(t => t.TrackFileId == previousFile.Id).Select(t => t.Id).ToList()
+                    });
+                }
+            }
+            catch
+            {
+                MoveBack(replacement);
+                throw;
+            }
+
+            return replacement;
+        }
+
+        // A file an interrupted import left here keeps its name; this one gets a suffix, as in the recycle bin
+        private string FreePath(string folder, string fileName)
+        {
+            var path = Path.Combine(folder, fileName);
+
+            for (var index = 2; _diskProvider.FileExists(path); index++)
+            {
+                path = Path.Combine(folder, $"{Path.GetFileNameWithoutExtension(fileName)}_{index}{Path.GetExtension(fileName)}");
+            }
+
+            return path;
+        }
+
+        private void FinishReplacing(ReplacedAlbum replacement, List<ImportResult> importResults)
+        {
+            if (!importResults.Any(r => r.Result == ImportResultType.Imported && r.ImportDecision.Item.Album?.Id == replacement.Album.Id))
+            {
+                _logger.Warn("No track of {0} imported, restoring its previous release and files", replacement.Album);
+                TryRestore(replacement);
+                return;
+            }
+
+            try
+            {
+                RecycleBackups(replacement);
+            }
+            catch (Exception e)
+            {
+                // Logged, not thrown: the new files still need their rows
+                _logger.Error(e, "Couldn't recycle the replaced files of {0}; they are in {1}", replacement.Album, string.Join(", ", replacement.BackupFolders(_diskProvider)));
+            }
+        }
+
+        private void TryRestore(ReplacedAlbum replacement)
+        {
+            try
+            {
+                Restore(replacement);
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e, "Couldn't restore the previous files of {0}; they are in {1}", replacement.Album, string.Join(", ", replacement.BackupFolders(_diskProvider)));
+            }
+        }
+
+        // Everything in the folder goes, including what an interrupted import left behind
+        private void RecycleBackups(ReplacedAlbum replacement)
+        {
+            foreach (var backupFolder in replacement.BackupFolders(_diskProvider).Where(_diskProvider.FolderExists))
+            {
+                var subfolder = replacement.RootFolder.GetRelativePath(_diskProvider.GetParentFolder(backupFolder));
+
+                foreach (var file in _diskProvider.GetFiles(backupFolder, false))
+                {
+                    _logger.Debug("Removing existing track file: {0}", file);
+                    _recycleBinProvider.DeleteFile(file, subfolder);
+                }
+
+                DeleteIfEmpty(backupFolder);
+            }
+        }
+
+        private void Restore(ReplacedAlbum replacement)
+        {
+            MoveBack(replacement);
+
+            // RemoveExistingTrackFiles may have stopped partway; a row it left still has its path
+            var gone = replacement.Files.Where(f => _mediaFileService.GetFileWithPath(f.TrackFile.Path) == null).ToList();
+
+            if (gone.Any())
+            {
+                var rows = gone.Select(f => CopyWithoutId(f.TrackFile)).ToList();
+                _mediaFileService.AddMany(rows);
+
+                // All of them belonged to the previous release; GetTracks(ids) would throw if one has gone since
+                var tracks = replacement.PreviousRelease == null ? new List<Track>() : _trackService.GetTracksByRelease(replacement.PreviousRelease.Id);
+
+                for (var i = 0; i < gone.Count; i++)
+                {
+                    tracks.Where(t => gone[i].TrackIds.Contains(t.Id)).ToList().ForEach(t => t.TrackFileId = rows[i].Id);
+                }
+
+                _trackService.SetFileIds(tracks);
+            }
+
+            if (replacement.PreviousRelease != null)
+            {
+                replacement.Album.AlbumReleases = _releaseService.SetMonitored(replacement.PreviousRelease);
+                _eventAggregator.PublishEvent(new AlbumEditedEvent(replacement.Album, replacement.Album));
+            }
+        }
+
+        private void MoveBack(ReplacedAlbum replacement)
+        {
+            foreach (var file in replacement.Files.Where(f => _diskProvider.FileExists(f.BackupPath)))
+            {
+                var original = file.TrackFile.Path;
+
+                // Nothing imported, so a file on the old path is one whose import failed after its transfer
+                if (_diskProvider.FileExists(original))
+                {
+                    _recycleBinProvider.DeleteFile(original, replacement.RootFolder.GetRelativePath(_diskProvider.GetParentFolder(original)));
+                }
+
+                _diskProvider.MoveFile(file.BackupPath, original);
+            }
+
+            replacement.BackupFolders(_diskProvider).ForEach(DeleteIfEmpty);
+        }
+
+        private void DeleteIfEmpty(string folder)
+        {
+            if (_diskProvider.FolderExists(folder) && _diskProvider.FolderEmpty(folder))
+            {
+                _diskProvider.DeleteFolder(folder, false);
+            }
+        }
+
+        private static TrackFile CopyWithoutId(TrackFile file)
+        {
+            return new TrackFile
+            {
+                AlbumId = file.AlbumId,
+                Path = file.Path,
+                Size = file.Size,
+                Modified = file.Modified,
+                DateAdded = file.DateAdded,
+                OriginalFilePath = file.OriginalFilePath,
+                SceneName = file.SceneName,
+                ReleaseGroup = file.ReleaseGroup,
+                Quality = file.Quality,
+                IndexerFlags = file.IndexerFlags,
+                MediaInfo = file.MediaInfo
+            };
+        }
+
+        private class ReplacedAlbum
+        {
+            public Album Album { get; set; }
+            public string RootFolder { get; set; }
+            public AlbumRelease PreviousRelease { get; set; }
+            public List<ReplacedFile> Files { get; } = new List<ReplacedFile>();
+
+            public List<string> BackupFolders(IDiskProvider diskProvider)
+            {
+                return Files.Select(f => diskProvider.GetParentFolder(f.BackupPath)).Distinct().ToList();
+            }
+        }
+
+        private class ReplacedFile
+        {
+            public TrackFile TrackFile { get; set; }
+            public string BackupPath { get; set; }
+            public List<int> TrackIds { get; set; }
         }
     }
 }

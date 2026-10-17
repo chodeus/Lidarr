@@ -276,7 +276,7 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
         {
             var trackedDownload = GivenImportFailedDownload();
 
-            // ManualImportService.cs:467 on the ManualImport command thread.
+            // As ManualImportService.Execute does on the ManualImport command thread
             trackedDownload.State = TrackedDownloadState.Imported;
 
             _retryService.Handle(new AlbumUpdatedEvent(_album));

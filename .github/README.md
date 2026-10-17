@@ -18,5 +18,6 @@ A download whose albums can't be loaded is logged and skipped, and the artist's 
 ## Summary by CodeRabbit
 
 * **New Features**
-  * Failed imports are now retried after an album is updated, when the download matches the updated artist.
-  * Retried downloads use refreshed album information, helping them proceed with the latest metadata.
+  * Failed imports can now be retried after a matching artist or album refresh completes, using the refreshed album information.
+  * Each failed download is retried at most once per refresh. Downloads that no longer map to an album or artist are skipped.
+  * If a retry still encounters rejected tracks, the download remains marked as a failed import; if there are no tracks to import, it remains pending.

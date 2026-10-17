@@ -9,6 +9,10 @@ using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Extras;
+using NzbDrone.Core.Extras.Files;
+using NzbDrone.Core.Extras.Lyrics;
+using NzbDrone.Core.Extras.Metadata.Files;
+using NzbDrone.Core.Extras.Others;
 using NzbDrone.Core.History;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Commands;
@@ -44,7 +48,9 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
         private readonly IRootFolderService _rootFolderService;
         private readonly IRecycleBinProvider _recycleBinProvider;
         private readonly IExtraService _extraService;
-        private readonly List<IImportExistingExtraFiles> _existingExtraFileImporters;
+        private readonly ILyricFileService _lyricFileService;
+        private readonly IMetadataFileService _metadataFileService;
+        private readonly IOtherExtraFileService _otherExtraFileService;
         private readonly IDiskProvider _diskProvider;
         private readonly IHistoryService _historyService;
         private readonly IReleaseService _releaseService;
@@ -52,7 +58,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
         private readonly IManageCommandQueue _commandQueueManager;
         private readonly Logger _logger;
 
-        // Develop's constructor, kept for plugins built against it; without importers a restored album's extras stay unlinked
+        // Develop's constructor, kept for plugins built against it; without the extra file services a put-back album loses its extras, as in develop
         public ImportApprovedTracks(IUpgradeMediaFiles trackFileUpgrader,
                                     IMediaFileService mediaFileService,
                                     IAudioTagService audioTagService,
@@ -70,7 +76,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                                     IEventAggregator eventAggregator,
                                     IManageCommandQueue commandQueueManager,
                                     Logger logger)
-            : this(trackFileUpgrader, mediaFileService, audioTagService, trackService, artistService, addArtistService, albumService, refreshAlbumService, rootFolderService, recycleBinProvider, extraService, diskProvider, historyService, releaseService, eventAggregator, commandQueueManager, Enumerable.Empty<IImportExistingExtraFiles>(), logger)
+            : this(trackFileUpgrader, mediaFileService, audioTagService, trackService, artistService, addArtistService, albumService, refreshAlbumService, rootFolderService, recycleBinProvider, extraService, diskProvider, historyService, releaseService, eventAggregator, commandQueueManager, null, null, null, logger)
         {
         }
 
@@ -90,7 +96,9 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                                     IReleaseService releaseService,
                                     IEventAggregator eventAggregator,
                                     IManageCommandQueue commandQueueManager,
-                                    IEnumerable<IImportExistingExtraFiles> existingExtraFileImporters,
+                                    ILyricFileService lyricFileService,
+                                    IMetadataFileService metadataFileService,
+                                    IOtherExtraFileService otherExtraFileService,
                                     Logger logger)
         {
             _trackFileUpgrader = trackFileUpgrader;
@@ -104,7 +112,9 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             _rootFolderService = rootFolderService;
             _recycleBinProvider = recycleBinProvider;
             _extraService = extraService;
-            _existingExtraFileImporters = existingExtraFileImporters.OrderBy(e => e.Order).ToList();
+            _lyricFileService = lyricFileService;
+            _metadataFileService = metadataFileService;
+            _otherExtraFileService = otherExtraFileService;
             _diskProvider = diskProvider;
             _historyService = historyService;
             _releaseService = releaseService;
@@ -696,29 +706,22 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
 
             var previousFiles = _mediaFileService.GetFilesByAlbum(album.Id);
             var tracks = _trackService.GetTracksByFileId(previousFiles.Select(f => f.Id));
-            replacement.ReleaseIds = tracks.Select(t => t.AlbumReleaseId).Distinct().ToList();
 
             try
             {
                 foreach (var previousFile in previousFiles.Where(f => _diskProvider.FileExists(f.Path)))
                 {
-                    var folder = _diskProvider.GetParentFolder(previousFile.Path);
-                    var file = new ReplacedFile
-                    {
-                        TrackFile = previousFile,
-                        TrackIds = tracks.Where(t => t.TrackFileId == previousFile.Id).Select(t => t.Id).ToList()
-                    };
+                    var fileTracks = tracks.Where(t => t.TrackFileId == previousFile.Id).ToList();
+                    var file = new ReplacedFile { TrackFile = previousFile, TrackIds = fileTracks.Select(t => t.Id).ToList() };
+                    replacement.ReleaseIds.AddRange(fileTracks.Select(t => t.AlbumReleaseId));
 
                     file.BackupPath = MoveAside(replacement, previousFile.Path);
                     replacement.Files.Add(file);
 
-                    // Lyrics and other extras are named after their track file
-                    var prefix = Path.GetFileNameWithoutExtension(previousFile.Path) + ".";
-
-                    foreach (var extra in _diskProvider.GetFiles(folder, false).Where(f => Path.GetFileName(f).StartsWith(prefix) && !MediaFileExtensions.Extensions.Contains(Path.GetExtension(f))).ToList())
-                    {
-                        replacement.Extras.Add(new ReplacedExtra { OriginalPath = extra, BackupPath = MoveAside(replacement, extra) });
-                    }
+                    // Their rows go with the track file's; kept here so a put-back album gets them again
+                    BackUpExtras(_lyricFileService, replacement, previousFile);
+                    BackUpExtras(_metadataFileService, replacement, previousFile);
+                    BackUpExtras(_otherExtraFileService, replacement, previousFile);
                 }
             }
             catch
@@ -728,6 +731,32 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             }
 
             return replacement;
+        }
+
+        private void BackUpExtras<TExtraFile>(IExtraFileService<TExtraFile> service, ReplacedAlbum replacement, TrackFile trackFile)
+            where TExtraFile : ExtraFile, new()
+        {
+            if (service == null)
+            {
+                return;
+            }
+
+            foreach (var row in service.GetFilesByTrackFile(trackFile.Id))
+            {
+                var path = Path.Combine(replacement.Artist.Path, row.RelativePath);
+
+                if (_diskProvider.FileExists(path))
+                {
+                    replacement.Extras.Add(new ReplacedExtra
+                    {
+                        Row = row,
+                        TrackFileId = trackFile.Id,
+                        OriginalPath = path,
+                        BackupPath = MoveAside(replacement, path),
+                        Upsert = r => service.Upsert((TExtraFile)r)
+                    });
+                }
+            }
         }
 
         // Each album gets its own folder, so one album's outcome never touches another's files
@@ -845,7 +874,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                 _mediaFileService.AddMany(rows);
 
                 // GetTracks(ids) would throw if one has gone since
-                var tracks = _trackService.GetTracksByReleases(replacement.ReleaseIds);
+                var tracks = _trackService.GetTracksByReleases(replacement.ReleaseIds.Distinct().ToList());
 
                 for (var i = 0; i < gone.Count; i++)
                 {
@@ -853,20 +882,16 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                 }
 
                 _trackService.SetFileIds(tracks.Where(t => gone.Any(f => f.TrackIds.Contains(t.Id))).ToList());
-            }
 
-            RelinkExtras(replacement);
-        }
-
-        // RemoveExistingTrackFiles deleted the extras' rows with their track files; the existing-file importers match them again
-        private void RelinkExtras(ReplacedAlbum replacement)
-        {
-            var extras = replacement.Extras.Select(e => e.OriginalPath).Where(_diskProvider.FileExists).ToList();
-            var imported = new List<string>();
-
-            foreach (var importer in _existingExtraFileImporters)
-            {
-                imported.AddRange(importer.ProcessFiles(replacement.Artist, extras, imported).Select(f => Path.Combine(replacement.Artist.Path, f.RelativePath)));
+                for (var i = 0; i < gone.Count; i++)
+                {
+                    foreach (var extra in replacement.Extras.Where(e => e.TrackFileId == gone[i].TrackFile.Id))
+                    {
+                        extra.Row.Id = 0;
+                        extra.Row.TrackFileId = rows[i].Id;
+                        extra.Upsert(extra.Row);
+                    }
+                }
             }
         }
 
@@ -943,8 +968,11 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
 
         private class ReplacedExtra
         {
+            public ExtraFile Row { get; set; }
+            public int TrackFileId { get; set; }
             public string OriginalPath { get; set; }
             public string BackupPath { get; set; }
+            public Action<ExtraFile> Upsert { get; set; }
         }
     }
 }

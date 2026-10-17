@@ -9,6 +9,9 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Core.Download;
+using NzbDrone.Core.Extras.Lyrics;
+using NzbDrone.Core.Extras.Metadata.Files;
+using NzbDrone.Core.Extras.Others;
 using NzbDrone.Core.History;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.Events;
@@ -79,6 +82,12 @@ namespace NzbDrone.Core.Test.MediaFiles
         public void Setup()
         {
             Mocker.SetConstant<IDiskProvider>(new RealDiskProvider());
+
+            // Extra files: none unless a test adds them
+            Mocker.GetMock<ILyricFileService>().Setup(s => s.GetFilesByTrackFile(It.IsAny<int>())).Returns(new List<LyricFile>());
+            Mocker.GetMock<IMetadataFileService>().Setup(s => s.GetFilesByTrackFile(It.IsAny<int>())).Returns(new List<MetadataFile>());
+            Mocker.GetMock<IOtherExtraFileService>().Setup(s => s.GetFilesByTrackFile(It.IsAny<int>())).Returns(new List<OtherExtraFile>());
+
             Mocker.SetConstant<IMediaFileRepository>(Mocker.Resolve<MediaFileRepository>());
             Mocker.SetConstant<IMediaFileService>(Mocker.Resolve<MediaFileService>());
             Mocker.SetConstant<IReleaseRepository>(Mocker.Resolve<ReleaseRepository>());
@@ -234,6 +243,22 @@ namespace NzbDrone.Core.Test.MediaFiles
         }
 
         [Test]
+        public void should_report_the_new_release_as_monitored_in_the_track_imported_events()
+        {
+            var album = GivenAlbum("A");
+            GivenNewFileLandsAs("01 - Single.flac");
+            var imported = new List<TrackImportedEvent>();
+            Mocker.GetMock<IEventAggregator>()
+                  .Setup(s => s.PublishEvent(It.IsAny<TrackImportedEvent>()))
+                  .Callback<TrackImportedEvent>(e => imported.Add(e));
+
+            Import(Incoming(album, album.NewRelease, album.NewTrack));
+
+            // develop switched the release before the import, so its events already carried the new one
+            imported.Should().ContainSingle().Which.TrackInfo.Album.AlbumReleases.Value.Single(r => r.Monitored).Id.Should().Be(album.NewRelease.Id);
+        }
+
+        [Test]
         public void should_put_the_album_back_when_nothing_of_the_new_release_imports()
         {
             var album = GivenAlbum("A");
@@ -292,18 +317,24 @@ namespace NzbDrone.Core.Test.MediaFiles
         }
 
         [Test]
-        public void should_put_the_album_back_when_switching_its_release_fails()
+        public void should_keep_the_previous_files_aside_when_switching_the_release_fails_after_the_import()
         {
             var album = GivenAlbum("A");
+            GivenNewFileLandsAs("01 - Single.flac");
             var releases = Mocker.Resolve<ReleaseService>();
             var failing = new Mock<IReleaseService>();
             failing.Setup(s => s.SetMonitored(It.Is<AlbumRelease>(r => r.Id == album.NewRelease.Id))).Throws(new InvalidOperationException("database is locked"));
             failing.Setup(s => s.SetMonitored(It.Is<AlbumRelease>(r => r.Id != album.NewRelease.Id))).Returns<AlbumRelease>(r => releases.SetMonitored(r));
             Mocker.SetConstant(failing.Object);
 
-            Assert.Catch<InvalidOperationException>(() => Import(Incoming(album, album.NewRelease, album.NewTrack)));
+            var results = Import(Incoming(album, album.NewRelease, album.NewTrack));
 
-            AlbumShouldBeAsBefore(album);
+            // The new files are in, so nothing goes back; the previous ones wait rather than go to the bin
+            ExceptionVerification.ExpectedErrors(1);
+            results.Should().ContainSingle(r => r.Result == ImportResultType.Imported);
+            _recycled.Should().BeEmpty();
+            Directory.GetFiles(Path.Combine(album.Folder, ".lidarr-replaced", album.Album.Id.ToString())).Select(File.ReadAllText).Should().BeEquivalentTo(new[] { "old 1", "old 2", "old 3" });
+            Db.All<TrackFile>().Select(f => Path.GetFileName(f.Path)).Should().BeEquivalentTo(new[] { "01 - Single.flac" });
         }
 
         [Test]
@@ -339,7 +370,7 @@ namespace NzbDrone.Core.Test.MediaFiles
         public void should_recycle_what_an_interrupted_import_left_aside()
         {
             var album = GivenAlbum("A");
-            var hidden = Path.Combine(album.Folder, ".lidarr-replaced");
+            var hidden = Path.Combine(album.Folder, ".lidarr-replaced", album.Album.Id.ToString());
             Directory.CreateDirectory(hidden);
             File.WriteAllText(Path.Combine(hidden, "01 - Song.mp3"), "left over");
             GivenNewFileLandsAs("01 - Single.flac");
@@ -348,7 +379,7 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             _recycled.Select(r => r.Content).Should().BeEquivalentTo(new[] { "left over", "old 1", "old 2", "old 3" });
             _recycled.Should().OnlyContain(r => r.Subfolder == Path.Combine("Artist", "A"));
-            Directory.Exists(hidden).Should().BeFalse();
+            Directory.Exists(Path.Combine(album.Folder, ".lidarr-replaced")).Should().BeFalse();
         }
 
         [Test]
@@ -365,7 +396,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             ExceptionVerification.ExpectedErrors(1);
             results.Should().ContainSingle(r => r.Result == ImportResultType.Imported);
             Db.All<TrackFile>().Select(f => Path.GetFileName(f.Path)).Should().BeEquivalentTo(new[] { "01 - Single.flac" });
-            Directory.GetFiles(Path.Combine(album.Folder, ".lidarr-replaced")).Should().HaveCount(3, "they wait there, as the error says");
+            Directory.GetFiles(Path.Combine(album.Folder, ".lidarr-replaced", album.Album.Id.ToString())).Should().HaveCount(3, "they wait there, as the error says");
         }
 
         [Test]

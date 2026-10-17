@@ -381,7 +381,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             }
             catch
             {
-                // Rows saved before the failure never linked; they go first, so the old files can take their paths back
+                // Rows saved before the failure never linked; they go, and any that can't still count as this album's own
                 DeleteUnlinkedRows(filesToAdd);
                 replacements.ForEach(TryRestore);
                 throw;
@@ -927,7 +927,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                 try
                 {
                     // Another album's import holds this path; it keeps its file, and this one goes to the bin as develop's upgrade sent it
-                    var held = HeldByAnotherImport(replacement, file.TrackFile.Path);
+                    var held = HeldByAnotherAlbum(replacement, file.TrackFile.Path);
                     PutBack(replacement, file.BackupPath, file.TrackFile.Path, held);
                     file.Recycled = held;
                     file.Restored = !held;
@@ -978,7 +978,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                 return;
             }
 
-            // This album's import failed, so a file on the old path is one of its new files
+            // No other album holds the old path, so a file on it is one of this album's new files
             if (_diskProvider.FileExists(original))
             {
                 _recycleBinProvider.DeleteFile(original, subfolder);
@@ -987,19 +987,12 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             _diskProvider.MoveFile(backupPath, original);
         }
 
-        // A case- or normalisation-insensitive file system resolves the old path to a file another import named differently
-        private bool HeldByAnotherImport(ReplacedAlbum replacement, string path)
+        // Exact, as Lidarr compares paths on Linux; a row of this album that isn't one of its old files is one of its new ones
+        private bool HeldByAnotherAlbum(ReplacedAlbum replacement, string path)
         {
             var row = _mediaFileService.GetFileWithPath(path);
 
-            if (row == null && _diskProvider.FileExists(path))
-            {
-                var onDisk = _diskProvider.GetFiles(_diskProvider.GetParentFolder(path), false);
-                var resolved = onDisk.FirstOrDefault(f => f != path && string.Equals(f.Normalize(), path.Normalize(), StringComparison.OrdinalIgnoreCase));
-                row = resolved == null ? null : _mediaFileService.GetFileWithPath(resolved);
-            }
-
-            return row != null && replacement.Files.All(f => f.TrackFile.Id != row.Id);
+            return row != null && row.AlbumId != replacement.Album.Id;
         }
 
         private void DeleteUnlinkedRows(List<TrackFile> files)

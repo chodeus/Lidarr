@@ -468,85 +468,6 @@ namespace NzbDrone.Core.Test.MediaFiles
             });
         }
 
-        private static bool CaseInsensitiveFileSystem(string folder)
-        {
-            var probe = Path.Combine(folder, "CaseProbe.txt");
-            File.WriteAllText(probe, "x");
-            var result = File.Exists(Path.Combine(folder, "caseprobe.txt"));
-            File.Delete(probe);
-            return result;
-        }
-
-        [Test]
-        public void should_keep_the_new_file_another_album_imported_at_a_path_differing_only_in_case()
-        {
-            var a = GivenAlbum("A", "");
-            var b = GivenAlbum("B", "");
-            var bOldPath = b.OldPaths[0];
-            var aNewPath = Path.Combine(_artist.Path, "b01 - song.mp3");
-            Assume.That(CaseInsensitiveFileSystem(_artist.Path), "needs a case-insensitive file system");
-
-            Mocker.GetMock<IUpgradeMediaFiles>()
-                  .Setup(s => s.UpgradeTrackFile(It.IsAny<TrackFile>(), It.IsAny<LocalTrack>(), It.IsAny<bool>()))
-                  .Returns<TrackFile, LocalTrack, bool>((f, l, c) =>
-                  {
-                      if (l.Album.Id != a.Album.Id)
-                      {
-                          throw new DestinationAlreadyExistsException("destination exists");
-                      }
-
-                      f.Path = aNewPath;
-                      File.WriteAllText(f.Path, "A new");
-                      return new TrackFileMoveResult { TrackFile = f };
-                  });
-
-            var results = Import(Incoming(a), Incoming(b));
-
-            results.Should().Contain(r => r.Result == ImportResultType.Imported && r.ImportDecision.Item.Album.Id == a.Album.Id);
-            new
-            {
-                ContentAtANewPath = File.ReadAllText(aNewPath),
-                RowsForThatFile = Db.All<TrackFile>().Count(f => string.Equals(f.Path, aNewPath, StringComparison.OrdinalIgnoreCase)),
-                ANewRecycled = _recycled.Any(r => r.Content == "A new"),
-                BTrackLinked = Db.All<Track>().Single(t => t.Id == b.OldTracks[0].Id).TrackFileId > 0
-            }.Should().BeEquivalentTo(new { ContentAtANewPath = "A new", RowsForThatFile = 1, ANewRecycled = false, BTrackLinked = false });
-        }
-
-        [Test]
-        public void should_keep_the_new_file_another_album_imported_at_a_path_differing_only_in_normalization()
-        {
-            var a = GivenAlbum("A", "");
-            var b = GivenAlbum("Bé", "");
-            var aNewPath = Path.Combine(_artist.Path, "Bé01 - Song.mp3");
-            File.WriteAllText(Path.Combine(_artist.Path, "Néprobe.txt"), "x");
-            var normalizationInsensitive = File.Exists(Path.Combine(_artist.Path, "Néprobe.txt"));
-            File.Delete(Path.Combine(_artist.Path, "Néprobe.txt"));
-            Assume.That(normalizationInsensitive, "needs a normalization-insensitive file system");
-
-            Mocker.GetMock<IUpgradeMediaFiles>()
-                  .Setup(s => s.UpgradeTrackFile(It.IsAny<TrackFile>(), It.IsAny<LocalTrack>(), It.IsAny<bool>()))
-                  .Returns<TrackFile, LocalTrack, bool>((f, l, c) =>
-                  {
-                      if (l.Album.Id != a.Album.Id)
-                      {
-                          throw new DestinationAlreadyExistsException("destination exists");
-                      }
-
-                      f.Path = aNewPath;
-                      File.WriteAllText(f.Path, "A new");
-                      return new TrackFileMoveResult { TrackFile = f };
-                  });
-
-            Import(Incoming(a), Incoming(b));
-
-            new
-            {
-                ContentAtANewPath = File.ReadAllText(aNewPath),
-                ANewRecycled = _recycled.Any(r => r.Content == "A new"),
-                Rows = Db.All<TrackFile>().Count
-            }.Should().BeEquivalentTo(new { ContentAtANewPath = "A new", ANewRecycled = false, Rows = 1 });
-        }
-
         [Test]
         public void should_put_the_old_file_back_when_linking_the_new_files_fails()
         {
@@ -746,6 +667,54 @@ namespace NzbDrone.Core.Test.MediaFiles
             ExceptionVerification.ExpectedWarns(3);
             album.OldPaths.Should().OnlyContain(p => File.Exists(p));
             Db.All<TrackFile>().Select(f => f.Path).Should().BeEquivalentTo(album.OldPaths);
+        }
+
+        [Test]
+        public void should_put_the_old_file_back_when_linking_and_removing_the_new_rows_both_fail()
+        {
+            var album = GivenAlbum("A", "A");
+            var path = album.OldPaths[0];
+
+            Mocker.GetMock<IUpgradeMediaFiles>()
+                  .Setup(s => s.UpgradeTrackFile(It.IsAny<TrackFile>(), It.IsAny<LocalTrack>(), It.IsAny<bool>()))
+                  .Returns<TrackFile, LocalTrack, bool>((f, l, c) =>
+                  {
+                      f.Path = path;
+                      File.WriteAllText(f.Path, "new");
+                      return new TrackFileMoveResult { TrackFile = f };
+                  });
+
+            var failOnce = true;
+            var tracks = new Mock<ITrackService>();
+            tracks.Setup(s => s.GetTracksByFileId(It.IsAny<IEnumerable<int>>())).Returns<IEnumerable<int>>(ids => _trackService.GetTracksByFileId(ids));
+            tracks.Setup(s => s.GetTracksByReleases(It.IsAny<List<int>>())).Returns<List<int>>(ids => _trackService.GetTracksByReleases(ids));
+            tracks.Setup(s => s.SetFileIds(It.IsAny<List<Track>>())).Callback<List<Track>>(t =>
+            {
+                if (failOnce)
+                {
+                    failOnce = false;
+                    throw new InvalidOperationException("database is locked");
+                }
+
+                _trackService.SetFileIds(t);
+            });
+            Mocker.SetConstant(tracks.Object);
+
+            var files = new Mock<IMediaFileService>();
+            files.Setup(s => s.GetFilesByAlbum(It.IsAny<int>())).Returns<int>(id => _mediaFileService.GetFilesByAlbum(id));
+            files.Setup(s => s.Delete(It.IsAny<TrackFile>(), It.IsAny<DeleteMediaFileReason>())).Callback<TrackFile, DeleteMediaFileReason>((f, r) => _mediaFileService.Delete(f, r));
+            files.Setup(s => s.AddMany(It.IsAny<List<TrackFile>>())).Callback<List<TrackFile>>(f => _mediaFileService.AddMany(f));
+            files.Setup(s => s.GetFileWithPath(It.IsAny<string>())).Returns<string>(p => _mediaFileService.GetFileWithPath(p));
+            files.Setup(s => s.DeleteMany(It.IsAny<List<TrackFile>>(), It.IsAny<DeleteMediaFileReason>())).Throws(new InvalidOperationException("database is locked"));
+            Mocker.SetConstant(files.Object);
+
+            Assert.Catch<InvalidOperationException>(() => Import(Incoming(album)));
+
+            new
+            {
+                Content = File.ReadAllText(path),
+                OldRecycled = _recycled.Any(r => r.Content == "A old 1")
+            }.Should().BeEquivalentTo(new { Content = "A old 1", OldRecycled = false });
         }
     }
 }

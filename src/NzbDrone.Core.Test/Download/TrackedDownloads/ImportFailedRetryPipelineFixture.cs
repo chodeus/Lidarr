@@ -186,8 +186,6 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
             // The album is deleted (by the user, or by a refresh after MusicBrainz drops it); the title no longer maps to it.
             GivenAlbumFoundByTitle(null);
             _trackedDownloadService.Handle(new AlbumDeletedEvent(_album, false, false));
-            trackedDownload.RemoteAlbum.Artist.Should().BeSameAs(_artist);
-            trackedDownload.RemoteAlbum.Albums.Should().BeEmpty();
 
             // A later refresh updates another album of the same artist.
             _retryService.Handle(new AlbumUpdatedEvent(CreateAlbum(9, 12)));

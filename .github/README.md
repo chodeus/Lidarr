@@ -6,8 +6,11 @@ Lidarr rejects an import whose release has fewer tracks than the album's current
 
 This adds a quality profile option, off by default and shown only when upgrades are allowed. With it on, `MoreTracksSpecification` accepts a smaller release if it passes the same `IUpgradableSpecification.IsUpgradable` test that `UpgradeDiskSpecification` runs at grab:
 - The worst incoming quality is compared against the existing files' qualities.
-- Custom formats are scored from the grab history, since album files don't carry the release title. Without a grab it falls back to the lowest-scoring file.
+- Custom formats are scored the same way on both sides. When the download has a grab and every file on disk traces to one (the latest import of its track), the grab titles are scored, and the best one on disk is compared. Otherwise both sides are scored by file names: the worst new file against the best file on disk. Album files don't carry the release title, and Lidarr never sets `TrackFile.SceneName`, so scoring a grab against file names lets a format seen only in the grab's title (a release group, say) fake an upgrade.
 - Library files that a rescan joined into the import are not counted as incoming.
+- An album set to one specific release is not switched: `ReleaseWantedSpecification` rejects any other release unless the album accepts any release.
+
+Replacing the album's files on a download import no longer recycles them first. They move into a hidden `.lidarr-replaced` folder beside the album (disk scans skip dot folders), and their rows follow them. Once at least one file of the new release imports, they go to the recycle bin and their rows are deleted, as before. If none imports (destination exists, permissions, any move error), they move back, the rows get their paths back, and the album returns to its previous release. A failure while moving them aside puts back what was moved and fails the import, as a recycle bin failure did.
 
 Migration 901 adds `QualityProfiles.AllowSmallerReleaseUpgrades` (default false).
 

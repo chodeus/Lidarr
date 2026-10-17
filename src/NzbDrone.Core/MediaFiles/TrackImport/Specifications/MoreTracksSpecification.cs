@@ -68,30 +68,64 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Specifications
 
             var comparer = new QualityModelComparer(profile);
             var worstQuality = incoming.Select(x => x.Quality).OrderBy(x => x, comparer).First();
-            var worstFormats = IncomingFormats(incoming, artist, profile, downloadClientItem);
+            var (existingFormats, incomingFormats) = ScoredFormats(item, incoming, existingTracks, existingFiles, artist, profile, downloadClientItem);
 
             return _upgradableSpecification.IsUpgradable(profile,
                                                          existingFiles.Select(x => x.Quality).Distinct().ToList(),
-                                                         _formatService.ParseCustomFormat(existingFiles[0], artist),
+                                                         existingFormats,
                                                          worstQuality,
-                                                         worstFormats);
+                                                         incomingFormats);
         }
 
-        // An album download's files don't carry its release title, so score what was grabbed.
-        private List<CustomFormat> IncomingFormats(List<LocalTrack> incoming, Artist artist, QualityProfile profile, DownloadClientItem downloadClientItem)
+        // Both sides need the same kind of title, or a format only one of them shows fakes an upgrade.
+        // An album download's files don't carry its release title, so grabs are scored when both sides have them.
+        private (List<CustomFormat> Existing, List<CustomFormat> Incoming) ScoredFormats(LocalAlbumRelease item, List<LocalTrack> incoming, List<Track> existingTracks, List<TrackFile> existingFiles, Artist artist, QualityProfile profile, DownloadClientItem downloadClientItem)
         {
-            var grab = downloadClientItem?.DownloadId.IsNotNullOrWhiteSpace() == true
-                ? _historyService.Find(downloadClientItem.DownloadId, EntityHistoryEventType.Grabbed).MaxBy(x => x.Date)
-                : null;
+            var incomingGrab = FindGrab(downloadClientItem?.DownloadId);
+            var existingGrabs = incomingGrab == null ? null : ExistingGrabs(item.AlbumRelease.Album.Value.Id, existingTracks);
 
-            if (grab != null)
+            if (existingGrabs != null)
             {
-                return _formatService.ParseCustomFormat(grab, artist);
+                return (BestScored(existingGrabs.Select(x => _formatService.ParseCustomFormat(x, artist)), profile),
+                        _formatService.ParseCustomFormat(incomingGrab, artist));
             }
 
-            return incoming.Select(x => _formatService.ParseCustomFormat(x))
-                           .OrderBy(x => profile.CalculateCustomFormatScore(x))
-                           .First();
+            // The worst new file against the best file on disk
+            return (BestScored(existingFiles.Select(x => _formatService.ParseCustomFormat(x, artist)), profile),
+                    incoming.Select(x => _formatService.ParseCustomFormat(x)).OrderBy(x => profile.CalculateCustomFormatScore(x)).First());
+        }
+
+        private EntityHistory FindGrab(string downloadId)
+        {
+            return downloadId.IsNotNullOrWhiteSpace()
+                ? _historyService.Find(downloadId, EntityHistoryEventType.Grabbed).MaxBy(x => x.Date)
+                : null;
+        }
+
+        // The grab behind each file on disk, via the latest import of its track; null when any file has none.
+        private List<EntityHistory> ExistingGrabs(int albumId, List<Track> existingTracks)
+        {
+            var imports = _historyService.GetByAlbum(albumId, EntityHistoryEventType.TrackFileImported);
+            var grabs = new List<EntityHistory>();
+
+            foreach (var downloadId in existingTracks.Select(t => imports.Where(x => x.TrackId == t.Id).MaxBy(x => x.Date)?.DownloadId).Distinct())
+            {
+                var grab = FindGrab(downloadId);
+
+                if (grab == null)
+                {
+                    return null;
+                }
+
+                grabs.Add(grab);
+            }
+
+            return grabs;
+        }
+
+        private static List<CustomFormat> BestScored(IEnumerable<List<CustomFormat>> candidates, QualityProfile profile)
+        {
+            return candidates.OrderByDescending(x => profile.CalculateCustomFormatScore(x)).First();
         }
     }
 }

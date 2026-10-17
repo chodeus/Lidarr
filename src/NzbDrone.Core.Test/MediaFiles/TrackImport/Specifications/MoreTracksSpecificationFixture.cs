@@ -27,6 +27,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Specifications
         private AlbumRelease _existingRelease;
         private AlbumRelease _singleRelease;
         private List<CustomFormat> _formats;
+        private List<EntityHistory> _imports;
 
         [SetUp]
         public void Setup()
@@ -75,6 +76,11 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Specifications
             _singleRelease = new AlbumRelease { Id = 11, Monitored = false, Album = _album };
             _album.AlbumReleases = new List<AlbumRelease> { _existingRelease, _singleRelease };
 
+            _imports = new List<EntityHistory>();
+            Mocker.GetMock<IHistoryService>()
+                  .Setup(s => s.GetByAlbum(_album.Id, EntityHistoryEventType.TrackFileImported))
+                  .Returns(() => _imports);
+
             GivenExistingFiles(Quality.MP3_320, Quality.MP3_320, Quality.MP3_320);
         }
 
@@ -95,6 +101,22 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Specifications
                   }).ToList());
 
             return new DownloadClientItem { DownloadId = "download-1" };
+        }
+
+        // Each listed track on disk was imported by a download grabbed with this format
+        private void GivenExistingGrab(string downloadId, string format, params int[] trackIds)
+        {
+            _imports.AddRange(trackIds.Select(id => new EntityHistory
+            {
+                EventType = EntityHistoryEventType.TrackFileImported,
+                TrackId = id,
+                DownloadId = downloadId,
+                Date = DateTime.UtcNow.AddDays(-10)
+            }));
+
+            Mocker.GetMock<IHistoryService>()
+                  .Setup(s => s.Find(downloadId, EntityHistoryEventType.Grabbed))
+                  .Returns(new List<EntityHistory> { new EntityHistory { EventType = EntityHistoryEventType.Grabbed, SourceTitle = format, Date = DateTime.UtcNow.AddDays(-11) } });
         }
 
         private void GivenExistingFiles(params Quality[] qualities)
@@ -214,7 +236,8 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Specifications
         [Test]
         public void should_score_a_download_by_its_grab_rather_than_its_file_names()
         {
-            GivenExistingFiles("CD", Quality.FLAC, Quality.FLAC, Quality.FLAC);
+            GivenExistingFiles(Quality.FLAC, Quality.FLAC, Quality.FLAC);
+            GivenExistingGrab("existing-1", "CD", 1, 2, 3);
 
             Subject.IsSatisfiedBy(Incoming(_singleRelease, Quality.FLAC), GivenGrabs(("WEB", 1))).Accepted.Should().BeTrue();
         }
@@ -230,7 +253,8 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Specifications
         [Test]
         public void should_score_the_most_recent_grab()
         {
-            GivenExistingFiles("CD", Quality.FLAC, Quality.FLAC, Quality.FLAC);
+            GivenExistingFiles(Quality.FLAC, Quality.FLAC, Quality.FLAC);
+            GivenExistingGrab("existing-1", "CD", 1, 2, 3);
 
             Subject.IsSatisfiedBy(Incoming(_singleRelease, Quality.FLAC), GivenGrabs(("WEB", 5), ("Vinyl", 1))).Accepted.Should().BeFalse();
         }
@@ -254,6 +278,44 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Specifications
         public void should_accept_a_release_with_as_many_tracks()
         {
             Subject.IsSatisfiedBy(Incoming(_singleRelease, Quality.MP3_320, Quality.MP3_320, Quality.MP3_320), null).Accepted.Should().BeTrue();
+        }
+
+        [Test]
+        public void should_not_compare_a_grab_with_file_names()
+        {
+            GivenExistingFiles(Quality.FLAC, Quality.FLAC, Quality.FLAC);
+
+            Subject.IsSatisfiedBy(Incoming(_singleRelease, Quality.FLAC), GivenGrabs(("WEB", 1))).Accepted.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_compare_against_the_best_grab_on_disk()
+        {
+            GivenExistingFiles(Quality.FLAC, Quality.FLAC, Quality.FLAC);
+            GivenExistingGrab("existing-1", "CD", 1, 2);
+            GivenExistingGrab("existing-2", "WEB", 3);
+
+            Subject.IsSatisfiedBy(Incoming(_singleRelease, Quality.FLAC), GivenGrabs(("WEB", 1))).Accepted.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_score_file_names_when_a_file_on_disk_has_no_grab()
+        {
+            GivenExistingFiles("CD", Quality.FLAC, Quality.FLAC, Quality.FLAC);
+            GivenExistingGrab("existing-1", "CD", 1, 2);
+
+            Subject.IsSatisfiedBy(Incoming(_singleRelease, Quality.FLAC), GivenGrabs(("WEB", 1))).Accepted.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_score_the_latest_import_of_each_track()
+        {
+            GivenExistingFiles(Quality.FLAC, Quality.FLAC, Quality.FLAC);
+            GivenExistingGrab("existing-1", "WEB", 1, 2, 3);
+            _imports.ForEach(x => x.Date = DateTime.UtcNow.AddDays(-20));
+            GivenExistingGrab("existing-2", "CD", 1, 2, 3);
+
+            Subject.IsSatisfiedBy(Incoming(_singleRelease, Quality.FLAC), GivenGrabs(("WEB", 1))).Accepted.Should().BeTrue();
         }
     }
 }

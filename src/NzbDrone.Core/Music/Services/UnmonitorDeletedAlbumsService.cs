@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using NLog;
@@ -133,18 +134,33 @@ namespace NzbDrone.Core.Music
 
             foreach (var albumId in albumIds)
             {
-                if (message.MatchedAlbumIds.Contains(albumId))
-                {
-                    _logger.Debug("Not unmonitoring album {0}, the scan matched files to it that it did not import", albumId);
-                }
-                else
-                {
-                    UnmonitorAlbumWithoutFiles(albumId);
-                }
-
-                // Only now, so that RSS sync holds back the album until it is unmonitored.
+                // Under the lock, so that removing the root folder either cancels the album first or waits for it.
                 lock (_missingFromDisk)
                 {
+                    if (!_missingFromDisk.ContainsKey(albumId))
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        if (message.MatchedAlbumIds.Contains(albumId))
+                        {
+                            _logger.Debug("Not unmonitoring album {0}, the scan matched files to it that it did not import", albumId);
+                        }
+                        else
+                        {
+                            UnmonitorAlbumWithoutFiles(albumId);
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        // Such as the album being deleted meanwhile. The next scan of its root folder decides it again.
+                        _logger.Warn(e, "Couldn't decide whether to unmonitor album {0}", albumId);
+                        continue;
+                    }
+
+                    // Only now, so that RSS sync holds back the album until it is unmonitored.
                     _missingFromDisk.Remove(albumId);
                 }
             }

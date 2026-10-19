@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -419,6 +420,62 @@ namespace NzbDrone.Core.Test.MusicTests
             CompleteScan();
 
             IsMonitored(album).Should().BeFalse();
+        }
+
+        [Test]
+        public void should_decide_the_other_albums_when_one_cannot_be_unmonitored()
+        {
+            var (first, _, firstFiles) = GivenMonitoredAlbumWithFiles();
+            var (second, _, secondFiles) = GivenMonitoredAlbumWithFiles();
+            var albums = new[] { first, second };
+            var failed = false;
+
+            // As when an album is deleted while it is unmonitored, which makes AlbumService.SetMonitored throw.
+            Mocker.GetMock<IEventAggregator>()
+                .Setup(s => s.PublishEvent(It.IsAny<AlbumEditedEvent>()))
+                .Callback<AlbumEditedEvent>(e =>
+                {
+                    if (!failed)
+                    {
+                        failed = true;
+                        throw new ApplicationException("Expected query to return 1 rows but returned 0");
+                    }
+                });
+
+            DeleteFiles(firstFiles, DeleteMediaFileReason.MissingFromDisk);
+            DeleteFiles(secondFiles, DeleteMediaFileReason.MissingFromDisk);
+            CompleteScan();
+
+            // The one that failed is decided again by the next scan of its root folder.
+            albums.Count(HoldsBackRssReleases).Should().Be(1);
+            albums.Should().OnlyContain(a => !IsMonitored(a));
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_not_unmonitor_albums_left_to_decide_when_their_root_folder_is_removed_during_the_scan()
+        {
+            // Removing the root folder can drop an album's remaining files before the scan has decided it.
+            var (first, _, firstFiles) = GivenMonitoredAlbumWithFiles();
+            var (second, _, secondFiles) = GivenMonitoredAlbumWithFiles();
+            var removed = false;
+
+            Mocker.GetMock<IEventAggregator>()
+                .Setup(s => s.PublishEvent(It.IsAny<AlbumEditedEvent>()))
+                .Callback<AlbumEditedEvent>(e =>
+                {
+                    if (!removed)
+                    {
+                        removed = true;
+                        Mocker.Resolve<IRootFolderService>().Remove(_rootFolder.Id);
+                    }
+                });
+
+            DeleteFiles(firstFiles, DeleteMediaFileReason.MissingFromDisk);
+            DeleteFiles(secondFiles, DeleteMediaFileReason.MissingFromDisk);
+            CompleteScan();
+
+            new[] { first, second }.Count(IsMonitored).Should().Be(1);
         }
 
         [Test]

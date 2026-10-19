@@ -28,6 +28,7 @@ namespace NzbDrone.Core.Music
     {
         private readonly IAlbumService _albumService;
         private readonly IMediaFileService _mediaFileService;
+        private readonly IRootFolderService _rootFolderService;
         private readonly IConfigService _configService;
         private readonly IDiskProvider _diskProvider;
         private readonly Logger _logger;
@@ -38,12 +39,14 @@ namespace NzbDrone.Core.Music
 
         public UnmonitorDeletedAlbumsService(IAlbumService albumService,
                                              IMediaFileService mediaFileService,
+                                             IRootFolderService rootFolderService,
                                              IConfigService configService,
                                              IDiskProvider diskProvider,
                                              Logger logger)
         {
             _albumService = albumService;
             _mediaFileService = mediaFileService;
+            _rootFolderService = rootFolderService;
             _configService = configService;
             _diskProvider = diskProvider;
             _logger = logger;
@@ -72,6 +75,13 @@ namespace NzbDrone.Core.Music
             {
                 lock (_missingFromDisk)
                 {
+                    // A scan can still be reporting files from a root folder removed meanwhile, which no scan covers again.
+                    // The removal deletes the root folder before it drops what was found missing, under this lock.
+                    if (_rootFolderService.GetBestRootFolder(trackFile.Path) == null)
+                    {
+                        return;
+                    }
+
                     if (!_missingFromDisk.TryGetValue(trackFile.AlbumId, out var folders))
                     {
                         folders = new HashSet<string>(PathEqualityComparer.Instance);

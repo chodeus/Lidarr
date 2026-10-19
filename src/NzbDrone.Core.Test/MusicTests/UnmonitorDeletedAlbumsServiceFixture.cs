@@ -466,6 +466,18 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
+        public void should_not_hold_back_rss_releases_for_files_a_scan_reports_after_their_root_folder_is_removed()
+        {
+            // A scan can still be reporting the files it found missing when their root folder is removed.
+            var (album, _, files) = GivenMonitoredAlbumWithFiles();
+
+            Mocker.Resolve<IRootFolderService>().Remove(_rootFolder.Id);
+            DeleteFiles(files, DeleteMediaFileReason.MissingFromDisk);
+
+            HoldsBackRssReleases(album).Should().BeFalse();
+        }
+
+        [Test]
         public void should_keep_holding_back_rss_releases_when_another_root_folder_is_removed()
         {
             var otherRootFolder = Db.Insert(Builder<RootFolder>.CreateNew()

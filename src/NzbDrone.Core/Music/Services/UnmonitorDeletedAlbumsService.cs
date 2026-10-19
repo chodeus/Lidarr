@@ -6,6 +6,7 @@ using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Datastore;
+using NzbDrone.Core.Datastore.Events;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging;
@@ -16,17 +17,17 @@ namespace NzbDrone.Core.Music
 {
     public interface IUnmonitorDeletedAlbumsService
     {
-        // Whether a disk scan found the album's files missing, and a scan of their root folder is yet to complete.
+        // Whether a disk scan found the album's files missing, and has yet to decide whether to unmonitor it.
         bool IsMissingFromDisk(int albumId);
     }
 
     public class UnmonitorDeletedAlbumsService : IUnmonitorDeletedAlbumsService,
                                                  IHandle<TrackFileDeletedEvent>,
-                                                 IHandle<DiskScanCompletedEvent>
+                                                 IHandle<DiskScanCompletedEvent>,
+                                                 IHandle<ModelEvent<RootFolder>>
     {
         private readonly IAlbumService _albumService;
         private readonly IMediaFileService _mediaFileService;
-        private readonly IRootFolderService _rootFolderService;
         private readonly IConfigService _configService;
         private readonly IDiskProvider _diskProvider;
         private readonly Logger _logger;
@@ -37,14 +38,12 @@ namespace NzbDrone.Core.Music
 
         public UnmonitorDeletedAlbumsService(IAlbumService albumService,
                                              IMediaFileService mediaFileService,
-                                             IRootFolderService rootFolderService,
                                              IConfigService configService,
                                              IDiskProvider diskProvider,
                                              Logger logger)
         {
             _albumService = albumService;
             _mediaFileService = mediaFileService;
-            _rootFolderService = rootFolderService;
             _configService = configService;
             _diskProvider = diskProvider;
             _logger = logger;
@@ -82,23 +81,12 @@ namespace NzbDrone.Core.Music
                     folders.Add(trackFile.Path.GetParentPath());
                 }
             }
-            else if (message.Reason == DeleteMediaFileReason.Manual && WasDeletedFromDisk(trackFile))
+
+            // Lidarr deletes a file from disk before it drops it from the database, so one still on disk was not deleted.
+            else if (message.Reason == DeleteMediaFileReason.Manual && !_diskProvider.FileExists(trackFile.Path))
             {
-                UnmonitorAlbumsWithoutFiles(new List<int> { trackFile.AlbumId });
+                UnmonitorAlbumWithoutFiles(trackFile.AlbumId);
             }
-        }
-
-        // Removing a root folder drops its files from the database and leaves them where they are, so only a file gone
-        // from a root folder that is still there was deleted. A root folder on offline storage is missing or empty, and
-        // Lidarr refuses to delete files from one.
-        private bool WasDeletedFromDisk(TrackFile trackFile)
-        {
-            var rootFolder = _rootFolderService.GetBestRootFolder(trackFile.Path);
-
-            return rootFolder != null &&
-                   _diskProvider.FolderExists(rootFolder.Path) &&
-                   !_diskProvider.FolderEmpty(rootFolder.Path) &&
-                   !_diskProvider.FileExists(trackFile.Path);
         }
 
         public void Handle(DiskScanCompletedEvent message)
@@ -113,52 +101,78 @@ namespace NzbDrone.Core.Music
                 return;
             }
 
+            // Files the scan matched to an album but did not import, such as files moved to where they no longer match
+            // well enough, may still be that album's. Later scans skip them while they are unchanged, so this one decides.
             List<int> albumIds;
 
             lock (_missingFromDisk)
             {
                 albumIds = _missingFromDisk
-                    .Where(x => x.Value.All(folder => message.RootFolders.Any(root => root.PathEquals(folder) || root.IsParentPath(folder))))
+                    .Where(x => message.MatchedAlbumIds.Contains(x.Key) ||
+                                x.Value.All(folder => message.RootFolders.Any(root => root.PathEquals(folder) || root.IsParentPath(folder))))
                     .Select(x => x.Key)
                     .ToList();
-
-                albumIds.ForEach(id => _missingFromDisk.Remove(id));
             }
 
-            // Files the scan matched to an album but did not import, such as files moved to where they no longer match
-            // well enough, may still be that album's.
-            foreach (var albumId in albumIds.Where(message.MatchedAlbumIds.Contains))
-            {
-                _logger.Debug("Not unmonitoring album {0}, the scan matched files to it that it did not import", albumId);
-            }
-
-            UnmonitorAlbumsWithoutFiles(albumIds.Where(id => !message.MatchedAlbumIds.Contains(id)).ToList());
-        }
-
-        private void UnmonitorAlbumsWithoutFiles(List<int> albumIds)
-        {
             foreach (var albumId in albumIds)
             {
-                Album album;
-
-                try
+                if (message.MatchedAlbumIds.Contains(albumId))
                 {
-                    album = _albumService.GetAlbum(albumId);
+                    _logger.Debug("Not unmonitoring album {0}, the scan matched files to it that it did not import", albumId);
                 }
-                catch (ModelNotFoundException)
+                else
                 {
-                    // Deleted since its files went missing.
-                    continue;
+                    UnmonitorAlbumWithoutFiles(albumId);
                 }
 
-                if (!album.Monitored || _mediaFileService.AlbumHasFiles(album.Id))
+                // Only now, so that RSS sync holds back the album until it is unmonitored.
+                lock (_missingFromDisk)
                 {
-                    continue;
+                    _missingFromDisk.Remove(albumId);
                 }
-
-                _logger.Info("Unmonitoring album {0}, its files were deleted from disk", album);
-                _albumService.SetMonitored(new List<int> { album.Id }, false);
             }
+        }
+
+        // No scan covers a root folder once it is removed, so what scans found missing from it would never be decided.
+        public void Handle(ModelEvent<RootFolder> message)
+        {
+            if (message.Action != ModelAction.Deleted)
+            {
+                return;
+            }
+
+            var rootFolder = message.Model.Path;
+
+            lock (_missingFromDisk)
+            {
+                foreach (var albumId in _missingFromDisk.Where(x => x.Value.Any(folder => rootFolder.PathEquals(folder) || rootFolder.IsParentPath(folder))).Select(x => x.Key).ToList())
+                {
+                    _missingFromDisk.Remove(albumId);
+                }
+            }
+        }
+
+        private void UnmonitorAlbumWithoutFiles(int albumId)
+        {
+            Album album;
+
+            try
+            {
+                album = _albumService.GetAlbum(albumId);
+            }
+            catch (ModelNotFoundException)
+            {
+                // Deleted since its files went missing.
+                return;
+            }
+
+            if (!album.Monitored || _mediaFileService.AlbumHasFiles(album.Id))
+            {
+                return;
+            }
+
+            _logger.Info("Unmonitoring album {0}, its files were deleted from disk", album);
+            _albumService.SetMonitored(new List<int> { album.Id }, false);
         }
     }
 }

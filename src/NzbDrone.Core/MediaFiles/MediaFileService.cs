@@ -238,7 +238,7 @@ namespace NzbDrone.Core.MediaFiles
             if (message.Action == ModelAction.Deleted)
             {
                 var files = GetFilesWithBasePath(message.Model.Path);
-                DeleteMany(files, DeleteMediaFileReason.Manual);
+                DeleteMany(files, DeleteMediaFileReason.RootFolderRemoved);
             }
         }
     }

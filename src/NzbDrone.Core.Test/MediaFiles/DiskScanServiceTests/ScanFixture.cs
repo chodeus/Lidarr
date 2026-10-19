@@ -584,5 +584,71 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
 
             steps.Should().Equal("import", "completed");
         }
+
+        [Test]
+        public void should_report_the_root_folders_it_scanned_in_full()
+        {
+            GivenArtistFolder();
+            GivenFiles(new List<string> { Path.Combine(_artist.Path, "file1.flac") });
+
+            DiskScanCompletedEvent completed = null;
+
+            Mocker.GetMock<IEventAggregator>()
+                .Setup(s => s.PublishEvent(It.IsAny<DiskScanCompletedEvent>()))
+                .Callback<DiskScanCompletedEvent>(e => completed = e);
+
+            Subject.Scan(new List<string> { _rootFolder });
+
+            completed.RootFolders.Should().Equal(_rootFolder);
+        }
+
+        [Test]
+        public void should_not_report_the_root_folder_of_an_artist_folder_it_scanned()
+        {
+            GivenArtistFolder();
+            GivenFiles(new List<string> { Path.Combine(_artist.Path, "file1.flac") });
+
+            DiskScanCompletedEvent completed = null;
+
+            Mocker.GetMock<IEventAggregator>()
+                .Setup(s => s.PublishEvent(It.IsAny<DiskScanCompletedEvent>()))
+                .Callback<DiskScanCompletedEvent>(e => completed = e);
+
+            Subject.Scan(new List<string> { _artist.Path });
+
+            completed.RootFolders.Should().BeEmpty();
+        }
+
+        [Test]
+        public void should_report_the_albums_it_matched_files_to_without_importing_them()
+        {
+            GivenArtistFolder();
+            var file = Path.Combine(_artist.Path, "file1.flac");
+            GivenFiles(new List<string> { file });
+
+            var localTrack = Builder<LocalTrack>.CreateNew()
+                .With(x => x.Path = file)
+                .With(x => x.Album = new Album { Id = 5 })
+                .With(x => x.Quality = new QualityModel(Quality.FLAC))
+                .With(x => x.FileTrackInfo = new ParsedTrackInfo
+                {
+                    MediaInfo = Builder<MediaInfoModel>.CreateNew().Build()
+                })
+                .Build();
+
+            Mocker.GetMock<IMakeImportDecision>()
+                .Setup(x => x.GetImportDecisions(It.IsAny<List<IFileInfo>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerInfo>(), It.IsAny<ImportDecisionMakerConfig>()))
+                .Returns(new List<ImportDecision<LocalTrack>> { new ImportDecision<LocalTrack>(localTrack, new Rejection("Album match is not close enough")) });
+
+            DiskScanCompletedEvent completed = null;
+
+            Mocker.GetMock<IEventAggregator>()
+                .Setup(s => s.PublishEvent(It.IsAny<DiskScanCompletedEvent>()))
+                .Callback<DiskScanCompletedEvent>(e => completed = e);
+
+            Subject.Scan(new List<string> { _artist.Path });
+
+            completed.MatchedAlbumIds.Should().BeEquivalentTo(new[] { 5 });
+        }
     }
 }

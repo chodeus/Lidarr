@@ -84,6 +84,7 @@ namespace NzbDrone.Core.MediaFiles
             }
 
             var mediaFileList = new List<IFileInfo>();
+            var scannedRootFolders = new List<string>();
 
             var musicFilesStopwatch = Stopwatch.StartNew();
 
@@ -140,6 +141,11 @@ namespace NzbDrone.Core.MediaFiles
 
                 CleanMediaFiles(folder, files.Select(x => x.FullName).ToList());
                 mediaFileList.AddRange(files);
+
+                if (folder.PathEquals(rootFolder.Path))
+                {
+                    scannedRootFolders.Add(rootFolder.Path);
+                }
             }
 
             var artists = _artistService.GetArtists(artistIds);
@@ -245,7 +251,8 @@ namespace NzbDrone.Core.MediaFiles
                 CompletedScanning(artist);
             }
 
-            _eventAggregator.PublishEvent(new DiskScanCompletedEvent());
+            var matchedAlbumIds = new HashSet<int>(decisions.Where(x => x.Item.Album != null).Select(x => x.Item.Album.Id));
+            _eventAggregator.PublishEvent(new DiskScanCompletedEvent(scannedRootFolders, matchedAlbumIds));
 
             importStopwatch.Stop();
             _logger.Debug("Track import complete for:\n{0} [{1}]", folders.ConcatToString("\n"), importStopwatch.Elapsed);

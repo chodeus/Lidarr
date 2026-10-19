@@ -173,10 +173,11 @@ namespace NzbDrone.Core.Test.MusicTests
             Subject.Handle(new DiskScanCompletedEvent(new List<string>(), new HashSet<int> { album.Id }));
         }
 
+        // As RSS sync decides on a release it has just matched to the album.
         private bool HoldsBackRssReleases(Album album)
         {
             Mocker.SetConstant<IUnmonitorDeletedAlbumsService>(Subject);
-            var release = new RemoteAlbum { Artist = new Artist(), Albums = new List<Album> { album } };
+            var release = new RemoteAlbum { Artist = new Artist(), Albums = new List<Album> { Storage.Get(album.Id) } };
 
             return !Mocker.Resolve<DeletedTrackFileSpecification>().IsSatisfiedBy(release, null).Accepted;
         }
@@ -541,6 +542,27 @@ namespace NzbDrone.Core.Test.MusicTests
 
             held.Should().NotBeEmpty().And.OnlyContain(x => x);
             albums.Should().OnlyContain(a => !IsMonitored(a) && !HoldsBackRssReleases(a));
+        }
+
+        [Test]
+        public void should_hold_back_rss_releases_checked_while_the_scan_unmonitors_the_album()
+        {
+            // RSS sync loads the album when it matches a release, and checks that it is monitored before it checks the hold.
+            var (album, _, files) = GivenMonitoredAlbumWithFiles();
+            DeleteFiles(files, DeleteMediaFileReason.MissingFromDisk);
+
+            // The check of the hold waits while the scan decides, and finds the hold released once it has.
+            Mocker.GetMock<IUnmonitorDeletedAlbumsService>()
+                .Setup(s => s.IsMissingFromDisk(album.Id))
+                .Returns(() =>
+                {
+                    CompleteScan();
+                    return Subject.IsMissingFromDisk(album.Id);
+                });
+
+            var release = new RemoteAlbum { Artist = new Artist(), Albums = new List<Album> { album } };
+
+            Mocker.Resolve<DeletedTrackFileSpecification>().IsSatisfiedBy(release, null).Accepted.Should().BeFalse();
         }
 
         [Test]

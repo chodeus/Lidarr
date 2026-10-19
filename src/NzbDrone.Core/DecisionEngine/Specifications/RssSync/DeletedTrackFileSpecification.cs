@@ -13,18 +13,21 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.RssSync
     {
         private readonly IDiskProvider _diskProvider;
         private readonly IConfigService _configService;
-        private readonly IMediaFileService _albumService;
+        private readonly IMediaFileService _mediaFileService;
+        private readonly IAlbumService _albumService;
         private readonly IUnmonitorDeletedAlbumsService _unmonitorDeletedAlbumsService;
         private readonly Logger _logger;
 
         public DeletedTrackFileSpecification(IDiskProvider diskProvider,
                                              IConfigService configService,
-                                             IMediaFileService albumService,
+                                             IMediaFileService mediaFileService,
+                                             IAlbumService albumService,
                                              IUnmonitorDeletedAlbumsService unmonitorDeletedAlbumsService,
                                              Logger logger)
         {
             _diskProvider = diskProvider;
             _configService = configService;
+            _mediaFileService = mediaFileService;
             _albumService = albumService;
             _unmonitorDeletedAlbumsService = unmonitorDeletedAlbumsService;
             _logger = logger;
@@ -53,8 +56,16 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.RssSync
                 return Decision.Reject("Album files are missing from disk");
             }
 
+            // The albums were loaded when the release was matched. A scan may have unmonitored one since and only then stopped
+            // holding it back, so this comes after the hold.
+            if (_albumService.GetAlbums(subject.Albums.Where(v => v.Monitored).Select(v => v.Id).ToList()).Any(v => !v.Monitored))
+            {
+                _logger.Debug("Album was unmonitored after the release was matched to it. skipping.");
+                return Decision.Reject("Album is not monitored");
+            }
+
             var missingTrackFiles = subject.Albums
-                                             .SelectMany(v => _albumService.GetFilesByAlbum(v.Id))
+                                             .SelectMany(v => _mediaFileService.GetFilesByAlbum(v.Id))
                                              .DistinctBy(v => v.Id)
                                              .Where(v => IsTrackFileMissing(subject.Artist, v))
                                              .ToArray();

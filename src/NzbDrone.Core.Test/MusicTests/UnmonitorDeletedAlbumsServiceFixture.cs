@@ -393,6 +393,21 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
+        public void should_not_decide_album_again_once_deleting_its_last_file_has_unmonitored_it()
+        {
+            var (album, _, files) = GivenMonitoredAlbumWithFiles();
+
+            // A scan of the artist folder finds one file missing, then the other is deleted in Lidarr.
+            DeleteFiles(files.Take(1).ToList(), DeleteMediaFileReason.MissingFromDisk);
+            DeleteFiles(files.Skip(1).ToList(), DeleteMediaFileReason.Manual);
+            Mocker.Resolve<IAlbumService>().SetAlbumMonitored(album.Id, true);
+
+            HoldsBackRssReleases(album).Should().BeFalse();
+            CompleteScan();
+            IsMonitored(album).Should().BeTrue();
+        }
+
+        [Test]
         public void should_unmonitor_the_other_albums_when_one_is_deleted_during_the_scan()
         {
             var (deleted, _, deletedFiles) = GivenMonitoredAlbumWithFiles();

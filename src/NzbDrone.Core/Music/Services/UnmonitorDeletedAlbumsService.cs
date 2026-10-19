@@ -85,7 +85,14 @@ namespace NzbDrone.Core.Music
             // Lidarr deletes a file from disk before it drops it from the database, so one still on disk was not deleted.
             else if (message.Reason == DeleteMediaFileReason.Manual && !_diskProvider.FileExists(trackFile.Path))
             {
-                UnmonitorAlbumWithoutFiles(trackFile.AlbumId);
+                if (UnmonitorAlbumWithoutFiles(trackFile.AlbumId))
+                {
+                    // Deleting its last file decided the album, so what scans found missing from it is not decided again.
+                    lock (_missingFromDisk)
+                    {
+                        _missingFromDisk.Remove(trackFile.AlbumId);
+                    }
+                }
             }
         }
 
@@ -152,7 +159,8 @@ namespace NzbDrone.Core.Music
             }
         }
 
-        private void UnmonitorAlbumWithoutFiles(int albumId)
+        // Whether the album is decided: deleted, or without files and so unmonitored.
+        private bool UnmonitorAlbumWithoutFiles(int albumId)
         {
             Album album;
 
@@ -163,16 +171,21 @@ namespace NzbDrone.Core.Music
             catch (ModelNotFoundException)
             {
                 // Deleted since its files went missing.
-                return;
+                return true;
             }
 
-            if (!album.Monitored || _mediaFileService.AlbumHasFiles(album.Id))
+            if (_mediaFileService.AlbumHasFiles(album.Id))
             {
-                return;
+                return false;
             }
 
-            _logger.Info("Unmonitoring album {0}, its files were deleted from disk", album);
-            _albumService.SetMonitored(new List<int> { album.Id }, false);
+            if (album.Monitored)
+            {
+                _logger.Info("Unmonitoring album {0}, its files were deleted from disk", album);
+                _albumService.SetMonitored(new List<int> { album.Id }, false);
+            }
+
+            return true;
         }
     }
 }

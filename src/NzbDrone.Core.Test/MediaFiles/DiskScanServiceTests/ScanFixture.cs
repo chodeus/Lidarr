@@ -11,8 +11,11 @@ using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.DecisionEngine;
+using NzbDrone.Core.Download;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.MediaFiles.TrackImport;
+using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
@@ -559,6 +562,27 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
                                           l[0].Quality.Equals(localTrack.Quality) &&
                                           l[0].MediaInfo.AudioFormat == localTrack.FileTrackInfo.MediaInfo.AudioFormat)),
                         Times.Once());
+        }
+
+        [Test]
+        public void should_report_the_scan_completed_after_importing_files()
+        {
+            GivenArtistFolder();
+            GivenFiles(new List<string> { Path.Combine(_artist.Path, "file1.flac") });
+
+            var steps = new List<string>();
+
+            Mocker.GetMock<IImportApprovedTracks>()
+                .Setup(s => s.Import(It.IsAny<List<ImportDecision<LocalTrack>>>(), It.IsAny<bool>(), It.IsAny<DownloadClientItem>(), It.IsAny<ImportMode>()))
+                .Callback(() => steps.Add("import"));
+
+            Mocker.GetMock<IEventAggregator>()
+                .Setup(s => s.PublishEvent(It.IsAny<DiskScanCompletedEvent>()))
+                .Callback(() => steps.Add("completed"));
+
+            Subject.Scan(new List<string> { _artist.Path });
+
+            steps.Should().Equal("import", "completed");
         }
     }
 }

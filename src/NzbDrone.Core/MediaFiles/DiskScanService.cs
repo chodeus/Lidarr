@@ -245,6 +245,8 @@ namespace NzbDrone.Core.MediaFiles
                 CompletedScanning(artist);
             }
 
+            _eventAggregator.PublishEvent(new DiskScanCompletedEvent());
+
             importStopwatch.Stop();
             _logger.Debug("Track import complete for:\n{0} [{1}]", folders.ConcatToString("\n"), importStopwatch.Elapsed);
         }

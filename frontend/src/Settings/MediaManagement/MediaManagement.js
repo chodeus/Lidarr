@@ -320,6 +320,20 @@ class MediaManagement extends Component {
                 <FieldSet
                   legend={translate('FileManagement')}
                 >
+                  <FormGroup size={sizes.MEDIUM}>
+                    <FormLabel>
+                      {translate('UnmonitorDeletedAlbums')}
+                    </FormLabel>
+
+                    <FormInputGroup
+                      type={inputTypes.CHECK}
+                      name="autoUnmonitorPreviouslyDownloadedTracks"
+                      helpText={translate('UnmonitorDeletedAlbumsHelpText')}
+                      onChange={onInputChange}
+                      {...settings.autoUnmonitorPreviouslyDownloadedTracks}
+                    />
+                  </FormGroup>
+
                   <FormGroup
                     advancedSettings={advancedSettings}
                     isAdvanced={true}

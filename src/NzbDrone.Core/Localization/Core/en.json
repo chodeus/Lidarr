@@ -1334,6 +1334,8 @@
   "Unlimited": "Unlimited",
   "UnmappedFiles": "Unmapped Files",
   "UnmappedFilesOnly": "Unmapped Files Only",
+  "UnmonitorDeletedAlbums": "Unmonitor Deleted Albums",
+  "UnmonitorDeletedAlbumsHelpText": "Albums are automatically unmonitored in {appName} when all of their files are deleted from disk",
   "Unmonitored": "Unmonitored",
   "UnmonitoredHelpText": "Include unmonitored albums in the iCal feed",
   "UnmonitoredOnly": "Unmonitored Only",

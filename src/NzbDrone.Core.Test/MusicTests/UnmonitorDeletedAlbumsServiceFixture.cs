@@ -241,6 +241,19 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
+        public void should_keep_album_monitored_when_a_scan_drops_files_still_on_disk()
+        {
+            // Scans skip some folders, such as Extras, and drop the files in them from the database as if missing.
+            GivenFilesStillOnDisk();
+            var (album, _, files) = GivenMonitoredAlbumWithFiles();
+
+            DeleteFiles(files, DeleteMediaFileReason.MissingFromDisk);
+            CompleteScan();
+
+            IsMonitored(album).Should().BeTrue();
+        }
+
+        [Test]
         public void should_keep_album_monitored_when_its_root_folder_is_removed()
         {
             // Removing a root folder drops its files from the database in the background and leaves them where they are,
@@ -323,6 +336,27 @@ namespace NzbDrone.Core.Test.MusicTests
             DeleteFiles(files, DeleteMediaFileReason.MissingFromDisk);
             CompleteScan();
 
+            IsMonitored(album).Should().BeFalse();
+        }
+
+        [Test]
+        public void should_unmonitor_album_missing_from_two_root_folders_once_each_has_been_scanned_in_full()
+        {
+            // The folder watcher scans only the root folders it saw changes in, and adding a root folder only that one.
+            Db.Insert(Builder<RootFolder>.CreateNew()
+                .With(r => r.Id = 0)
+                .With(r => r.Path = _otherRootFolderPath)
+                .Build());
+            var (album, _, files) = GivenMonitoredAlbumWithFiles();
+            files[1].Path = Path.Combine(_otherRootFolderPath, "Artist", "Album", Path.GetFileName(files[1].Path));
+            Db.Update(files[1]);
+
+            DeleteFiles(files, DeleteMediaFileReason.MissingFromDisk);
+
+            CompleteScanOf(_rootFolderPath);
+            IsMonitored(album).Should().BeTrue();
+
+            CompleteScanOf(_otherRootFolderPath);
             IsMonitored(album).Should().BeFalse();
         }
 

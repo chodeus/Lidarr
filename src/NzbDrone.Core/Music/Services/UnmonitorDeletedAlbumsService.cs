@@ -34,9 +34,10 @@ namespace NzbDrone.Core.Music
         private readonly IDiskProvider _diskProvider;
         private readonly Logger _logger;
 
-        // Folders that held the files disk scans found missing, by album. A scan can import the files again from
-        // anywhere in their root folder, so an album is only unmonitored once a scan of that whole root folder completes.
-        private readonly Dictionary<int, HashSet<string>> _missingFromDisk = new Dictionary<int, HashSet<string>>();
+        // Folders that held the files disk scans found missing, by album, and whether a scan of the whole root folder each is
+        // in has completed since. A scan can import the files again from anywhere in their root folder, so an album is only
+        // decided once all its folders have been covered.
+        private readonly Dictionary<int, Dictionary<string, bool>> _missingFromDisk = new Dictionary<int, Dictionary<string, bool>>();
 
         public UnmonitorDeletedAlbumsService(IAlbumService albumService,
                                              IMediaFileService mediaFileService,
@@ -72,7 +73,8 @@ namespace NzbDrone.Core.Music
 
             var trackFile = message.TrackFile;
 
-            if (message.Reason == DeleteMediaFileReason.MissingFromDisk)
+            // Scans also drop the files in folders they skip, such as Extras, which are still on disk.
+            if (message.Reason == DeleteMediaFileReason.MissingFromDisk && !_diskProvider.FileExists(trackFile.Path))
             {
                 lock (_missingFromDisk)
                 {
@@ -85,11 +87,11 @@ namespace NzbDrone.Core.Music
 
                     if (!_missingFromDisk.TryGetValue(trackFile.AlbumId, out var folders))
                     {
-                        folders = new HashSet<string>(PathEqualityComparer.Instance);
+                        folders = new Dictionary<string, bool>(PathEqualityComparer.Instance);
                         _missingFromDisk.Add(trackFile.AlbumId, folders);
                     }
 
-                    folders.Add(trackFile.Path.GetParentPath());
+                    folders[trackFile.Path.GetParentPath()] = false;
                 }
             }
 
@@ -125,9 +127,17 @@ namespace NzbDrone.Core.Music
 
             lock (_missingFromDisk)
             {
+                // Root folders are often scanned one at a time, so what each scan covered counts until the rest is covered.
+                foreach (var folders in _missingFromDisk.Values)
+                {
+                    foreach (var folder in folders.Keys.Where(folder => message.RootFolders.Any(root => root.PathEquals(folder) || root.IsParentPath(folder))).ToList())
+                    {
+                        folders[folder] = true;
+                    }
+                }
+
                 albumIds = _missingFromDisk
-                    .Where(x => message.MatchedAlbumIds.Contains(x.Key) ||
-                                x.Value.All(folder => message.RootFolders.Any(root => root.PathEquals(folder) || root.IsParentPath(folder))))
+                    .Where(x => message.MatchedAlbumIds.Contains(x.Key) || x.Value.Values.All(scanned => scanned))
                     .Select(x => x.Key)
                     .ToList();
             }
@@ -155,7 +165,7 @@ namespace NzbDrone.Core.Music
                     }
                     catch (Exception e)
                     {
-                        // Such as the album being deleted meanwhile. The next scan of its root folder decides it again.
+                        // Such as the album being deleted meanwhile. The next scan decides it again.
                         _logger.Warn(e, "Couldn't decide whether to unmonitor album {0}", albumId);
                         continue;
                     }
@@ -178,7 +188,7 @@ namespace NzbDrone.Core.Music
 
             lock (_missingFromDisk)
             {
-                foreach (var albumId in _missingFromDisk.Where(x => x.Value.Any(folder => rootFolder.PathEquals(folder) || rootFolder.IsParentPath(folder))).Select(x => x.Key).ToList())
+                foreach (var albumId in _missingFromDisk.Where(x => x.Value.Keys.Any(folder => rootFolder.PathEquals(folder) || rootFolder.IsParentPath(folder))).Select(x => x.Key).ToList())
                 {
                     _missingFromDisk.Remove(albumId);
                 }

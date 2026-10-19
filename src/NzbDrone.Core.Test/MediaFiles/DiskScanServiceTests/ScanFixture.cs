@@ -650,5 +650,43 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
 
             completed.MatchedAlbumIds.Should().BeEquivalentTo(new[] { 5 });
         }
+
+        [Test]
+        public void should_report_the_albums_it_matched_files_to_when_a_later_step_of_the_scan_fails()
+        {
+            // The scan has recorded the files it did not import by then, and later scans skip them while they are unchanged.
+            GivenArtistFolder();
+            var file = Path.Combine(_artist.Path, "file1.flac");
+            GivenFiles(new List<string> { file });
+
+            var localTrack = Builder<LocalTrack>.CreateNew()
+                .With(x => x.Path = file)
+                .With(x => x.Album = new Album { Id = 5 })
+                .With(x => x.Quality = new QualityModel(Quality.FLAC))
+                .With(x => x.FileTrackInfo = new ParsedTrackInfo
+                {
+                    MediaInfo = Builder<MediaInfoModel>.CreateNew().Build()
+                })
+                .Build();
+
+            Mocker.GetMock<IMakeImportDecision>()
+                .Setup(x => x.GetImportDecisions(It.IsAny<List<IFileInfo>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerInfo>(), It.IsAny<ImportDecisionMakerConfig>()))
+                .Returns(new List<ImportDecision<LocalTrack>> { new ImportDecision<LocalTrack>(localTrack, new Rejection("Album match is not close enough")) });
+
+            DiskScanCompletedEvent completed = null;
+
+            Mocker.GetMock<IEventAggregator>()
+                .Setup(s => s.PublishEvent(It.IsAny<DiskScanCompletedEvent>()))
+                .Callback<DiskScanCompletedEvent>(e => completed = e);
+
+            // As when the database is locked.
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(s => s.Update(It.IsAny<List<TrackFile>>()))
+                .Throws(new InvalidOperationException("database is locked"));
+
+            Assert.Throws<InvalidOperationException>(() => Subject.Scan(new List<string> { _artist.Path }));
+
+            completed.MatchedAlbumIds.Should().BeEquivalentTo(new[] { 5 });
+        }
     }
 }

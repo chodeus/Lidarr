@@ -197,6 +197,11 @@ namespace NzbDrone.Core.MediaFiles
             var importStopwatch = Stopwatch.StartNew();
             _importApprovedTracks.Import(decisions, false);
 
+            // Before recording the files it did not import, which later scans skip while they are unchanged, so that
+            // what this scan matched is not lost if a later step fails.
+            var matchedAlbumIds = new HashSet<int>(decisions.Where(x => x.Item.Album != null).Select(x => x.Item.Album.Id));
+            _eventAggregator.PublishEvent(new DiskScanCompletedEvent(scannedRootFolders, matchedAlbumIds));
+
             // decisions may have been filtered to just new files.  Anything new and approved will have been inserted.
             // Now we need to make sure anything new but not approved gets inserted
             // Note that knownFiles will include anything imported just now
@@ -250,9 +255,6 @@ namespace NzbDrone.Core.MediaFiles
             {
                 CompletedScanning(artist);
             }
-
-            var matchedAlbumIds = new HashSet<int>(decisions.Where(x => x.Item.Album != null).Select(x => x.Item.Album.Id));
-            _eventAggregator.PublishEvent(new DiskScanCompletedEvent(scannedRootFolders, matchedAlbumIds));
 
             importStopwatch.Stop();
             _logger.Debug("Track import complete for:\n{0} [{1}]", folders.ConcatToString("\n"), importStopwatch.Elapsed);

@@ -28,3 +28,15 @@ Each test asserts the warnings and errors its path logs, so the fixtures also pa
 The new cases failed before their fixes, and 41 mutations of the change each fail a test.
 
 Full Core suite: 3,277 pass. Merged after `fix/unmapped-duplicates` among the custom build's other 43 branches, it merges cleanly and builds, the image's plugin check passes, and the Core suite there passes 4,125 and fails only the three hardlink tests in `AudioTagServiceFixture`, which this branch doesn't touch.
+
+## Summary by CodeRabbit
+
+- **New Features**
+  - Improved album upgrades by temporarily preserving existing track files, lyrics, metadata, and extras during imports.
+  - Release switching now occurs only after new files are successfully imported.
+  - Previous files are automatically recycled after successful replacements.
+  - Added safer handling for interrupted, empty, or partially failed imports, restoring previous files and related information when possible.
+
+- **Bug Fixes**
+  - Improved recovery from import failures, file collisions, missing files, and database or filesystem errors.
+  - Added collision-safe backup handling and improved cleanup of temporary replacement files.

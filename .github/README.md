@@ -1,6 +1,6 @@
 # Fixed: A refresh no longer undoes changes saved while it runs
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. It is stacked on `fix/keep-unlisted-metadata` and merges after it. Reviewed in [#PR_NUMBER](https://github.com/chodeus/Lidarr/pull/PR_NUMBER).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. It is stacked on `fix/keep-unlisted-metadata` and merges after it. Reviewed in [#55](https://github.com/chodeus/Lidarr/pull/55).
 
 An artist refresh reads the artist, asks the metadata source for it, refreshes every one of its albums, and then saved the whole artist it read first. Anything saved to the artist in the meantime was put back: a monitoring, profile or tag change from the API or the UI, or a move to another folder. A full refresh can take minutes per artist with many albums, and refresh commands run alongside moves, imports, searches and edits.
 

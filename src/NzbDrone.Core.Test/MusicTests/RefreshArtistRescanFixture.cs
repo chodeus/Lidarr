@@ -94,6 +94,46 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
+        public void should_rescan_root_folders_when_a_new_artist_was_merged_away()
+        {
+            var duplicate = GivenArtist("artist-old");
+            var target = GivenArtist("artist-target");
+            var other = GivenArtist("artist-other");
+            GivenLookup("artist-old", target);
+            GivenLookup("artist-other", other);
+
+            Subject.Execute(new RefreshArtistCommand(new List<int> { duplicate.Id, other.Id }, true));
+
+            ExceptionVerification.ExpectedWarns(1);
+            var rescan = _rescans.Should().ContainSingle().Subject;
+            new { rescan.Folders, rescan.ArtistIds }.Should().BeEquivalentTo(new { Folders = new List<string> { "/music".AsOsAgnostic() }, ArtistIds = new List<int> { other.Id } });
+        }
+
+        [Test]
+        public void should_rescan_a_new_artist_in_its_own_folder()
+        {
+            var artist = GivenArtist("artist-1");
+            GivenLookup("artist-1", artist);
+
+            Subject.Execute(new RefreshArtistCommand(new List<int> { artist.Id }, true));
+
+            _rescans.Should().ContainSingle().Which.Folders.Should().Equal(artist.Path);
+        }
+
+        [Test]
+        public void should_scan_an_artist_named_twice_once()
+        {
+            var artist = GivenArtist("artist-1");
+            GivenLookup("artist-1", artist);
+
+            Subject.Execute(new RefreshArtistCommand(new List<int> { artist.Id, artist.Id }) { Trigger = CommandTrigger.Manual });
+
+            var rescan = _rescans.Should().ContainSingle().Subject;
+            new { rescan.Folders, rescan.ArtistIds }.Should().BeEquivalentTo(new { Folders = new List<string> { artist.Path }, ArtistIds = new List<int> { artist.Id } });
+            _artistService.GetArtists(rescan.ArtistIds).Should().ContainSingle();
+        }
+
+        [Test]
         public void should_rescan_only_the_artists_folders_when_every_refreshed_artist_is_still_stored()
         {
             var artist = GivenArtist("artist-1");

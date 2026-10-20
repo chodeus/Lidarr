@@ -302,10 +302,6 @@ namespace NzbDrone.Core.Music
             {
                 _logger.Trace("Forcing rescan. Reason: New artist added");
                 shouldRescan = true;
-
-                // only rescan artist folders - otherwise it can be super slow for
-                // badly organized / partly matched libraries
-                folders = artists.Select(x => x.Path).ToList();
             }
             else if (rescanAfterRefresh == RescanAfterRefreshType.Never)
             {
@@ -364,7 +360,7 @@ namespace NzbDrone.Core.Music
             var stored = _artistService.AllArtistPaths();
             var allStillExist = artistIds.All(stored.ContainsKey);
 
-            RescanArtists(artists.Where(a => stored.ContainsKey(a.Id)).ToList(), isNew, allStillExist, trigger, updated);
+            RescanArtists(artists.Where(a => stored.ContainsKey(a.Id)).DistinctBy(a => a.Id).ToList(), isNew, allStillExist, trigger, updated);
         }
 
         private void UpdateTags(Artist artist)

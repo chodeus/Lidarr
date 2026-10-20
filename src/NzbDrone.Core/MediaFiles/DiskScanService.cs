@@ -83,9 +83,9 @@ namespace NzbDrone.Core.MediaFiles
                 artistIds = new List<int>();
             }
 
-            // GetArtists throws for an id that is gone or repeated, so an artist deleted after the scan was queued would fail it for all
+            // Read once, before any folder is cleaned: GetArtists throws for an id that is gone or repeated, and an artist can be deleted while the scan runs
             var storedArtists = artistIds.Any() ? _artistService.AllArtistPaths() : new Dictionary<int, string>();
-            artistIds = artistIds.Where(storedArtists.ContainsKey).Distinct().ToList();
+            var artists = _artistService.GetArtists(artistIds.Where(storedArtists.ContainsKey).Distinct().ToList());
 
             var mediaFileList = new List<IFileInfo>();
 
@@ -110,16 +110,14 @@ namespace NzbDrone.Core.MediaFiles
                     if (!_diskProvider.FolderExists(rootFolder.Path))
                     {
                         _logger.Warn("Artists' root folder ({0}) doesn't exist.", rootFolder.Path);
-                        var skippedArtists = _artistService.GetArtists(artistIds);
-                        skippedArtists.ForEach(x => _eventAggregator.PublishEvent(new ArtistScanSkippedEvent(x, ArtistScanSkippedReason.RootFolderDoesNotExist)));
+                        artists.ForEach(x => _eventAggregator.PublishEvent(new ArtistScanSkippedEvent(x, ArtistScanSkippedReason.RootFolderDoesNotExist)));
                         return;
                     }
 
                     if (_diskProvider.FolderEmpty(rootFolder.Path))
                     {
                         _logger.Warn("Artists' root folder ({0}) is empty.", rootFolder.Path);
-                        var skippedArtists = _artistService.GetArtists(artistIds);
-                        skippedArtists.ForEach(x => _eventAggregator.PublishEvent(new ArtistScanSkippedEvent(x, ArtistScanSkippedReason.RootFolderIsEmpty)));
+                        artists.ForEach(x => _eventAggregator.PublishEvent(new ArtistScanSkippedEvent(x, ArtistScanSkippedReason.RootFolderIsEmpty)));
                         return;
                     }
                 }
@@ -145,8 +143,6 @@ namespace NzbDrone.Core.MediaFiles
                 CleanMediaFiles(folder, files.Select(x => x.FullName).ToList());
                 mediaFileList.AddRange(files);
             }
-
-            var artists = _artistService.GetArtists(artistIds);
 
             // Check for missing artist folders if specific artists are being scanned
             if (artistIds != null && artistIds.Any())

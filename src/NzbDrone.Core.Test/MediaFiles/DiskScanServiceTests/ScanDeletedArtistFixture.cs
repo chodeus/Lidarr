@@ -79,6 +79,24 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
                   .Verify(v => v.GetImportDecisions(It.IsAny<List<IFileInfo>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerInfo>(), It.IsAny<ImportDecisionMakerConfig>()), Times.Once());
         }
 
+        // A delete through the API runs on a request thread, so it can land while the scan reads the disk
+        [Test]
+        public void should_scan_the_stored_artists_when_one_is_deleted_while_the_folders_are_read()
+        {
+            var other = GivenArtist("/music/Other Artist");
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.FolderExists(_rootFolder)).Returns(true);
+            Mocker.GetMock<IDiskProvider>()
+                  .Setup(s => s.GetFileInfos(_rootFolder, true))
+                  .Callback(() => Mocker.Resolve<IArtistService>().DeleteArtist(other.Id, false))
+                  .Returns(new List<IFileInfo>());
+
+            Subject.Scan(new List<string> { _rootFolder }, FilterFilesType.Known, false, new List<int> { _kept.Id, other.Id });
+
+            ExceptionVerification.ExpectedWarns(1);
+            Mocker.GetMock<IMakeImportDecision>()
+                  .Verify(v => v.GetImportDecisions(It.IsAny<List<IFileInfo>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerInfo>(), It.IsAny<ImportDecisionMakerConfig>()), Times.Once());
+        }
+
         [Test]
         public void should_report_only_stored_artists_as_skipped_when_the_root_folder_is_missing()
         {

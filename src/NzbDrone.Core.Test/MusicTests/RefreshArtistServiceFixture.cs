@@ -8,6 +8,7 @@ using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.History;
 using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Music.Commands;
@@ -49,6 +50,7 @@ namespace NzbDrone.Core.Test.MusicTests
 
             _artist = Builder<Artist>.CreateNew()
                 .With(a => a.Metadata = metadata)
+                .With(a => a.Path = @"C:\Test\Music\Artist Name".AsOsAgnostic())
                 .Build();
 
             Mocker.GetMock<IArtistService>(MockBehavior.Strict)
@@ -202,8 +204,8 @@ namespace NzbDrone.Core.Test.MusicTests
 
             Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
 
-            Mocker.GetMock<IArtistService>()
-                .Verify(v => v.UpdateRefreshedFields(It.Is<Artist>(s => s.Metadata.Value.Status == ArtistStatusType.Deleted)), Times.Once());
+            Mocker.GetMock<IEventAggregator>()
+                .Verify(v => v.PublishEvent(It.Is<ArtistUpdatedEvent>(e => e.Artist.Metadata.Value.Status == ArtistStatusType.Deleted)), Times.Once());
 
             Mocker.GetMock<IArtistService>()
                 .Verify(v => v.DeleteArtist(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
@@ -220,8 +222,8 @@ namespace NzbDrone.Core.Test.MusicTests
 
             Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
 
-            Mocker.GetMock<IArtistService>()
-                .Verify(v => v.UpdateRefreshedFields(It.Is<Artist>(s => s.Metadata.Value.Status == ArtistStatusType.Deleted)), Times.Once());
+            Mocker.GetMock<IEventAggregator>()
+                .Verify(v => v.PublishEvent(It.Is<ArtistUpdatedEvent>(e => e.Artist.Metadata.Value.Status == ArtistStatusType.Deleted)), Times.Once());
 
             Mocker.GetMock<IArtistService>()
                 .Verify(v => v.DeleteArtist(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
@@ -240,8 +242,8 @@ namespace NzbDrone.Core.Test.MusicTests
 
             Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
 
-            Mocker.GetMock<IArtistService>()
-                .Verify(v => v.UpdateRefreshedFields(It.Is<Artist>(s => s.Metadata.Value.Status == ArtistStatusType.Deleted)), Times.Once());
+            Mocker.GetMock<IEventAggregator>()
+                .Verify(v => v.PublishEvent(It.Is<ArtistUpdatedEvent>(e => e.Artist.Metadata.Value.Status == ArtistStatusType.Deleted)), Times.Once());
 
             ExceptionVerification.ExpectedErrors(2);
         }
@@ -257,8 +259,8 @@ namespace NzbDrone.Core.Test.MusicTests
 
             Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
 
-            Mocker.GetMock<IArtistService>()
-                .Verify(v => v.UpdateRefreshedFields(It.IsAny<Artist>()), Times.Never());
+            Mocker.GetMock<IEventAggregator>()
+                .Verify(v => v.PublishEvent(It.IsAny<ArtistUpdatedEvent>()), Times.Never());
 
             ExceptionVerification.ExpectedErrors(2);
         }

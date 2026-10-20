@@ -7,6 +7,7 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Cache;
 using NzbDrone.Core.AutoTagging;
+using NzbDrone.Core.AutoTagging.Specifications;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.ImportLists.Exclusions;
@@ -238,6 +239,57 @@ namespace NzbDrone.Core.Test.MusicTests
 
             Mocker.GetMock<IManageCommandQueue>()
                   .Verify(q => q.Push(It.Is<RescanFoldersCommand>(c => c.Folders.Single() == "/other/Artist Name".AsOsAgnostic()), It.IsAny<CommandPriority>(), It.IsAny<CommandTrigger>()), Times.Once());
+        }
+
+        [Test]
+        public void should_not_announce_an_artist_deleted_during_its_refresh()
+        {
+            var completed = new List<ArtistRefreshCompleteEvent>();
+            Mocker.GetMock<IEventAggregator>().Setup(s => s.PublishEvent(It.IsAny<ArtistRefreshCompleteEvent>())).Callback<ArtistRefreshCompleteEvent>(e => completed.Add(e));
+            GivenLookup(() => _artistService.DeleteArtist(_artist.Id, false));
+
+            Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
+
+            new { Updated = _updated.Count, Completed = completed.Count }.Should().BeEquivalentTo(new { Updated = 0, Completed = 0 });
+        }
+
+        [Test]
+        public void should_announce_the_stored_artist_when_the_lookup_finds_no_artist()
+        {
+            Mocker.GetMock<IProvideArtistInfo>()
+                  .Setup(s => s.GetArtistInfo(It.IsAny<string>(), It.IsAny<int>()))
+                  .Callback(EditArtist)
+                  .Throws(new ArtistNotFoundException("artist-1"));
+
+            Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
+
+            ExceptionVerification.ExpectedErrors(2);
+            _updated.Should().ContainSingle().Which.Artist.Should().Match<Artist>(a => !a.Monitored && a.Metadata.Value.Status == ArtistStatusType.Deleted);
+        }
+
+        // The real auto-tagging service over a "Status: Deleted" rule; the lookup's status is never stored
+        [Test]
+        public void should_auto_tag_an_artist_the_lookup_marks_deleted()
+        {
+            Mocker.GetMock<IRootFolderRepository>().Setup(s => s.All()).Returns(new List<RootFolder>());
+            Mocker.GetMock<IAutoTaggingRepository>().Setup(s => s.All()).Returns(new List<AutoTag>
+            {
+                new AutoTag
+                {
+                    Name = "Auto Tag Name",
+                    Specifications = new List<IAutoTaggingSpecification> { new StatusSpecification { Name = "Status", Status = (int)ArtistStatusType.Deleted } },
+                    Tags = new HashSet<int> { 5 }
+                }
+            });
+            Mocker.SetConstant<IAutoTaggingService>(Mocker.Resolve<AutoTaggingService>());
+            Mocker.GetMock<IProvideArtistInfo>()
+                  .Setup(s => s.GetArtistInfo(It.IsAny<string>(), It.IsAny<int>()))
+                  .Throws(new ArtistNotFoundException("artist-1"));
+
+            Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
+
+            ExceptionVerification.ExpectedErrors(2);
+            _artistService.GetArtist(_artist.Id).Tags.Should().Contain(5);
         }
 
         // Fails by name for a field the refresh sets but doesn't save, such as one added upstream

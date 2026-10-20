@@ -93,9 +93,8 @@ namespace NzbDrone.Core.Music
                 if (local.Metadata.Value.Status != ArtistStatusType.Deleted)
                 {
                     local.Metadata.Value.Status = ArtistStatusType.Deleted;
-                    _artistService.UpdateRefreshedFields(local);
                     _logger.Debug("Artist marked as deleted on MusicBrainz for {0}", local.Name);
-                    _eventAggregator.PublishEvent(new ArtistUpdatedEvent(local));
+                    PublishEntityUpdatedEvent(local);
                 }
 
                 _logger.Error($"Artist '{local.Name}' (mbid {local.Metadata.Value.ForeignArtistId}) was not found, it may have been removed from MusicBrainz.");
@@ -203,7 +202,7 @@ namespace NzbDrone.Core.Music
             // Tidied on a fresh read, so a move saved during the refresh keeps its path
             var stored = Stored(local);
 
-            if (stored != local)
+            if (stored != null)
             {
                 TidyPath(stored);
             }
@@ -227,20 +226,23 @@ namespace NzbDrone.Core.Music
             if (path != artist.Path)
             {
                 artist.Path = path;
-                _artistService.UpdateArtist(artist, publishUpdatedEvent: false);
+                _artistService.UpdateArtistPath(artist);
             }
         }
 
-        // The refresh works on a copy read before its lookup; anything that reports or saves the artist afterwards reads it again
+        // The refresh works on a copy read before its lookup, so what reports or saves the artist afterwards reads it again, keeping
+        // the refresh's metadata (its not-found status is never stored); null once the artist is deleted
         private Artist Stored(Artist artist)
         {
             try
             {
-                return _artistService.GetArtist(artist.Id);
+                var stored = _artistService.GetArtist(artist.Id);
+                stored.Metadata = artist.Metadata;
+                return stored;
             }
             catch (ModelNotFoundException)
             {
-                return artist;
+                return null;
             }
         }
 
@@ -312,12 +314,22 @@ namespace NzbDrone.Core.Music
 
         protected override void PublishEntityUpdatedEvent(Artist entity)
         {
-            _eventAggregator.PublishEvent(new ArtistUpdatedEvent(Stored(entity)));
+            var stored = Stored(entity);
+
+            if (stored != null)
+            {
+                _eventAggregator.PublishEvent(new ArtistUpdatedEvent(stored));
+            }
         }
 
         protected override void PublishRefreshCompleteEvent(Artist entity)
         {
-            _eventAggregator.PublishEvent(new ArtistRefreshCompleteEvent(Stored(entity)));
+            var stored = Stored(entity);
+
+            if (stored != null)
+            {
+                _eventAggregator.PublishEvent(new ArtistRefreshCompleteEvent(stored));
+            }
         }
 
         protected override void PublishChildrenUpdatedEvent(Artist entity, List<Album> newChildren, List<Album> updateChildren, List<Album> removedChildren)
@@ -383,8 +395,12 @@ namespace NzbDrone.Core.Music
                     updated |= RefreshEntityInfo(artist, null, true, false, null);
 
                     artist = Stored(artist);
-                    UpdateTags(artist);
-                    artists.Add(artist);
+
+                    if (artist != null)
+                    {
+                        UpdateTags(artist);
+                        artists.Add(artist);
+                    }
                 }
                 catch (Exception e)
                 {
@@ -400,6 +416,11 @@ namespace NzbDrone.Core.Music
 
         private void UpdateTags(Artist artist)
         {
+            if (artist == null)
+            {
+                return;
+            }
+
             _logger.Trace("Updating tags for {0}", artist);
 
             var tagsAdded = new HashSet<int>();

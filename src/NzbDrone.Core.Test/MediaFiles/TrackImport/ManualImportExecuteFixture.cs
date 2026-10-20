@@ -147,6 +147,39 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport
             _trackedDownload.State.Should().Be(TrackedDownloadState.Downloading);
         }
 
+        private static RemoteAlbum GivenRemoteAlbum(int trackCount)
+        {
+            var album = new Album { AlbumReleases = new List<AlbumRelease> { new AlbumRelease { Monitored = true, TrackCount = trackCount } } };
+
+            return new RemoteAlbum { Albums = new List<Album> { album } };
+        }
+
+        // A torrent stalled on a non-audio file reports Warning with every track it was grabbed for already there
+        [Test]
+        public void should_mark_an_unfinished_download_imported_once_every_grabbed_track_is_in()
+        {
+            _downloadItem.Status = DownloadItemStatus.Warning;
+            _trackedDownload.State = TrackedDownloadState.ImportBlocked;
+            _trackedDownload.RemoteAlbum = GivenRemoteAlbum(1);
+
+            Execute(GivenFile("download-1", 1));
+
+            Mocker.GetMock<IDiskProvider>().Verify(s => s.DeleteFolder(It.IsAny<string>(), It.IsAny<bool>()), Times.Never());
+            _trackedDownload.State.Should().Be(TrackedDownloadState.Imported);
+        }
+
+        [Test]
+        public void should_keep_tracking_an_unfinished_download_while_grabbed_tracks_are_missing()
+        {
+            _downloadItem.Status = DownloadItemStatus.Downloading;
+            _trackedDownload.State = TrackedDownloadState.Downloading;
+            _trackedDownload.RemoteAlbum = GivenRemoteAlbum(2);
+
+            Execute(GivenFile("download-1", 1));
+
+            _trackedDownload.State.Should().Be(TrackedDownloadState.Downloading);
+        }
+
         // Usenet clients report a queued item with no output path
         [Test]
         public void should_not_throw_for_a_queued_download_without_an_output_path()

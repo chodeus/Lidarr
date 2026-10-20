@@ -421,7 +421,10 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
                 else
                 {
                     var trackedDownload = _trackedDownloadService.Find(downloadId);
-                    var importResults = _importApprovedTracks.Import(albumImportDecisions, message.ReplaceExistingFiles, trackedDownload?.DownloadItem, message.ImportMode);
+
+                    // The tracked-download cache can miss a download still seeding, such as after a restart, so Auto copies instead of moving
+                    var importMode = trackedDownload == null && message.ImportMode == ImportMode.Auto ? ImportMode.Copy : message.ImportMode;
+                    var importResults = _importApprovedTracks.Import(albumImportDecisions, message.ReplaceExistingFiles, trackedDownload?.DownloadItem, importMode);
 
                     imported.AddRange(importResults);
 
@@ -449,14 +452,13 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
                 var trackedDownload = groupedTrackedDownload.First().TrackedDownload;
                 var importArtist = groupedTrackedDownload.First().ImportResult.ImportDecision.Item.Artist;
 
-                // Its folder is still in use, and Imported would end its tracking; completed-download handling waits for Completed too
-                if (trackedDownload.DownloadItem.Status != DownloadItemStatus.Completed)
-                {
-                    _logger.Debug("Not finishing download {0} after its manual import: its client hasn't completed it", trackedDownload.DownloadItem.Title);
-                    continue;
-                }
+                var completed = trackedDownload.DownloadItem.Status == DownloadItemStatus.Completed;
 
-                CleanUpDownloadFolder(trackedDownload, importArtist);
+                // An unfinished download's folder is still in use; completed-download handling waits for Completed too
+                if (completed)
+                {
+                    CleanUpDownloadFolder(trackedDownload, importArtist);
+                }
 
                 var remoteTrackCount = Math.Max(1, trackedDownload.RemoteAlbum?.Albums.Sum(x => x.AlbumReleases.Value.Where(y => y.Monitored).Sum(z => z.TrackCount)) ?? 1);
 
@@ -467,7 +469,10 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
 
                 var allTracksImported = (importResults.Any() && importResults.All(c => c.Result == ImportResultType.Imported)) || importedTrackCount >= remoteTrackCount;
 
-                if (allTracksImported)
+                // Imported ends the tracking, so an unfinished download, such as a torrent stalled on a non-audio file, needs every track it was grabbed for
+                var finished = completed ? allTracksImported : trackedDownload.RemoteAlbum != null && importedTrackCount >= remoteTrackCount;
+
+                if (finished)
                 {
                     trackedDownload.State = TrackedDownloadState.Imported;
                     _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload, importArtist.Id));

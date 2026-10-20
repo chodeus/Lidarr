@@ -110,7 +110,7 @@ namespace NzbDrone.Core.Test.MusicTests
             Subject.RefreshAlbumInfo(_albums, null, false, false, null);
 
             Mocker.GetMock<IAlbumService>()
-                .Verify(v => v.UpdateMany(It.Is<List<Album>>(s => s.First().ForeignAlbumId == newAlbumInfo.ForeignAlbumId)));
+                .Verify(v => v.UpdateRefreshedFields(It.Is<List<Album>>(s => s.First().ForeignAlbumId == newAlbumInfo.ForeignAlbumId)));
         }
 
         [Test]
@@ -162,7 +162,7 @@ namespace NzbDrone.Core.Test.MusicTests
 
             // check that clash gets updated
             Mocker.GetMock<IAlbumService>()
-                .Verify(v => v.UpdateMany(It.Is<List<Album>>(s => s.First().ForeignAlbumId == newAlbumInfo.ForeignAlbumId)));
+                .Verify(v => v.UpdateRefreshedFields(It.Is<List<Album>>(s => s.First().ForeignAlbumId == newAlbumInfo.ForeignAlbumId)));
 
             ExceptionVerification.ExpectedWarns(1);
         }
@@ -349,7 +349,7 @@ namespace NzbDrone.Core.Test.MusicTests
             Subject.RefreshAlbumInfo(_albums, null, false, false, null);
 
             Mocker.GetMock<IAlbumService>()
-                .Verify(v => v.UpdateMany(It.Is<List<Album>>(s => s.First().MetadataMissingSince == null)));
+                .Verify(v => v.UpdateRefreshedFields(It.Is<List<Album>>(s => s.First().MetadataMissingSince == null)));
             Mocker.GetMock<IEventAggregator>()
                 .Verify(v => v.PublishEvent(It.IsAny<AlbumUpdatedEvent>()), Times.Once());
         }

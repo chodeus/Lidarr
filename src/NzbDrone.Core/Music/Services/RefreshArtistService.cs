@@ -8,6 +8,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.AutoTagging;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.History;
 using NzbDrone.Core.ImportLists.Exclusions;
@@ -92,7 +93,7 @@ namespace NzbDrone.Core.Music
                 if (local.Metadata.Value.Status != ArtistStatusType.Deleted)
                 {
                     local.Metadata.Value.Status = ArtistStatusType.Deleted;
-                    _artistService.UpdateArtist(local);
+                    _artistService.UpdateRefreshedFields(local);
                     _logger.Debug("Artist marked as deleted on MusicBrainz for {0}", local.Name);
                     _eventAggregator.PublishEvent(new ArtistUpdatedEvent(local));
                 }
@@ -130,16 +131,6 @@ namespace NzbDrone.Core.Music
             local.UseMetadataFrom(remote);
             local.Metadata = remote.Metadata;
             local.LastInfoSync = DateTime.UtcNow;
-
-            try
-            {
-                local.Path = new DirectoryInfo(local.Path).FullName;
-                local.Path = local.Path.GetActualCasing();
-            }
-            catch (Exception e)
-            {
-                _logger.Warn(e, "Couldn't update artist path for " + local.Path);
-            }
 
             return result;
         }
@@ -207,7 +198,50 @@ namespace NzbDrone.Core.Music
 
         protected override void SaveEntity(Artist local)
         {
-            _artistService.UpdateArtist(local, publishUpdatedEvent: false);
+            _artistService.UpdateRefreshedFields(local);
+
+            // Tidied on a fresh read, so a move saved during the refresh keeps its path
+            var stored = Stored(local);
+
+            if (stored != local)
+            {
+                TidyPath(stored);
+            }
+        }
+
+        private void TidyPath(Artist artist)
+        {
+            var path = artist.Path;
+
+            try
+            {
+                path = new DirectoryInfo(path).FullName;
+                path = path.GetActualCasing();
+            }
+            catch (Exception e)
+            {
+                _logger.Warn(e, "Couldn't update artist path for " + artist.Path);
+                return;
+            }
+
+            if (path != artist.Path)
+            {
+                artist.Path = path;
+                _artistService.UpdateArtist(artist, publishUpdatedEvent: false);
+            }
+        }
+
+        // The refresh works on a copy read before its lookup; anything that reports or saves the artist afterwards reads it again
+        private Artist Stored(Artist artist)
+        {
+            try
+            {
+                return _artistService.GetArtist(artist.Id);
+            }
+            catch (ModelNotFoundException)
+            {
+                return artist;
+            }
         }
 
         protected override void DeleteEntity(Artist local, bool deleteFiles)
@@ -278,12 +312,12 @@ namespace NzbDrone.Core.Music
 
         protected override void PublishEntityUpdatedEvent(Artist entity)
         {
-            _eventAggregator.PublishEvent(new ArtistUpdatedEvent(entity));
+            _eventAggregator.PublishEvent(new ArtistUpdatedEvent(Stored(entity)));
         }
 
         protected override void PublishRefreshCompleteEvent(Artist entity)
         {
-            _eventAggregator.PublishEvent(new ArtistRefreshCompleteEvent(entity));
+            _eventAggregator.PublishEvent(new ArtistRefreshCompleteEvent(Stored(entity)));
         }
 
         protected override void PublishChildrenUpdatedEvent(Artist entity, List<Album> newChildren, List<Album> updateChildren, List<Album> removedChildren)
@@ -347,6 +381,8 @@ namespace NzbDrone.Core.Music
                 {
                     var artist = _artistService.GetArtist(artistId);
                     updated |= RefreshEntityInfo(artist, null, true, false, null);
+
+                    artist = Stored(artist);
                     UpdateTags(artist);
                     artists.Add(artist);
                 }
@@ -440,12 +476,12 @@ namespace NzbDrone.Core.Music
                             _logger.Error(e, "Couldn't refresh info for Artist '{0}' [{1}]", artistLocal.Name, artistLocal.ForeignArtistId);
                         }
 
-                        UpdateTags(artistLocal);
+                        UpdateTags(Stored(artistLocal));
                     }
                     else
                     {
                         _logger.Info("Skipping refresh of Artist '{0}' [{1}]", artistLocal.Name, artistLocal.ForeignArtistId);
-                        UpdateTags(artistLocal);
+                        UpdateTags(Stored(artistLocal));
                     }
                 }
 

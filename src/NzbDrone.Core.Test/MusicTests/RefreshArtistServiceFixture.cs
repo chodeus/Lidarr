@@ -125,6 +125,9 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IArtistService>(MockBehavior.Strict)
                 .Setup(x => x.UpdateArtist(It.IsAny<Artist>(), false))
                 .Returns((Artist a, bool publishEvent) => a);
+
+            Mocker.GetMock<IArtistService>(MockBehavior.Strict)
+                .Setup(x => x.UpdateRefreshedFields(It.IsAny<Artist>()));
         }
 
         [Test]
@@ -200,7 +203,7 @@ namespace NzbDrone.Core.Test.MusicTests
             Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
 
             Mocker.GetMock<IArtistService>()
-                .Verify(v => v.UpdateArtist(It.Is<Artist>(s => s.Metadata.Value.Status == ArtistStatusType.Deleted), true), Times.Once());
+                .Verify(v => v.UpdateRefreshedFields(It.Is<Artist>(s => s.Metadata.Value.Status == ArtistStatusType.Deleted)), Times.Once());
 
             Mocker.GetMock<IArtistService>()
                 .Verify(v => v.DeleteArtist(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
@@ -218,7 +221,7 @@ namespace NzbDrone.Core.Test.MusicTests
             Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
 
             Mocker.GetMock<IArtistService>()
-                .Verify(v => v.UpdateArtist(It.Is<Artist>(s => s.Metadata.Value.Status == ArtistStatusType.Deleted), true), Times.Once());
+                .Verify(v => v.UpdateRefreshedFields(It.Is<Artist>(s => s.Metadata.Value.Status == ArtistStatusType.Deleted)), Times.Once());
 
             Mocker.GetMock<IArtistService>()
                 .Verify(v => v.DeleteArtist(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
@@ -238,7 +241,7 @@ namespace NzbDrone.Core.Test.MusicTests
             Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
 
             Mocker.GetMock<IArtistService>()
-                .Verify(v => v.UpdateArtist(It.Is<Artist>(s => s.Metadata.Value.Status == ArtistStatusType.Deleted), It.IsAny<bool>()), Times.Once());
+                .Verify(v => v.UpdateRefreshedFields(It.Is<Artist>(s => s.Metadata.Value.Status == ArtistStatusType.Deleted)), Times.Once());
 
             ExceptionVerification.ExpectedErrors(2);
         }
@@ -255,7 +258,7 @@ namespace NzbDrone.Core.Test.MusicTests
             Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
 
             Mocker.GetMock<IArtistService>()
-                .Verify(v => v.UpdateArtist(It.IsAny<Artist>(), It.IsAny<bool>()), Times.Never());
+                .Verify(v => v.UpdateRefreshedFields(It.IsAny<Artist>()), Times.Never());
 
             ExceptionVerification.ExpectedErrors(2);
         }
@@ -280,8 +283,7 @@ namespace NzbDrone.Core.Test.MusicTests
             // Make sure that the artist is updated before we refresh the albums
             Mocker.GetMock<IArtistService>(MockBehavior.Strict)
                 .InSequence(seq)
-                .Setup(x => x.UpdateArtist(It.IsAny<Artist>(), It.IsAny<bool>()))
-                .Returns((Artist a, bool updated) => a);
+                .Setup(x => x.UpdateRefreshedFields(It.IsAny<Artist>()));
 
             Mocker.GetMock<IAlbumService>(MockBehavior.Strict)
                 .InSequence(seq)
@@ -291,13 +293,12 @@ namespace NzbDrone.Core.Test.MusicTests
             // Update called twice for a move/merge
             Mocker.GetMock<IArtistService>(MockBehavior.Strict)
                 .InSequence(seq)
-                .Setup(x => x.UpdateArtist(It.IsAny<Artist>(), It.IsAny<bool>()))
-                .Returns((Artist a, bool updated) => a);
+                .Setup(x => x.UpdateRefreshedFields(It.IsAny<Artist>()));
 
             Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
 
             Mocker.GetMock<IArtistService>()
-                .Verify(v => v.UpdateArtist(It.Is<Artist>(s => s.ArtistMetadataId == 100 && s.ForeignArtistId == newArtistInfo.ForeignArtistId), It.IsAny<bool>()),
+                .Verify(v => v.UpdateRefreshedFields(It.Is<Artist>(s => s.ArtistMetadataId == 100 && s.ForeignArtistId == newArtistInfo.ForeignArtistId)),
                         Times.Exactly(2));
         }
 
@@ -314,6 +315,10 @@ namespace NzbDrone.Core.Test.MusicTests
 
             Mocker.GetMock<IArtistService>(MockBehavior.Strict)
                 .Setup(x => x.FindById(clash.Metadata.Value.ForeignArtistId))
+                .Returns(clash);
+
+            Mocker.GetMock<IArtistService>(MockBehavior.Strict)
+                .Setup(x => x.GetArtist(clash.Id))
                 .Returns(clash);
 
             var newArtistInfo = clash.JsonClone();
@@ -340,8 +345,7 @@ namespace NzbDrone.Core.Test.MusicTests
 
             Mocker.GetMock<IArtistService>(MockBehavior.Strict)
                 .InSequence(seq)
-                .Setup(x => x.UpdateArtist(It.Is<Artist>(a => a.Id == clash.Id), It.IsAny<bool>()))
-                .Returns((Artist a, bool updated) => a);
+                .Setup(x => x.UpdateRefreshedFields(It.Is<Artist>(a => a.Id == clash.Id)));
 
             Mocker.GetMock<IAlbumService>(MockBehavior.Strict)
                 .InSequence(seq)
@@ -351,14 +355,13 @@ namespace NzbDrone.Core.Test.MusicTests
             // Update called twice for a move/merge
             Mocker.GetMock<IArtistService>(MockBehavior.Strict)
                 .InSequence(seq)
-                .Setup(x => x.UpdateArtist(It.IsAny<Artist>(), It.IsAny<bool>()))
-                .Returns((Artist a, bool updated) => a);
+                .Setup(x => x.UpdateRefreshedFields(It.IsAny<Artist>()));
 
             Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
 
             // the retained artist gets updated
             Mocker.GetMock<IArtistService>()
-                .Verify(v => v.UpdateArtist(It.Is<Artist>(s => s.Id == clash.Id), It.IsAny<bool>()), Times.Exactly(2));
+                .Verify(v => v.UpdateRefreshedFields(It.Is<Artist>(s => s.Id == clash.Id)), Times.Exactly(2));
 
             // the old one gets removed
             Mocker.GetMock<IArtistService>()

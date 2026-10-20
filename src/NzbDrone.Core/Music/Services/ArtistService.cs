@@ -27,6 +27,13 @@ namespace NzbDrone.Core.Music
         Dictionary<int, List<int>> GetAllArtistsTags();
         List<Artist> AllForTag(int tagId);
         Artist UpdateArtist(Artist artist, bool publishUpdatedEvent = true);
+
+        // Only the fields a refresh sets, so a change saved while it ran stays; the default body saves the whole artist, as develop does
+        void UpdateRefreshedFields(Artist artist)
+        {
+            UpdateArtist(artist, false);
+        }
+
         List<Artist> UpdateArtists(List<Artist> artist, bool useExistingRelativeFolder);
         Dictionary<int, string> AllArtistPaths();
         bool ArtistPathExists(string folder);
@@ -237,6 +244,12 @@ namespace NzbDrone.Core.Music
             }
 
             return updatedArtist;
+        }
+
+        public void UpdateRefreshedFields(Artist artist)
+        {
+            _cache.Clear();
+            _artistRepository.SetFields(artist, a => a.ArtistMetadataId, a => a.CleanName, a => a.SortName, a => a.LastInfoSync);
         }
 
         public List<Artist> UpdateArtists(List<Artist> artist, bool useExistingRelativeFolder)

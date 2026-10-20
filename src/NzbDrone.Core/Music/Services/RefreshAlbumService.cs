@@ -276,8 +276,8 @@ namespace NzbDrone.Core.Music
 
         protected override void SaveEntity(Album local)
         {
-            // Use UpdateMany to avoid firing the album edited event
-            _albumService.UpdateMany(new List<Album> { local });
+            // Field by field, so monitoring, profile or search time saved while the refresh ran stays; and no album edited event
+            _albumService.UpdateRefreshedFields(new List<Album> { local });
         }
 
         protected override void DeleteEntity(Album local, bool deleteFiles)

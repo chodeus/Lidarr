@@ -50,6 +50,13 @@ namespace NzbDrone.Core.Music
         List<Album> ArtistAlbumsBetweenDates(Artist artist, DateTime start, DateTime end, bool includeUnmonitored);
         void InsertMany(List<Album> albums);
         void UpdateMany(List<Album> albums);
+
+        // Only the fields a refresh sets, so a change saved while it ran stays; the default body saves whole albums, as develop does
+        void UpdateRefreshedFields(List<Album> albums)
+        {
+            UpdateMany(albums);
+        }
+
         void DeleteMany(List<Album> albums);
         void SetAddOptions(IEnumerable<Album> albums);
         Album FindAlbumByRelease(string albumReleaseId);
@@ -370,6 +377,28 @@ namespace NzbDrone.Core.Music
         public void UpdateMany(List<Album> albums)
         {
             _albumRepository.UpdateMany(albums);
+        }
+
+        // Album.UseMetadataFrom's fields, and what RefreshAlbumService.UpdateEntity sets after it
+        public void UpdateRefreshedFields(List<Album> albums)
+        {
+            _albumRepository.SetFields(albums,
+                a => a.ForeignAlbumId,
+                a => a.OldForeignAlbumIds,
+                a => a.Title,
+                a => a.Overview,
+                a => a.Disambiguation,
+                a => a.ReleaseDate,
+                a => a.Images,
+                a => a.Links,
+                a => a.Genres,
+                a => a.AlbumType,
+                a => a.SecondaryTypes,
+                a => a.Ratings,
+                a => a.CleanTitle,
+                a => a.ArtistMetadataId,
+                a => a.LastInfoSync,
+                a => a.MetadataMissingSince);
         }
 
         public void DeleteMany(List<Album> albums)

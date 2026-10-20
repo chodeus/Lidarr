@@ -7,6 +7,7 @@ using NLog;
 using NzbDrone.Common;
 using NzbDrone.Common.Crypto;
 using NzbDrone.Common.Disk;
+using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.CustomFormats;
@@ -420,9 +421,15 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
                 else
                 {
                     var trackedDownload = _trackedDownloadService.Find(downloadId);
-                    var importResults = _importApprovedTracks.Import(albumImportDecisions, message.ReplaceExistingFiles, trackedDownload.DownloadItem, message.ImportMode);
+                    var importResults = _importApprovedTracks.Import(albumImportDecisions, message.ReplaceExistingFiles, trackedDownload?.DownloadItem, message.ImportMode);
 
                     imported.AddRange(importResults);
+
+                    // An unknown or expired download id: the files import, with no download to finish
+                    if (trackedDownload == null)
+                    {
+                        continue;
+                    }
 
                     foreach (var importResult in importResults)
                     {
@@ -442,23 +449,14 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
                 var trackedDownload = groupedTrackedDownload.First().TrackedDownload;
                 var importArtist = groupedTrackedDownload.First().ImportResult.ImportDecision.Item.Artist;
 
-                // Unset when completed-download handling never processed the download; GetMediaFiles fills it the same way
-                if (trackedDownload.ImportItem == null)
+                // Its folder is still in use, and Imported would end its tracking; completed-download handling waits for Completed too
+                if (trackedDownload.DownloadItem.Status != DownloadItemStatus.Completed)
                 {
-                    trackedDownload.ImportItem = _provideImportItemService.ProvideImportItem(trackedDownload.DownloadItem, trackedDownload.ImportItem);
+                    _logger.Debug("Not finishing download {0} after its manual import: its client hasn't completed it", trackedDownload.DownloadItem.Title);
+                    continue;
                 }
 
-                var outputPath = trackedDownload.ImportItem.OutputPath.FullPath;
-
-                if (_diskProvider.FolderExists(outputPath))
-                {
-                    if (_downloadedTracksImportService.ShouldDeleteFolder(
-                            _diskProvider.GetDirectoryInfo(outputPath), importArtist) &&
-                        trackedDownload.DownloadItem.CanMoveFiles)
-                    {
-                        _diskProvider.DeleteFolder(outputPath, true);
-                    }
-                }
+                CleanUpDownloadFolder(trackedDownload, importArtist);
 
                 var remoteTrackCount = Math.Max(1, trackedDownload.RemoteAlbum?.Albums.Sum(x => x.AlbumReleases.Value.Where(y => y.Monitored).Sum(z => z.TrackCount)) ?? 1);
 
@@ -474,6 +472,37 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
                     trackedDownload.State = TrackedDownloadState.Imported;
                     _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload, importArtist.Id));
                 }
+            }
+        }
+
+        // The files are already imported, so a failed lookup or an unusable path leaves the folder and is only logged
+        private void CleanUpDownloadFolder(TrackedDownload trackedDownload, Artist importArtist)
+        {
+            try
+            {
+                // Unset when completed-download handling never processed the download; GetMediaFiles fills it the same way
+                if (trackedDownload.ImportItem == null)
+                {
+                    trackedDownload.ImportItem = _provideImportItemService.ProvideImportItem(trackedDownload.DownloadItem, trackedDownload.ImportItem);
+                }
+
+                var outputPath = trackedDownload.ImportItem.OutputPath;
+
+                // Empty, or a remote path with no mapping, isn't a local path; completed-download handling checks the same
+                if ((OsInfo.IsWindows ? !outputPath.IsWindowsPath : !outputPath.IsUnixPath) || !_diskProvider.FolderExists(outputPath.FullPath))
+                {
+                    return;
+                }
+
+                if (_downloadedTracksImportService.ShouldDeleteFolder(_diskProvider.GetDirectoryInfo(outputPath.FullPath), importArtist) &&
+                    trackedDownload.DownloadItem.CanMoveFiles)
+                {
+                    _diskProvider.DeleteFolder(outputPath.FullPath, true);
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.Warn(e, "Couldn't clean up the folder of download {0} after its manual import", trackedDownload.DownloadItem.Title);
             }
         }
     }

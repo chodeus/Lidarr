@@ -16,7 +16,7 @@ Tests: `ProfileOrderFixture` covers each reorder case, plus Add/Update/cache tes
 
 Second round, from an audit of the branch:
 
-- **Adding after an old max-order profile.** An older reorder could leave a tagged profile at `int.MaxValue`. `Next` then overflowed, and the new profile sorted first. `ProfileOrder.MakeRoom` now renumbers first when a tagged profile is at or next to `int.MaxValue`. Otherwise `Add` still leaves existing rows alone.
+- **Adding after an old max-order profile.** An older reorder could leave a tagged profile at `int.MaxValue`. `Next` then overflowed, and the new profile sorted first. `ProfileOrder.MakeRoom` now renumbers first when a tagged profile is at or next to `int.MaxValue`, or (since the third round) when the default isn't at `int.MaxValue`. Otherwise `Add` still leaves existing rows alone.
 - **Lost updates.** `Reorder`, and the renumber after `Delete`, wrote every column of every row. A save that landed in between was undone, for example the default tagging profile's audio tag setting from Settings > Metadata. They now write only `Order`. `Add`, `Update`, `Delete` and `Reorder` are also serialised per service, so an `Update` can't write back an order that a concurrent `Reorder` has just changed.
 - **Delete.** If the renumber failed after the delete committed, the best-for-tags cache kept serving the deleted profile for up to 30 seconds. The cache is now cleared either way.
 - **Tags page.** Tag details from the API left out root folders. A tag used only as a root folder default showed "No links", and its Delete button failed with a 409. Root folders now count, and they show on the card and in the details.

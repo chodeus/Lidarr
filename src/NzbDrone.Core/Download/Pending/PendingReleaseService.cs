@@ -408,7 +408,7 @@ namespace NzbDrone.Core.Download.Pending
 
         private int GetDelay(RemoteAlbum remoteAlbum)
         {
-            var delayProfile = _delayProfileService.AllForTags(remoteAlbum.Artist.Tags).OrderBy(d => d.Order).First();
+            var delayProfile = _delayProfileService.BestForTags(remoteAlbum.Artist.Tags);
             var delay = delayProfile.GetProtocolDelay(remoteAlbum.Release.DownloadProtocol);
             var minimumAge = _configService.MinimumAge;
 

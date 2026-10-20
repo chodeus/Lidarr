@@ -44,6 +44,11 @@ namespace NzbDrone.Core.Music
             UpdateArtist(artist);
         }
 
+        // Only the metadata's status, such as Deleted when the metadata source no longer has the artist; the default body stores nothing, as develop does
+        void UpdateMetadataStatus(Artist artist)
+        {
+        }
+
         List<Artist> UpdateArtists(List<Artist> artist, bool useExistingRelativeFolder);
         Dictionary<int, string> AllArtistPaths();
         bool ArtistPathExists(string folder);
@@ -53,18 +58,21 @@ namespace NzbDrone.Core.Music
     public class ArtistService : IArtistService
     {
         private readonly IArtistRepository _artistRepository;
+        private readonly IArtistMetadataRepository _artistMetadataRepository;
         private readonly IEventAggregator _eventAggregator;
         private readonly IBuildArtistPaths _artistPathBuilder;
         private readonly Logger _logger;
         private readonly ICached<List<Artist>> _cache;
 
         public ArtistService(IArtistRepository artistRepository,
+                             IArtistMetadataRepository artistMetadataRepository,
                              IEventAggregator eventAggregator,
                              IBuildArtistPaths artistPathBuilder,
                              ICacheManager cacheManager,
                              Logger logger)
         {
             _artistRepository = artistRepository;
+            _artistMetadataRepository = artistMetadataRepository;
             _eventAggregator = eventAggregator;
             _artistPathBuilder = artistPathBuilder;
             _cache = cacheManager.GetCache<List<Artist>>(GetType());
@@ -266,6 +274,13 @@ namespace NzbDrone.Core.Music
         {
             _cache.Clear();
             _artistRepository.SetFields(artist, a => a.Path);
+        }
+
+        // Clears the artist cache too, which holds each artist's metadata and feeds the removed-artist health check
+        public void UpdateMetadataStatus(Artist artist)
+        {
+            _cache.Clear();
+            _artistMetadataRepository.SetFields(artist.Metadata.Value, m => m.Status);
         }
 
         public void UpdateArtistTags(Artist artist)

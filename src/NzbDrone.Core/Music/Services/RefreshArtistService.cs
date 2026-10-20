@@ -93,6 +93,7 @@ namespace NzbDrone.Core.Music
                 if (local.Metadata.Value.Status != ArtistStatusType.Deleted)
                 {
                     local.Metadata.Value.Status = ArtistStatusType.Deleted;
+                    _artistService.UpdateMetadataStatus(local);
                     _logger.Debug("Artist marked as deleted on MusicBrainz for {0}", local.Name);
                     PublishEntityUpdatedEvent(local);
                 }
@@ -231,7 +232,7 @@ namespace NzbDrone.Core.Music
         }
 
         // The refresh works on a copy read before its lookup, so what reports or saves the artist afterwards reads it again, keeping
-        // the refresh's metadata (its not-found status is never stored); null once the artist is deleted
+        // the refresh's metadata; null once the artist is deleted
         private Artist Stored(Artist artist)
         {
             try

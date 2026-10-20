@@ -129,6 +129,9 @@ namespace NzbDrone.Core.Test.MusicTests
 
             Mocker.GetMock<IArtistService>(MockBehavior.Strict)
                 .Setup(x => x.UpdateRefreshedFields(It.IsAny<Artist>()));
+
+            Mocker.GetMock<IArtistService>(MockBehavior.Strict)
+                .Setup(x => x.UpdateMetadataStatus(It.IsAny<Artist>()));
         }
 
         [Test]

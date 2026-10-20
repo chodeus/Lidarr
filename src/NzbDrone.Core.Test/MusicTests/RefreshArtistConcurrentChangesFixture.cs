@@ -310,7 +310,40 @@ namespace NzbDrone.Core.Test.MusicTests
             Db.Insert(artist);
             artist.Metadata = metadata;
 
+            Mocker.GetMock<IProvideArtistInfo>()
+                  .Setup(s => s.GetArtistInfo(foreignArtistId, It.IsAny<int>()))
+                  .Returns(() => new Artist { CleanName = foreignArtistId, SortName = foreignArtistId, Metadata = metadata, Albums = new List<Album>() });
+
             return artist;
+        }
+
+        private void GivenTheFirstAlbumRefreshFails()
+        {
+            var refreshes = 0;
+            Mocker.GetMock<IRefreshAlbumService>()
+                  .Setup(s => s.RefreshAlbumInfo(It.IsAny<List<Album>>(), It.IsAny<List<Album>>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<DateTime?>()))
+                  .Returns(() => refreshes++ == 0 ? throw new HttpException(new HttpResponse(new HttpRequest("https://example.test/"), new HttpHeader(), Array.Empty<byte>(), System.Net.HttpStatusCode.ServiceUnavailable)) : false);
+        }
+
+        private List<int> RescannedArtistIds(List<int> artistIds)
+        {
+            var rescans = new List<RescanFoldersCommand>();
+            Mocker.GetMock<IConfigService>().SetupGet(s => s.RescanAfterRefresh).Returns(RescanAfterRefreshType.Always);
+            Mocker.GetMock<IManageCommandQueue>()
+                  .Setup(q => q.Push(It.IsAny<RescanFoldersCommand>(), It.IsAny<CommandPriority>(), It.IsAny<CommandTrigger>()))
+                  .Callback<RescanFoldersCommand, CommandPriority, CommandTrigger>((c, p, t) => rescans.Add(c));
+
+            Subject.Execute(new RefreshArtistCommand(artistIds) { Trigger = CommandTrigger.Manual });
+
+            return rescans.Single().ArtistIds;
+        }
+
+        private void GivenAutoTaggingDeletesTheArtist()
+        {
+            Mocker.GetMock<IAutoTaggingService>()
+                  .Setup(s => s.GetTagChanges(It.Is<Artist>(a => a.Id == _artist.Id)))
+                  .Callback(() => _artistService.DeleteArtist(_artist.Id, false))
+                  .Returns(new AutoTaggingChanges());
         }
 
         // The merge deletes the refreshed artist, then its album refresh fails; the next artist must still refresh
@@ -323,20 +356,33 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IProvideArtistInfo>()
                   .Setup(s => s.GetArtistInfo("artist-1", It.IsAny<int>()))
                   .Returns(() => new Artist { CleanName = "artistnamerenamed", SortName = "artist name renamed", Metadata = target.Metadata.Value, Albums = new List<Album>() });
-            Mocker.GetMock<IProvideArtistInfo>()
-                  .Setup(s => s.GetArtistInfo("artist-other", It.IsAny<int>()))
-                  .Returns(() => new Artist { CleanName = "artistother", SortName = "artist other", Metadata = other.Metadata.Value, Albums = new List<Album>() });
-
-            var refreshes = 0;
-            Mocker.GetMock<IRefreshAlbumService>()
-                  .Setup(s => s.RefreshAlbumInfo(It.IsAny<List<Album>>(), It.IsAny<List<Album>>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<DateTime?>()))
-                  .Returns(() => refreshes++ == 0 ? throw new HttpException(new HttpResponse(new HttpRequest("https://example.test/"), new HttpHeader(), Array.Empty<byte>(), System.Net.HttpStatusCode.ServiceUnavailable)) : false);
+            GivenTheFirstAlbumRefreshFails();
 
             Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id, other.Id }));
 
             ExceptionVerification.ExpectedErrors(1);
             ExceptionVerification.ExpectedWarns(1);
             _artistService.GetArtist(other.Id).LastInfoSync.Should().BeAfter(new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc));
+        }
+
+        [Test]
+        public void should_leave_an_artist_deleted_while_auto_tagging_decides_out_of_the_rescan()
+        {
+            var other = GivenAnotherArtist("artist-other");
+            GivenAutoTaggingDeletesTheArtist();
+
+            RescannedArtistIds(new List<int> { _artist.Id, other.Id }).Should().Equal(other.Id);
+        }
+
+        [Test]
+        public void should_leave_a_failed_artist_deleted_while_auto_tagging_decides_out_of_the_rescan()
+        {
+            var other = GivenAnotherArtist("artist-other");
+            GivenTheFirstAlbumRefreshFails();
+            GivenAutoTaggingDeletesTheArtist();
+
+            RescannedArtistIds(new List<int> { _artist.Id, other.Id }).Should().Equal(other.Id);
+            ExceptionVerification.ExpectedErrors(1);
         }
 
         // The real auto-tagging service over a rule for unmonitored artists; the edit that unmonitors comes during the lookup

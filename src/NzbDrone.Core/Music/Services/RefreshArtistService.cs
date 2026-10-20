@@ -394,13 +394,7 @@ namespace NzbDrone.Core.Music
                     var artist = _artistService.GetArtist(artistId);
                     updated |= RefreshEntityInfo(artist, null, true, false, null);
 
-                    artist = Stored(artist);
-
-                    if (artist != null)
-                    {
-                        UpdateTags(artist);
-                        artists.Add(artist);
-                    }
+                    TagForRescan(Stored(artist), artists);
                 }
                 catch (Exception e)
                 {
@@ -418,12 +412,29 @@ namespace NzbDrone.Core.Music
                     }
 
                     _logger.Error(e, "Couldn't refresh info for Artist '{0}' [{1}]", artist.Name, artist.ForeignArtistId);
-                    UpdateTags(artist);
-                    artists.Add(artist);
+                    TagForRescan(artist, artists);
                 }
             }
 
             RescanArtists(artists, isNew, trigger, updated);
+        }
+
+        // The disk scan fails for the whole list when one artist is gone, so one deleted while the rules ran is left out
+        private void TagForRescan(Artist artist, List<Artist> rescan)
+        {
+            if (artist == null)
+            {
+                return;
+            }
+
+            UpdateTags(artist);
+
+            var stored = Stored(artist);
+
+            if (stored != null)
+            {
+                rescan.Add(stored);
+            }
         }
 
         private void UpdateTags(Artist artist)

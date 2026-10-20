@@ -1,4 +1,4 @@
-# Fixed: Treat qBittorrent's conflict response as a rejected release
+# Fixed: Stop re-grabbing a torrent qBittorrent already has
 
 Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Reviewed in [#22](https://github.com/chodeus/Lidarr/pull/22).
 

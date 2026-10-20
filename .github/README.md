@@ -1,20 +1,24 @@
-# Keep artists and albums the metadata source no longer has
+# Fixed: A refresh no longer undoes changes saved while it runs
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Reviewed in [#30](https://github.com/chodeus/Lidarr/pull/30) and [#39](https://github.com/chodeus/Lidarr/pull/39).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. It is stacked on `fix/keep-unlisted-metadata` and merges after it. Reviewed in [#PR_NUMBER](https://github.com/chodeus/Lidarr/pull/PR_NUMBER).
 
-- An artist the metadata source reports as not found is kept, whether or not it has files. It stays marked removed and listed by the existing removed-artist health check; its folder is no longer deleted.
-- An album the source no longer has (not found, or no releases with tracks) is kept and marked with the date it went missing (`Albums.MetadataMissingSince`, migration 908) when there is something to keep: it has files, was added by hand, or was synced from the source at least once. An album the source listed but never had a usable copy of (a video-only release, say) is deleted, as develop does. The first date is kept; the mark clears when the source has the album again.
-- An album without files and not added by hand that drops out of its artist's list is removed as before if it was never synced. Otherwise it is checked against the source first: if the source still has it (excluded by the metadata profile, or moved to another artist) it is removed as before; if not, it is kept and marked. If that check fails (timeout, 5xx) the album is left alone until the next refresh.
-- A new health check lists the marked albums.
-- New `IAlbumService` and `IAlbumRepository` members have default bodies.
+An artist refresh reads the artist, asks the metadata source for it, refreshes every one of its albums, and then saved the whole artist it read first. Anything saved to the artist in the meantime was put back: a monitoring, profile or tag change from the API or the UI, or a move to another folder. A full refresh can take minutes per artist with many albums, and refresh commands run alongside moves, imports, searches and edits.
 
-Tests: refresh cases for not found, no valid releases, unlisted and still in the source, unlisted and gone, a failed source check, keeping the first date and clearing it, never-synced albums (deleted, without a source check when unlisted, unless they have files or were added by hand); the repository query; the health check messages; the default bodies. Each was checked to fail with its rule broken. Four develop tests that expected deletion now expect the album or artist to be kept.
+Each album had the same problem on a smaller scale. The refresh read the artist's albums before working through them and saved each one whole with the monitoring, any-release-OK setting, profile and last search time it read, so a toggle or a search saved while earlier albums refreshed was undone.
 
-## Summary by CodeRabbit
+## Changes
 
-* **New Features**
-  * Albums no longer found in the metadata source are retained and marked with the date they went missing. That date is cleared if the album returns.
-  * Health checks warn when albums are missing from the source, identifying each album whether one or several are affected.
-* **Bug Fixes**
-  * Albums without valid releases from the source are kept and marked as missing rather than deleted.
-  * Artists missing from metadata are marked deleted without being physically removed.
+- The artist and album refreshes save only the fields they set, through `UpdateRefreshedFields` on `IArtistService` and `IAlbumService`. For the artist that is its metadata link, clean and sort name, and last sync. For an album it is the fields the metadata source supplies, its artist, its last sync and the missing-from-source date. Both are default interface methods whose bodies fall back to develop's whole save, so implementations built against `develop` keep working.
+- The artist path is still tidied, but on a fresh read, and only the path is saved (`UpdateArtistPath`), so a move saved during the refresh keeps its path.
+- The artist's updated and refresh-complete events, the auto-tag step and the rescan list read the artist again. The auto-tag rules see the artist as stored, their changes are applied to a fresh read, and only the tags are saved (`UpdateArtistTags`, which still publishes `ArtistEditedEvent`).
+- The fresh read keeps the refresh's metadata. When the metadata source no longer has an artist, its Deleted status lives only in that metadata, so a "Status: Deleted" auto-tag rule still matches and the event shows it. That path no longer saves the artist it read first.
+- An artist deleted, or merged into another, during its refresh is not announced, tagged or rescanned, and when its refresh then fails the rest of the batch still refreshes. The rescan list takes a fresh read after tagging, so an artist deleted while the rules ran is left out: the disk scan reads every artist on its list and fails for all of them when one is gone.
+- Release rows are unchanged: the album refresh itself decides which release is monitored.
+- When the metadata source merges the refreshed artist into another one, that other artist is tagged and rescanned on its own next refresh, not in this one. On `develop`, that case stopped the refresh.
+
+## Tests
+
+- `RefreshArtistConcurrentChangesFixture` runs the refresh against the real `ArtistService`, `AlbumService` and repositories over the test database; the lookup, the album refresh and auto-tagging are mocked except where noted. An edit saved during the lookup, while the albums refresh, during a full refresh that read every artist first, while auto-tagging decides, and when the lookup finds no artist is kept. The events carry the stored artist. A tidied path is still saved, and a move during the lookup of an artist whose path needed tidying is kept. Auto-tagging adds its tag without losing an edit; through the real `AutoTaggingService`, a rule for unmonitored artists sees an unmonitor saved during the lookup, and a "Status: Deleted" rule matches an artist the lookup no longer finds. A new artist is rescanned at the path saved during its refresh. An artist deleted during its refresh isn't announced, one merged away whose refresh then fails doesn't stop the batch, and one deleted while auto-tagging decides is left out of the rescan, whether its refresh worked or failed.
+- `RefreshAlbumConcurrentChangesFixture` runs the album refresh against the real `AlbumService` over the test database: monitoring, any-release-OK, profile and last search time saved during the lookup are kept.
+- `should_save_every_field_the_refresh_sets`, for artists and for albums, compares every stored column of the refreshed copy, other than those other writers own, with the stored row. A field the refresh sets but doesn't save, such as one added upstream, fails it by name.
+- 16 of the 20 new tests fail on the branch it is stacked on; the other four check behaviour it keeps (both field guards, the path tidy and the "Status: Deleted" rule). 16 mutations each fail a test. The path-only save has no test of its own: its window can't be reached from a test. The music tests pass in a Debug build too, and the full Core suite passes 3282.

@@ -49,7 +49,11 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.SetConstant<IAlbumService>(Mocker.Resolve<AlbumService>());
             Mocker.SetConstant<IRootFolderService>(Mocker.Resolve<RootFolderService>());
 
-            // The real services publish this after changing the database, so hand it on as the event aggregator would.
+            // The real services publish these around changing the database, so hand them on as the event aggregator would.
+            Mocker.GetMock<IEventAggregator>()
+                .Setup(s => s.PublishEvent(It.IsAny<TrackFilesDeletingEvent>()))
+                .Callback<TrackFilesDeletingEvent>(e => Subject.Handle(e));
+
             Mocker.GetMock<IEventAggregator>()
                 .Setup(s => s.PublishEvent(It.IsAny<TrackFileDeletedEvent>()))
                 .Callback<TrackFileDeletedEvent>(e => Subject.Handle(e));
@@ -59,6 +63,11 @@ namespace NzbDrone.Core.Test.MusicTests
                 .Callback<ModelEvent<RootFolder>>(e => Subject.Handle(e));
 
             GivenUnmonitorDeletedAlbums(true);
+
+            // Scans clean only root folders that are there.
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(s => s.FolderExists(It.IsIn(_rootFolderPath, _otherRootFolderPath)))
+                .Returns(true);
 
             _rootFolder = Db.Insert(Builder<RootFolder>.CreateNew()
                 .With(r => r.Id = 0)
@@ -98,6 +107,36 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IDiskProvider>()
                 .Setup(s => s.FileExists(It.IsAny<string>()))
                 .Returns(true);
+        }
+
+        private void GivenFileStillOnDisk(TrackFile file)
+        {
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(s => s.FileExists(file.Path))
+                .Returns(true);
+        }
+
+        // The album or artist folder is there, but Lidarr cannot list it, or can list it but not reach what is in it.
+        private void GivenFolderOutOfReach(List<TrackFile> files, bool artistFolder, bool listable)
+        {
+            var albumFolder = Path.GetDirectoryName(files[0].Path);
+            var folder = artistFolder ? Path.GetDirectoryName(albumFolder) : albumFolder;
+            var disk = Mocker.GetMock<IDiskProvider>();
+
+            disk.Setup(s => s.FolderExists(folder)).Returns(true);
+
+            if (!listable)
+            {
+                disk.Setup(s => s.GetDirectories(folder)).Throws(new UnauthorizedAccessException($"Access to the path '{folder}' is denied."));
+            }
+            else if (artistFolder)
+            {
+                disk.Setup(s => s.GetDirectories(folder)).Returns(new[] { albumFolder });
+            }
+            else
+            {
+                disk.Setup(s => s.GetFiles(folder, false)).Returns(files.Select(f => f.Path).ToList());
+            }
         }
 
         private (Album Album, AlbumRelease Release, List<TrackFile> Files) GivenMonitoredAlbumWithFiles(int fileCount = 2)
@@ -251,6 +290,36 @@ namespace NzbDrone.Core.Test.MusicTests
             var (album, _, files) = GivenMonitoredAlbumWithFiles();
 
             DeleteFiles(files, DeleteMediaFileReason.MissingFromDisk);
+            HoldsBackRssReleases(album).Should().BeFalse();
+            CompleteScan();
+
+            IsMonitored(album).Should().BeTrue();
+        }
+
+        [Test]
+        public void should_keep_album_monitored_when_a_scan_drops_files_still_on_disk_with_others_missing()
+        {
+            // An album in a folder scans skip loses all its files from the database when one of them is deleted.
+            var (album, _, files) = GivenMonitoredAlbumWithFiles();
+            GivenFileStillOnDisk(files[1]);
+
+            DeleteFiles(files, DeleteMediaFileReason.MissingFromDisk);
+            CompleteScan();
+
+            IsMonitored(album).Should().BeTrue();
+        }
+
+        [TestCase(false, false)]
+        [TestCase(true, false)]
+        [TestCase(false, true)]
+        [TestCase(true, true)]
+        public void should_keep_album_monitored_when_a_scan_could_not_reach_its_files(bool artistFolder, bool listable)
+        {
+            // Scans skip the folders they cannot read, and a file Lidarr cannot reach looks missing.
+            var (album, _, files) = GivenMonitoredAlbumWithFiles();
+            GivenFolderOutOfReach(files, artistFolder, listable);
+
+            DeleteFiles(files, DeleteMediaFileReason.MissingFromDisk);
             CompleteScan();
 
             IsMonitored(album).Should().BeTrue();
@@ -267,6 +336,10 @@ namespace NzbDrone.Core.Test.MusicTests
             if (reachable)
             {
                 GivenRootFolderOnDisk(false);
+            }
+            else
+            {
+                Mocker.GetMock<IDiskProvider>().Setup(s => s.FolderExists(_rootFolderPath)).Returns(false);
             }
 
             Mocker.Resolve<MediaFileService>().HandleAsync(new ModelEvent<RootFolder>(_rootFolder, ModelAction.Deleted));
@@ -436,18 +509,44 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
-        public void should_not_decide_album_again_once_deleting_its_last_file_has_unmonitored_it()
+        public void should_leave_album_to_the_scan_when_its_last_file_is_deleted_while_others_wait_for_it()
+        {
+            // A scan of the artist folder finds one file missing, which may have moved elsewhere in the root folder, then
+            // the other is deleted in Lidarr.
+            var (album, _, files) = GivenMonitoredAlbumWithFiles();
+
+            DeleteFiles(files.Take(1).ToList(), DeleteMediaFileReason.MissingFromDisk);
+            DeleteFiles(files.Skip(1).ToList(), DeleteMediaFileReason.Manual);
+
+            IsMonitored(album).Should().BeTrue();
+            HoldsBackRssReleases(album).Should().BeTrue();
+        }
+
+        [Test]
+        public void should_keep_album_monitored_when_the_scan_imports_a_file_that_waited_after_its_last_file_was_deleted()
+        {
+            var (album, release, files) = GivenMonitoredAlbumWithFiles();
+
+            DeleteFiles(files.Take(1).ToList(), DeleteMediaFileReason.MissingFromDisk);
+            DeleteFiles(files.Skip(1).ToList(), DeleteMediaFileReason.Manual);
+            GivenTrackWithFile(album, release);
+            CompleteScan();
+
+            IsMonitored(album).Should().BeTrue();
+            HoldsBackRssReleases(album).Should().BeFalse();
+        }
+
+        [Test]
+        public void should_unmonitor_album_once_the_scan_decides_a_file_that_waited_when_its_last_file_was_deleted()
         {
             var (album, _, files) = GivenMonitoredAlbumWithFiles();
 
-            // A scan of the artist folder finds one file missing, then the other is deleted in Lidarr.
             DeleteFiles(files.Take(1).ToList(), DeleteMediaFileReason.MissingFromDisk);
             DeleteFiles(files.Skip(1).ToList(), DeleteMediaFileReason.Manual);
-            Mocker.Resolve<IAlbumService>().SetAlbumMonitored(album.Id, true);
-
-            HoldsBackRssReleases(album).Should().BeFalse();
             CompleteScan();
-            IsMonitored(album).Should().BeTrue();
+
+            IsMonitored(album).Should().BeFalse();
+            HoldsBackRssReleases(album).Should().BeFalse();
         }
 
         [Test]
@@ -528,6 +627,28 @@ namespace NzbDrone.Core.Test.MusicTests
             DeleteFiles(files, DeleteMediaFileReason.MissingFromDisk);
 
             HoldsBackRssReleases(album).Should().BeTrue();
+        }
+
+        [Test]
+        public void should_hold_back_rss_releases_as_soon_as_a_scan_drops_the_files()
+        {
+            // A scan drops all the files it found missing from the database at once, then reports them one at a time.
+            var (album, _, files) = GivenMonitoredAlbumWithFiles();
+            var repository = Mocker.Resolve<MediaFileRepository>();
+            bool? heldOnceDropped = null;
+
+            var dropping = new Mock<IMediaFileRepository>();
+            dropping.Setup(s => s.DeleteMany(It.IsAny<List<TrackFile>>()))
+                .Callback<List<TrackFile>>(f =>
+                {
+                    repository.DeleteMany(f);
+                    heldOnceDropped = HoldsBackRssReleases(album);
+                });
+
+            new MediaFileService(dropping.Object, Mocker.Resolve<IEventAggregator>(), TestLogger)
+                .DeleteMany(files, DeleteMediaFileReason.MissingFromDisk);
+
+            heldOnceDropped.Should().BeTrue();
         }
 
         [Test]
@@ -617,6 +738,31 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.Resolve<IRootFolderService>().Remove(_rootFolder.Id);
             DeleteFiles(files, DeleteMediaFileReason.MissingFromDisk);
 
+            HoldsBackRssReleases(album).Should().BeFalse();
+        }
+
+        [Test]
+        public void should_not_hold_back_rss_releases_when_the_root_folder_is_removed_while_a_scan_drops_its_files()
+        {
+            var (album, _, files) = GivenMonitoredAlbumWithFiles();
+            var removed = false;
+
+            // While the scan looks for the files on disk.
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(s => s.FileExists(It.IsAny<string>()))
+                .Callback<string>(_ =>
+                {
+                    if (!removed)
+                    {
+                        removed = true;
+                        Mocker.Resolve<IRootFolderService>().Remove(_rootFolder.Id);
+                    }
+                })
+                .Returns(false);
+
+            DeleteFiles(files, DeleteMediaFileReason.MissingFromDisk);
+
+            removed.Should().BeTrue();
             HoldsBackRssReleases(album).Should().BeFalse();
         }
 

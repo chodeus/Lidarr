@@ -88,6 +88,7 @@ namespace NzbDrone.Core.MediaFiles
 
         public void DeleteMany(List<TrackFile> trackFiles, DeleteMediaFileReason reason)
         {
+            _eventAggregator.PublishEvent(new TrackFilesDeletingEvent(trackFiles, reason));
             _mediaFileRepository.DeleteMany(trackFiles);
 
             // publish events where trackfile was mapped to a track

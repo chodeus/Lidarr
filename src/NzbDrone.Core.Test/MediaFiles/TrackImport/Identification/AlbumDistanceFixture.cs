@@ -219,17 +219,23 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         [TestCase("Artist/Band", "Artist/Band", "Band")]
         [TestCase("Artist, Band & Orchestra", "Artist, Band & Orchestra", "Orchestra")]
         [TestCase("Artist & the Band", "Artist and the Band", "the Band")]
+        [TestCase("Tia & Lu", "Tia and Lu", "Lu")]
+        [TestCase("Artist & Band", "Artist & The Band", "Band")]
+        [TestCase("Tia and Lu", "Tia & Lu", "Lu")]
         public void should_rank_the_whole_credit_above_one_of_its_artists(string artistTag, string wholeCredit, string oneArtist)
         {
             DistanceWithArtistTag(artistTag, wholeCredit).Should().BeLessThan(DistanceWithArtistTag(artistTag, oneArtist));
         }
 
-        [TestCase("artist feat. guest")]
-        [TestCase("artist ft guest")]
-        [TestCase("artist featuring guest")]
-        public void should_rank_the_main_artist_above_a_featured_guest(string artistTag)
+        [TestCase("artist feat. guest", "guest")]
+        [TestCase("artist ft guest", "guest")]
+        [TestCase("artist featuring guest", "guest")]
+        [TestCase("artist (feat. guest & other)", "other")]
+        [TestCase("artist feat.guest & other", "other")]
+        [TestCase("artist [ft. guest, other]", "other")]
+        public void should_rank_the_main_artist_above_a_featured_guest(string artistTag, string guest)
         {
-            DistanceWithArtistTag(artistTag, "artist").Should().BeLessThan(DistanceWithArtistTag(artistTag, "guest"));
+            DistanceWithArtistTag(artistTag, "artist").Should().BeLessThan(DistanceWithArtistTag(artistTag, guest));
         }
 
         [TestCase("Artist & Band")]
@@ -239,6 +245,12 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         public void should_match_an_artist_whose_name_contains_a_separator(string name)
         {
             DistanceWithArtistTag(name, name).Should().Be(0.0);
+        }
+
+        [Test]
+        public void should_still_match_a_name_written_without_its_ampersand()
+        {
+            DistanceWithArtistTag("Tia & Lu", "TiaLu").Should().Be(0.0);
         }
 
         [TestCase("guest;other guest")]

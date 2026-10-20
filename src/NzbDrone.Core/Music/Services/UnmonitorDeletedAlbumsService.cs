@@ -28,7 +28,7 @@ namespace NzbDrone.Core.Music
                                                  IHandle<ModelEvent<RootFolder>>
     {
         private readonly IAlbumService _albumService;
-        private readonly IMediaFileService _mediaFileService;
+        private readonly IAlbumFileQuery _albumFileQuery;
         private readonly IRootFolderService _rootFolderService;
         private readonly IConfigService _configService;
         private readonly IDiskProvider _diskProvider;
@@ -40,14 +40,14 @@ namespace NzbDrone.Core.Music
         private readonly Dictionary<int, Dictionary<string, bool>> _missingFromDisk = new Dictionary<int, Dictionary<string, bool>>();
 
         public UnmonitorDeletedAlbumsService(IAlbumService albumService,
-                                             IMediaFileService mediaFileService,
+                                             IAlbumFileQuery albumFileQuery,
                                              IRootFolderService rootFolderService,
                                              IConfigService configService,
                                              IDiskProvider diskProvider,
                                              Logger logger)
         {
             _albumService = albumService;
-            _mediaFileService = mediaFileService;
+            _albumFileQuery = albumFileQuery;
             _rootFolderService = rootFolderService;
             _configService = configService;
             _diskProvider = diskProvider;
@@ -156,7 +156,7 @@ namespace NzbDrone.Core.Music
                     {
                         if (message.MatchedAlbumIds.Contains(albumId))
                         {
-                            _logger.Debug("Not unmonitoring album {0}, the scan matched files to it that it did not import", albumId);
+                            _logger.Debug("Not unmonitoring album {0}, the scan matched files to it", albumId);
                         }
                         else
                         {
@@ -210,7 +210,7 @@ namespace NzbDrone.Core.Music
                 return true;
             }
 
-            if (_mediaFileService.AlbumHasFiles(album.Id))
+            if (_albumFileQuery.AlbumHasFiles(album.Id))
             {
                 return false;
             }

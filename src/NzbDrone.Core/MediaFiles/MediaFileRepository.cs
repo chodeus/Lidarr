@@ -12,7 +12,6 @@ namespace NzbDrone.Core.MediaFiles
     {
         List<TrackFile> GetFilesByArtist(int artistId);
         List<TrackFile> GetFilesByAlbum(int albumId);
-        bool AlbumHasFiles(int albumId);
         List<TrackFile> GetFilesByRelease(int releaseId);
         List<TrackFile> GetUnmappedFiles();
         List<TrackFile> GetFilesWithBasePath(string path);
@@ -22,7 +21,13 @@ namespace NzbDrone.Core.MediaFiles
         void UnlinkFilesByAlbum(int albumId);
     }
 
-    public class MediaFileRepository : BasicRepository<TrackFile>, IMediaFileRepository
+    // Kept out of IMediaFileRepository, which plugins built against develop may implement.
+    public interface IAlbumFileQuery
+    {
+        bool AlbumHasFiles(int albumId);
+    }
+
+    public class MediaFileRepository : BasicRepository<TrackFile>, IMediaFileRepository, IAlbumFileQuery
     {
         public MediaFileRepository(IMainDatabase database, IEventAggregator eventAggregator)
             : base(database, eventAggregator)

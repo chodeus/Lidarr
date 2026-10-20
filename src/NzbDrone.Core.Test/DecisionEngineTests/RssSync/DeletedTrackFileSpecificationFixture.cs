@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
@@ -55,11 +54,6 @@ namespace NzbDrone.Core.Test.DecisionEngineTests.RssSync
                 new Album { Id = 1 },
                 new Album { Id = 2 }
             };
-
-            // The albums are still as the release was matched to them.
-            Mocker.GetMock<IAlbumService>()
-                .Setup(s => s.GetAlbums(It.IsAny<IEnumerable<int>>()))
-                .Returns<IEnumerable<int>>(ids => doubleAlbumList.Where(a => ids.Contains(a.Id)).ToList());
 
             var firstTrack = new Track { TrackFile = _firstFile, TrackFileId = 1, AlbumId = 1 };
             var secondTrack = new Track { TrackFile = _secondFile, TrackFileId = 2, AlbumId = 2 };

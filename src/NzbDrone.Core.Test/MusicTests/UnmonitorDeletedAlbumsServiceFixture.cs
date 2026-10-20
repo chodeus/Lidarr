@@ -12,6 +12,7 @@ using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Datastore.Events;
 using NzbDrone.Core.DecisionEngine.Specifications.RssSync;
+using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Events;
@@ -42,6 +43,7 @@ namespace NzbDrone.Core.Test.MusicTests
 
             Mocker.SetConstant<IAlbumRepository>(Mocker.Resolve<AlbumRepository>());
             Mocker.SetConstant<IMediaFileRepository>(Mocker.Resolve<MediaFileRepository>());
+            Mocker.SetConstant<IAlbumFileQuery>(Mocker.Resolve<MediaFileRepository>());
             Mocker.SetConstant<IRootFolderRepository>(Mocker.Resolve<RootFolderRepository>());
             Mocker.SetConstant<IMediaFileService>(Mocker.Resolve<MediaFileService>());
             Mocker.SetConstant<IAlbumService>(Mocker.Resolve<AlbumService>());
@@ -179,7 +181,7 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.SetConstant<IUnmonitorDeletedAlbumsService>(Subject);
             var release = new RemoteAlbum { Artist = new Artist(), Albums = new List<Album> { Storage.Get(album.Id) } };
 
-            return !Mocker.Resolve<DeletedTrackFileSpecification>().IsSatisfiedBy(release, null).Accepted;
+            return !Mocker.Resolve<MissingFromDiskSpecification>().IsSatisfiedBy(release, null).Accepted;
         }
 
         private bool IsMonitored(Album album)
@@ -254,13 +256,18 @@ namespace NzbDrone.Core.Test.MusicTests
             IsMonitored(album).Should().BeTrue();
         }
 
-        [Test]
-        public void should_keep_album_monitored_when_its_root_folder_is_removed()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_keep_album_monitored_when_its_root_folder_is_removed(bool reachable)
         {
-            // Removing a root folder drops its files from the database in the background and leaves them where they are,
-            // even while its storage is offline and after the same path has been added back.
+            // Removing a root folder drops its files from the database in the background and leaves them where they are.
+            // Their files look deleted whether its storage is offline or the same path has been added back.
             var (album, _, _) = GivenMonitoredAlbumWithFiles();
-            GivenRootFolderOnDisk(false);
+
+            if (reachable)
+            {
+                GivenRootFolderOnDisk(false);
+            }
 
             Mocker.Resolve<MediaFileService>().HandleAsync(new ModelEvent<RootFolder>(_rootFolder, ModelAction.Deleted));
 
@@ -271,7 +278,7 @@ namespace NzbDrone.Core.Test.MusicTests
         public void should_unmonitor_album_when_deleting_its_last_file_empties_the_root_folder()
         {
             // With Delete Empty Folders on, deleting an artist's last file removes the artist folder, which can be the
-            // root folder's only one.
+            // root folder's only one. An earlier version ignored deletions from a root folder left empty.
             var (album, _, files) = GivenMonitoredAlbumWithFiles();
             GivenRootFolderOnDisk(true);
 
@@ -545,6 +552,29 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
+        public void should_stop_holding_back_rss_releases_when_the_setting_is_turned_off()
+        {
+            var (album, _, files) = GivenMonitoredAlbumWithFiles();
+            DeleteFiles(files, DeleteMediaFileReason.MissingFromDisk);
+
+            GivenUnmonitorDeletedAlbums(false);
+
+            HoldsBackRssReleases(album).Should().BeFalse();
+        }
+
+        [Test]
+        public void should_not_hold_back_searches_while_the_scan_decides()
+        {
+            var (album, _, files) = GivenMonitoredAlbumWithFiles();
+            DeleteFiles(files, DeleteMediaFileReason.MissingFromDisk);
+
+            Mocker.SetConstant<IUnmonitorDeletedAlbumsService>(Subject);
+            var release = new RemoteAlbum { Artist = new Artist(), Albums = new List<Album> { Storage.Get(album.Id) } };
+
+            Mocker.Resolve<MissingFromDiskSpecification>().IsSatisfiedBy(release, new AlbumSearchCriteria()).Accepted.Should().BeTrue();
+        }
+
+        [Test]
         public void should_hold_back_rss_releases_checked_while_the_scan_unmonitors_the_album()
         {
             // RSS sync loads the album when it matches a release, and checks that it is monitored before it checks the hold.
@@ -562,7 +592,7 @@ namespace NzbDrone.Core.Test.MusicTests
 
             var release = new RemoteAlbum { Artist = new Artist(), Albums = new List<Album> { album } };
 
-            Mocker.Resolve<DeletedTrackFileSpecification>().IsSatisfiedBy(release, null).Accepted.Should().BeFalse();
+            Mocker.Resolve<MissingFromDiskSpecification>().IsSatisfiedBy(release, null).Accepted.Should().BeFalse();
         }
 
         [Test]

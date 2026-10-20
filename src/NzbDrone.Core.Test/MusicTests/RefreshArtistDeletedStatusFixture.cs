@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq.Expressions;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
@@ -13,6 +14,7 @@ using NzbDrone.Core.HealthCheck.Checks;
 using NzbDrone.Core.History;
 using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.Localization;
+using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Music.Commands;
@@ -29,15 +31,27 @@ namespace NzbDrone.Core.Test.MusicTests
         private ArtistMetadata _metadata;
         private Artist _artist;
         private ArtistService _artistService;
+        private Action _beforeStatusWrite;
 
         [SetUp]
         public void Setup()
         {
             Mocker.SetConstant<ICacheManager>(new CacheManager());
             Mocker.SetConstant<IArtistRepository>(Mocker.Resolve<ArtistRepository>());
-            Mocker.SetConstant<IArtistMetadataRepository>(Mocker.Resolve<ArtistMetadataRepository>());
+            var metadataRepository = Mocker.Resolve<ArtistMetadataRepository>();
+            Mocker.SetConstant<IArtistMetadataRepository>(metadataRepository);
             Mocker.SetConstant<IArtistMetadataService>(Mocker.Resolve<ArtistMetadataService>());
-            _artistService = Mocker.Resolve<ArtistService>();
+
+            // Writes go to the real repository, after _beforeStatusWrite, which stands for another reader
+            _beforeStatusWrite = () => { };
+            var statusWrites = new Mock<IArtistMetadataRepository>();
+            statusWrites.Setup(r => r.SetFields(It.IsAny<ArtistMetadata>(), It.IsAny<Expression<Func<ArtistMetadata, object>>[]>()))
+                        .Callback<ArtistMetadata, Expression<Func<ArtistMetadata, object>>[]>((metadata, fields) =>
+                        {
+                            _beforeStatusWrite();
+                            metadataRepository.SetFields(metadata, fields);
+                        });
+            _artistService = new ArtistService(Mocker.Resolve<IArtistRepository>(), statusWrites.Object, Mocker.GetMock<IEventAggregator>().Object, Mocker.GetMock<IBuildArtistPaths>().Object, Mocker.Resolve<ICacheManager>(), TestLogger);
             Mocker.SetConstant<IArtistService>(_artistService);
             Mocker.SetConstant<IAlbumRepository>(Mocker.Resolve<AlbumRepository>());
             Mocker.SetConstant<IAlbumService>(Mocker.Resolve<AlbumService>());
@@ -89,6 +103,19 @@ namespace NzbDrone.Core.Test.MusicTests
         public void should_report_the_artist_in_the_removed_artist_health_check_at_once()
         {
             _artistService.GetAllArtists();
+            GivenTheLookupFindsNoArtist();
+
+            Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
+
+            ExceptionVerification.ExpectedErrors(2);
+            Mocker.Resolve<RemovedArtistCheck>().Check().Reason.Should().Be(HealthCheckReason.RemovedArtistSingle);
+        }
+
+        // Another reader, such as the artist list in the UI, filling the cache while the status is written
+        [Test]
+        public void should_report_the_artist_when_the_artist_list_is_read_while_the_status_is_written()
+        {
+            _beforeStatusWrite = () => _artistService.GetAllArtists();
             GivenTheLookupFindsNoArtist();
 
             Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));

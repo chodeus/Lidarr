@@ -276,11 +276,11 @@ namespace NzbDrone.Core.Music
             _artistRepository.SetFields(artist, a => a.Path);
         }
 
-        // Clears the artist cache too, which holds each artist's metadata and feeds the removed-artist health check
+        // Clears the artist cache after the write, so a read in between can't keep the old status for the removed-artist health check
         public void UpdateMetadataStatus(Artist artist)
         {
-            _cache.Clear();
             _artistMetadataRepository.SetFields(artist.Metadata.Value, m => m.Status);
+            _cache.Clear();
         }
 
         public void UpdateArtistTags(Artist artist)

@@ -21,7 +21,7 @@ using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.MusicTests
 {
-    // The real ArtistService over the test database; the lookup, the album refresh and auto-tagging are mocked
+    // Through the real repository: a mocked GetArtists returning a short list hid that it throws for a missing id
     [TestFixture]
     public class RefreshArtistRescanFixture : DbTest<RefreshArtistService, Artist>
     {
@@ -53,7 +53,7 @@ namespace NzbDrone.Core.Test.MusicTests
 
         private Artist GivenArtist(string foreignArtistId)
         {
-            var metadata = Builder<ArtistMetadata>.CreateNew().With(m => m.Id = 0).With(m => m.ForeignArtistId = foreignArtistId).Build();
+            var metadata = Builder<ArtistMetadata>.CreateNew().With(m => m.Id = 0).With(m => m.ForeignArtistId = foreignArtistId).With(m => m.Status = ArtistStatusType.Continuing).Build();
             Db.Insert(metadata);
 
             var artist = Builder<Artist>.CreateNew()
@@ -131,6 +131,27 @@ namespace NzbDrone.Core.Test.MusicTests
             var rescan = _rescans.Should().ContainSingle().Subject;
             new { rescan.Folders, rescan.ArtistIds }.Should().BeEquivalentTo(new { Folders = new List<string> { artist.Path }, ArtistIds = new List<int> { artist.Id } });
             _artistService.GetArtists(rescan.ArtistIds).Should().ContainSingle();
+        }
+
+        // Auto-tagging runs after the refresh's own save, so a move then isn't put back by it
+        [Test]
+        public void should_rescan_an_artist_at_the_path_it_was_moved_to_during_its_refresh()
+        {
+            var artist = GivenArtist("artist-1");
+            GivenLookup("artist-1", artist);
+            Mocker.GetMock<IAutoTaggingService>()
+                  .Setup(s => s.GetTagChanges(It.IsAny<Artist>()))
+                  .Callback(() =>
+                  {
+                      var moved = _artistService.GetArtist(artist.Id);
+                      moved.Path = "/music/Moved Artist".AsOsAgnostic();
+                      _artistService.UpdateArtist(moved);
+                  })
+                  .Returns(new AutoTaggingChanges());
+
+            Subject.Execute(new RefreshArtistCommand(new List<int> { artist.Id }) { Trigger = CommandTrigger.Manual });
+
+            _rescans.Should().ContainSingle().Which.Folders.Should().Equal("/music/Moved Artist".AsOsAgnostic());
         }
 
         [Test]

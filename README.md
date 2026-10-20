@@ -114,3 +114,9 @@
 - After compiling, `build.sh plugins` checks the latest release of each plugin in `plugin_repos` against the build: every Lidarr type and member it uses must exist, and its classes must still implement every Lidarr interface and abstract member. A build that would break a plugin fails and is never published.
 - To add or drop a change, edit `pr_branches`. Drop a change once upstream has merged it.
 - Build-only migrations are numbered from 900 so upstream's own numbers can't collide. Before a change goes upstream, give its migration the next upstream number and correct the live database's `VersionInfo`.
+
+## Contributing a branch
+
+- Branch off `develop` in a fork: one change per branch, described in its `.github/README.md`.
+- Open a review-only pull request against `develop` on chodeus/Lidarr. It is never merged.
+- Once CodeRabbit's findings are dealt with and it has been reviewed, the branch is copied into chodeus/Lidarr, authors kept, and added to `pr_branches`. The image never builds from a fork.

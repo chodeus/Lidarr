@@ -24,4 +24,6 @@ Tests: `QBittorrentAlreadyHasTorrentFixture` covers a 409 and a "Fails." reply f
 
 - **Bug Fixes**
   - qBittorrent conflicts when submitting a magnet link or torrent file are now reported as rejected releases.
-  - Other download errors, including server errors, continue to be reported as download errors.
+  - Releases already present in qBittorrent are identified as duplicates and won’t be downloaded again.
+  - Duplicate detection is remembered temporarily and rechecked, allowing downloads after the existing torrent is removed.
+  - Other download errors, including server errors and unconfirmed conflicts, continue to be reported as download errors or rejections.

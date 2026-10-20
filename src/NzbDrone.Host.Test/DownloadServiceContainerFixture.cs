@@ -20,7 +20,6 @@ using NzbDrone.Test.Common;
 
 namespace NzbDrone.App.Test
 {
-    // A file of its own, so it doesn't collide with other branches' checks in ContainerFixture
     [TestFixture]
     public class DownloadServiceContainerFixture : TestBase
     {

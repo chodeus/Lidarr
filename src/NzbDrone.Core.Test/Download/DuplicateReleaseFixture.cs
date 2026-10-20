@@ -43,7 +43,7 @@ namespace NzbDrone.Core.Test.Download
                            .Returns(() => _stillHeld);
             _stillHeld = true;
 
-            // Grabs name the client by id: DownloadService resolves it through Get, with or without feat/download-client-fallback
+            // Grabs name the client by id, so DownloadService resolves it through Get
             Mocker.GetMock<IProvideDownloadClient>()
                   .Setup(p => p.Get(1))
                   .Returns(_downloadClient.Object);

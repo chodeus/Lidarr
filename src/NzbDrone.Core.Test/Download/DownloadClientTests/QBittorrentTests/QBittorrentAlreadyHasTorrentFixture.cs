@@ -12,7 +12,6 @@ using NzbDrone.Core.Parser.Model;
 
 namespace NzbDrone.Core.Test.Download.DownloadClientTests.QBittorrentTests
 {
-    // A file of its own, so it doesn't collide with other branches' tests in QBittorrentFixture
     [TestFixture]
     public class QBittorrentAlreadyHasTorrentFixture : DownloadClientFixtureBase<QBittorrent>
     {

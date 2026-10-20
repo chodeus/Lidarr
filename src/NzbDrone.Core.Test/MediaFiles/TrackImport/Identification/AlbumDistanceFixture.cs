@@ -221,10 +221,20 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         [TestCase("Artist & the Band", "Artist and the Band", "the Band")]
         [TestCase("Tia & Lu", "Tia and Lu", "Lu")]
         [TestCase("Artist & Band", "Artist & The Band", "Band")]
+        [TestCase("Band Feat; Other Artist", "Band Feat", "Band")]
+        [TestCase("Band Feat;Other Artist", "Band Feat", "Band")]
+        [TestCase("Band Feat/Other Artist", "Band Feat", "Band")]
+        [TestCase("Band Feat, Other Artist", "Band Feat", "Band")]
         [TestCase("Tia and Lu", "Tia & Lu", "Lu")]
         public void should_rank_the_whole_credit_above_one_of_its_artists(string artistTag, string wholeCredit, string oneArtist)
         {
             DistanceWithArtistTag(artistTag, wholeCredit).Should().BeLessThan(DistanceWithArtistTag(artistTag, oneArtist));
+        }
+
+        [Test]
+        public void should_rank_the_credit_as_written_above_its_and_spelling()
+        {
+            DistanceWithArtistTag("Tia & Lu", "Tia & Lu").Should().BeLessThan(DistanceWithArtistTag("Tia & Lu", "Tia and Lu"));
         }
 
         [TestCase("artist feat. guest", "guest")]

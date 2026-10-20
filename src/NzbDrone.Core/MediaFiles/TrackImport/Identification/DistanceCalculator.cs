@@ -16,11 +16,14 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
         // One artist of several is weaker evidence than the whole credit, and must not beat a near miss on it
         private const double CreditedArtistPenalty = 0.2;
 
+        // Keeps the credit as written ahead of its "and" spelling when both are candidates
+        private const double AndReadingPenalty = 0.01;
+
         private static readonly Logger Logger = NzbDroneLogger.GetLogger(typeof(DistanceCalculator));
 
         public static readonly List<string> VariousArtistIds = new List<string> { "89ad4ac3-39f7-470e-963a-56509c546377" };
         private static readonly List<string> VariousArtistNames = new List<string> { "various artists", "various", "va", "unknown" };
-        private static readonly Regex FeaturedArtists = new Regex(@"(?:\s+|\s*[(\[]\s*)(?:feat|ft|featuring)\b\.?\s*\S.*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex FeaturedArtists = new Regex(@"(?:\s+|\s*[(\[]\s*)(?:feat|ft|featuring)\b(?:\.\s*|\s+)(?=\w).*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex Ampersand = new Regex(@"\s*&\s*", RegexOptions.Compiled);
         private static readonly Regex ArtistSeparators = new Regex(@"\s*[;/,&]\s*", RegexOptions.Compiled);
         private static readonly Regex WebAddress = new Regex(@"^(?:[a-z][a-z0-9+.-]*://\S+|www\.\S+|[^\s/]+\.(?:com|net|org|info|biz|ru|io)/?)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -41,7 +44,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
         // "&" and "and" read alike, which matters most for short names
         private static double WholeCreditPenalty(string tag, List<string> names)
         {
-            return Math.Min(Distance.ClosestPenalty(tag, names), Distance.ClosestPenalty(Ampersand.Replace(tag, " and "), names.Select(n => Ampersand.Replace(n ?? "", " and "))));
+            return Math.Min(Distance.ClosestPenalty(tag, names), Distance.ClosestPenalty(Ampersand.Replace(tag, " and "), names.Select(n => Ampersand.Replace(n ?? "", " and "))) + AndReadingPenalty);
         }
 
         // Each artist the tag credits, leaving out guests after "feat.", or none when it credits one

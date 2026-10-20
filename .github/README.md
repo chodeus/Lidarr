@@ -5,12 +5,12 @@ Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom)
 Refreshing an artist with rescan on used to scan every root folder. Only newly added artists had their scan limited to their own folders.
 
 - A refresh of chosen artists (the artist page's Refresh & Scan, or a bulk refresh) now rescans only those artists' folders, at their paths as stored when the refresh ends, so an artist moved meanwhile is scanned where it now is. It is quicker, and a problem file under another artist can't affect it.
-- A full refresh (the scheduled task, or refreshing all artists) still scans the root folders, so files outside any artist folder are still found.
+- A full refresh (the scheduled task, or refreshing all artists) still scans the root folders, so files outside any artist folder are still found. Its scan leaves out artists merged away or deleted while it ran.
 - If a chosen artist was merged into another, or deleted, during the refresh, the root folders are scanned instead, since its files may now belong to another artist. This holds for newly added artists too. The gone artist is left out of the scan, and so is a repeat of an artist named twice, since the scan reads its artists back by id and fails on either.
 - On `develop`, a refresh that fails after such a merge, or changes the merged artist's auto-tags, still stops before the scan; `fix/refresh-keeps-concurrent-changes`, later in the custom build, fixes that.
 - `RescanArtists` is private, so the change stays inside `RefreshArtistService`.
 
-Tests: a selected refresh pushes a rescan of the artist's folder, a full refresh pushes a rescan of the root folders, and a refresh with an artist merged away pushes a rescan of the root folders. `RefreshArtistRescanFixture` runs the merge through the real `ArtistService` and repository over the test database, and checks the scan's artists can all be read back; a new artist merged away, an artist named twice and one moved during its refresh run the same way. Seven mutations each fail a test.
+Tests: a selected refresh pushes a rescan of the artist's folder, a full refresh pushes a rescan of the root folders, and a refresh with an artist merged away pushes a rescan of the root folders. `RefreshArtistRescanFixture` runs the merge through the real `ArtistService` and repository over the test database, and checks the scan's artists can all be read back; a new artist merged away, an artist named twice, one moved during its refresh, and a full refresh with an artist merged away run the same way. Eight mutations each fail a test.
 
 ## Summary by CodeRabbit
 

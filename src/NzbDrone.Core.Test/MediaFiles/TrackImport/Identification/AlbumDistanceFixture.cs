@@ -185,6 +185,66 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             DistanceCalculator.AlbumReleaseDistance(localTracks, release, mapping).NormalizedDistance().Should().NotBe(0.0);
         }
 
+        private double DistanceWithArtistTag(string artistTag)
+        {
+            var tracks = GivenTracks(3);
+            var release = GivenAlbumRelease("album", tracks);
+            var localTracks = GivenLocalTracks(tracks, release);
+            var mapping = GivenMapping(localTracks, tracks);
+
+            localTracks.ForEach(t => t.FileTrackInfo.ArtistTitle = artistTag);
+
+            return DistanceCalculator.AlbumReleaseDistance(localTracks, release, mapping).NormalizedDistance();
+        }
+
+        [TestCase("artist;guest")]
+        [TestCase("guest; artist")]
+        [TestCase("artist / guest")]
+        [TestCase("guest, artist")]
+        [TestCase("artist & guest")]
+        [TestCase("guest feat. artist")]
+        [TestCase("artist ft. guest")]
+        [TestCase("guest featuring artist")]
+        public void should_match_files_tagged_with_several_artists(string artistTag)
+        {
+            DistanceWithArtistTag(artistTag).Should().Be(0.0);
+        }
+
+        [TestCase("Artist & Band")]
+        [TestCase("Artist/Band")]
+        [TestCase("Artist, Band & Orchestra")]
+        public void should_match_an_artist_whose_name_contains_a_separator(string name)
+        {
+            _artist.Name = name;
+
+            DistanceWithArtistTag(name).Should().Be(0.0);
+        }
+
+        [TestCase("guest;other guest")]
+        [TestCase("guest & other guest")]
+        public void should_still_penalise_a_list_that_names_another_artist(string artistTag)
+        {
+            DistanceWithArtistTag(artistTag).Should().NotBe(0.0);
+        }
+
+        [TestCase("https://example.com")]
+        [TestCase("www.example.com")]
+        [TestCase("example.net")]
+        [TestCase("http://example.org/")]
+        [TestCase(" example.com ")]
+        public void should_not_score_a_web_address_in_the_artist_tag(string artistTag)
+        {
+            DistanceWithArtistTag(artistTag).Should().Be(0.0);
+        }
+
+        [TestCase("d.j.name")]
+        [TestCase("M.C. Other")]
+        [TestCase("")]
+        public void should_still_penalise_an_artist_tag_that_is_not_a_web_address(string artistTag)
+        {
+            DistanceWithArtistTag(artistTag).Should().NotBe(0.0);
+        }
+
         [Test]
         public void test_comp_track_artists_match()
         {

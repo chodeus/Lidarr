@@ -128,10 +128,12 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
             Add(key, StringPenalty(value, target));
         }
 
-        // Penalty against the closest of several accepted spellings, such as an artist's name and aliases
-        public void AddStringToClosest(string key, string value, IEnumerable<string> targets)
+        // Penalty for the closest pair, such as each artist a tag names against an artist's name and aliases
+        public void AddStringToClosest(string key, IEnumerable<string> values, IEnumerable<string> targets)
         {
-            Add(key, targets.Select(t => StringPenalty(value, t)).DefaultIfEmpty(StringPenalty(value, null)).Min());
+            var targetList = targets.ToList();
+
+            Add(key, values.Select(v => targetList.Select(t => StringPenalty(v, t)).DefaultIfEmpty(StringPenalty(v, null)).Min()).DefaultIfEmpty(1.0).Min());
         }
 
         private static double StringPenalty(string value, string target)

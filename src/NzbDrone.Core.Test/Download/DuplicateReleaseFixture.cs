@@ -5,9 +5,12 @@ using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Cache;
+using NzbDrone.Common.Http;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.DecisionEngine.Specifications;
 using NzbDrone.Core.Download;
+using NzbDrone.Core.Download.Clients;
+using NzbDrone.Core.Download.Clients.QBittorrent;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.Music;
@@ -238,6 +241,63 @@ namespace NzbDrone.Core.Test.Download
         {
             await GivenRefusedByTheClient(new DownloadClientRejectedReleaseException(RemoteAlbum(7, null).Release, "qBittorrent rejected the torrent file due to a conflict"));
 
+            Decide(RemoteAlbum(7, null)).Accepted.Should().BeTrue();
+        }
+
+        [Test]
+        public async Task should_keep_an_entry_a_grab_saved_while_a_recheck_was_asking_the_client()
+        {
+            await GivenTheClientAlreadyHasIt();
+
+            var checks = 0;
+            _downloadClient.As<ITorrentPresenceCheck>()
+                           .Setup(c => c.HasTorrent(It.IsAny<string>()))
+                           .Returns(() =>
+                           {
+                               // The torrent is gone when this check asks, then re-added and refused again before it answers
+                               if (++checks == 1)
+                               {
+                                   FluentActions.Awaiting(() => Subject.DownloadReport(RemoteAlbum(7, null), null)).Should().ThrowAsync<DownloadClientRejectedReleaseException>().GetAwaiter().GetResult();
+                                   return false;
+                               }
+
+                               return true;
+                           });
+
+            Decide(RemoteAlbum(7, null)).Accepted.Should().BeTrue();
+            Decide(RemoteAlbum(7, null)).Accepted.Should().BeFalse();
+        }
+
+        [Test]
+        public async Task should_remember_and_recheck_a_conflict_through_the_real_qbittorrent_client()
+        {
+            var loaded = true;
+            var proxy = Mocker.GetMock<IQBittorrentProxy>();
+            proxy.Setup(s => s.GetConfig(It.IsAny<QBittorrentSettings>())).Returns(new QBittorrentPreferences { DhtEnabled = true });
+            proxy.Setup(s => s.AddTorrentFromUrl(It.IsAny<string>(), It.IsAny<TorrentSeedConfiguration>(), It.IsAny<QBittorrentSettings>()))
+                 .Throws(new DownloadClientException("Failed to connect to qBittorrent, check your settings.", new HttpException(new HttpResponse(new HttpRequest("http://127.0.0.1:2222/"), new HttpHeader(), Array.Empty<byte>(), System.Net.HttpStatusCode.Conflict))));
+            proxy.Setup(s => s.IsTorrentLoaded(It.IsAny<string>(), It.IsAny<QBittorrentSettings>())).Returns(() => loaded);
+
+            Mocker.GetMock<IQBittorrentProxySelector>().Setup(s => s.GetProxy(It.IsAny<QBittorrentSettings>(), It.IsAny<bool>())).Returns(proxy.Object);
+            Mocker.GetMock<IQBittorrentProxySelector>().Setup(s => s.GetApiVersion(It.IsAny<QBittorrentSettings>(), It.IsAny<bool>())).Returns(new Version(2, 8, 3));
+
+            var client = Mocker.Resolve<QBittorrent>();
+            client.Definition = new DownloadClientDefinition { Id = 1, Name = "qBittorrent", Settings = new QBittorrentSettings { Host = "127.0.0.1", Port = 2222, MusicCategory = "music" } };
+            Mocker.GetMock<IProvideDownloadClient>().Setup(p => p.Get(1)).Returns(client);
+            Mocker.GetMock<IProvideDownloadClient>()
+                  .Setup(p => p.GetDownloadClient(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<HashSet<int>>()))
+                  .Returns(client);
+
+            var grabbed = RemoteAlbum(7, null);
+            grabbed.Release.DownloadUrl = "magnet:?xt=urn:btih:ZPBPA2P6ROZPKRHK44D5OW6NHXU5Z6KR&tr=udp://abc";
+
+            await FluentActions.Awaiting(() => Subject.DownloadReport(grabbed, null)).Should().ThrowAsync<ReleaseAlreadyInDownloadClientException>();
+
+            Decide(RemoteAlbum(7, null)).Accepted.Should().BeFalse();
+            Decide(RemoteAlbum(9, Hash.ToLowerInvariant(), "another-listing")).Accepted.Should().BeFalse();
+            proxy.Verify(s => s.IsTorrentLoaded(Hash.ToLowerInvariant(), It.IsAny<QBittorrentSettings>()), Times.Exactly(3));
+
+            loaded = false;
             Decide(RemoteAlbum(7, null)).Accepted.Should().BeTrue();
         }
 

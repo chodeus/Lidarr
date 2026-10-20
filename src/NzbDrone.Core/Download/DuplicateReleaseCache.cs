@@ -21,6 +21,9 @@ namespace NzbDrone.Core.Download
         private readonly ICached<DuplicateRelease> _cache;
         private readonly Logger _logger;
 
+        // Remember and the removal after a recheck; the recheck itself asks the client outside it
+        private readonly object _lock = new object();
+
         public DuplicateReleaseCache(IProvideDownloadClient downloadClientProvider, ICacheManager cacheManager, Logger logger)
         {
             _downloadClientProvider = downloadClientProvider;
@@ -31,17 +34,19 @@ namespace NzbDrone.Core.Download
         public void Remember(ReleaseInfo release, string infoHash, int downloadClientId, string downloadClient)
         {
             var duplicate = new DuplicateRelease(downloadClientId, downloadClient, infoHash);
-
-            if (infoHash.IsNotNullOrWhiteSpace())
-            {
-                _cache.Set(HashKey(infoHash), duplicate, Lifetime);
-            }
-
             var listingKey = ListingKey(release);
 
-            if (listingKey != null)
+            lock (_lock)
             {
-                _cache.Set(listingKey, duplicate, Lifetime);
+                if (infoHash.IsNotNullOrWhiteSpace())
+                {
+                    _cache.Set(HashKey(infoHash), duplicate, Lifetime);
+                }
+
+                if (listingKey != null)
+                {
+                    _cache.Set(listingKey, duplicate, Lifetime);
+                }
             }
         }
 
@@ -64,7 +69,14 @@ namespace NzbDrone.Core.Download
                 return duplicate.DownloadClient;
             }
 
-            _cache.Remove(key);
+            // Only the entry that was checked: a grab refused while the client was asked saved a newer one
+            lock (_lock)
+            {
+                if (ReferenceEquals(_cache.Find(key), duplicate))
+                {
+                    _cache.Remove(key);
+                }
+            }
 
             return null;
         }

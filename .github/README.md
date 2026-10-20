@@ -6,10 +6,11 @@ Refreshing an artist with rescan on used to scan every root folder. Only newly a
 
 - A refresh of chosen artists (the artist page's Refresh & Scan, or a bulk refresh) now rescans only those artists' folders. It is quicker, and a problem file under another artist can't affect it.
 - A full refresh (the scheduled task, or refreshing all artists) still scans the root folders, so files outside any artist folder are still found.
-- If a chosen artist was merged into another, or deleted, during the refresh, the root folders are scanned instead, since its files may now belong to another artist. The gone artist is left out of the scan, which would otherwise fail for every artist on it.
+- If a chosen artist was merged into another, or deleted, during the refresh, the root folders are scanned instead, since its files may now belong to another artist. This holds for newly added artists too. The gone artist is left out of the scan, and so is a repeat of an artist named twice, since the scan reads its artists back by id and fails on either.
+- On `develop`, a refresh that fails after such a merge, or changes the merged artist's auto-tags, still stops before the scan; `fix/refresh-keeps-concurrent-changes`, later in the custom build, fixes that.
 - `RescanArtists` is private, so the change stays inside `RefreshArtistService`.
 
-Tests: a selected refresh pushes a rescan of the artist's folder, a full refresh pushes a rescan of the root folders, and a refresh with an artist merged away pushes a rescan of the root folders. `RefreshArtistRescanFixture` runs the merge through the real `ArtistService` and repository over the test database, and checks the scan's artists can all be read back. Four mutations of the merged-away check each fail a test.
+Tests: a selected refresh pushes a rescan of the artist's folder, a full refresh pushes a rescan of the root folders, and a refresh with an artist merged away pushes a rescan of the root folders. `RefreshArtistRescanFixture` runs the merge through the real `ArtistService` and repository over the test database, and checks the scan's artists can all be read back; a new artist merged away and an artist named twice run the same way. Six mutations each fail a test.
 
 ## Summary by CodeRabbit
 

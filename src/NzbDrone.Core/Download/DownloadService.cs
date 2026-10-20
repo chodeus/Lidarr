@@ -127,8 +127,8 @@ namespace NzbDrone.Core.Download
             }
             catch (ReleaseAlreadyInDownloadClientException ex)
             {
-                _logger.Debug("{0} already has {1}, so it won't be grabbed again for a while", downloadClient.Definition.Name, remoteAlbum);
-                _duplicateReleaseCache?.Remember(remoteAlbum.Release, ex.InfoHash, downloadClient.Definition.Id, downloadClient.Definition.Name);
+                _logger.Debug("{0} already has {1}, so it won't be grabbed again for a while", ex.DownloadClientName, remoteAlbum);
+                _duplicateReleaseCache?.Remember(remoteAlbum.Release, ex.InfoHash, ex.DownloadClientId, ex.DownloadClientName);
                 throw;
             }
             catch (DownloadClientRejectedReleaseException)

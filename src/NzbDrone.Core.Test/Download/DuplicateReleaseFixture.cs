@@ -93,7 +93,7 @@ namespace NzbDrone.Core.Test.Download
 
         private Task GivenTheClientAlreadyHasIt()
         {
-            return GivenRefusedByTheClient(new ReleaseAlreadyInDownloadClientException(RemoteAlbum(7, null).Release, Hash, "qBittorrent already has this torrent", null));
+            return GivenRefusedByTheClient(new ReleaseAlreadyInDownloadClientException(RemoteAlbum(7, null).Release, Hash, 1, "qBittorrent", "qBittorrent already has this torrent", null));
         }
 
         private Decision Decide(RemoteAlbum remoteAlbum)
@@ -148,7 +148,7 @@ namespace NzbDrone.Core.Test.Download
         public async Task should_tell_pushed_listings_apart_by_guid()
         {
             var pushed = RemoteAlbum(0, null, "PUSH-https://tracker-a.test/download/1");
-            await GivenRefusedByTheClient(new ReleaseAlreadyInDownloadClientException(pushed.Release, Hash, "qBittorrent already has this torrent", null), pushed);
+            await GivenRefusedByTheClient(new ReleaseAlreadyInDownloadClientException(pushed.Release, Hash, 1, "qBittorrent", "qBittorrent already has this torrent", null), pushed);
 
             Decide(RemoteAlbum(0, null, "PUSH-https://tracker-a.test/download/1")).Accepted.Should().BeFalse();
             Decide(RemoteAlbum(0, null, "PUSH-https://tracker-b.test/download/1")).Accepted.Should().BeTrue();
@@ -158,7 +158,7 @@ namespace NzbDrone.Core.Test.Download
         public async Task should_match_a_listing_with_no_guid_by_hash_only()
         {
             var unidentified = RemoteAlbum(0, null, string.Empty);
-            await GivenRefusedByTheClient(new ReleaseAlreadyInDownloadClientException(unidentified.Release, Hash, "qBittorrent already has this torrent", null), unidentified);
+            await GivenRefusedByTheClient(new ReleaseAlreadyInDownloadClientException(unidentified.Release, Hash, 1, "qBittorrent", "qBittorrent already has this torrent", null), unidentified);
 
             Decide(RemoteAlbum(0, null, string.Empty)).Accepted.Should().BeTrue();
             Decide(RemoteAlbum(0, Hash, string.Empty)).Accepted.Should().BeFalse();
@@ -170,7 +170,7 @@ namespace NzbDrone.Core.Test.Download
             var grabbed = RemoteAlbum(7, null);
 
             _downloadClient.Setup(c => c.Download(It.IsAny<RemoteAlbum>(), It.IsAny<IIndexer>()))
-                           .ThrowsAsync(new ReleaseAlreadyInDownloadClientException(grabbed.Release, Hash, "qBittorrent already has this torrent", null));
+                           .ThrowsAsync(new ReleaseAlreadyInDownloadClientException(grabbed.Release, Hash, 1, "qBittorrent", "qBittorrent already has this torrent", null));
 
             await FluentActions.Awaiting(() => Subject.DownloadReport(grabbed, null)).Should().ThrowAsync<DownloadClientRejectedReleaseException>();
 

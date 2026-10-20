@@ -123,6 +123,19 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.QBittorrentTests
         }
 
         [Test]
+        public void Download_should_name_the_client_that_already_has_the_torrent()
+        {
+            GivenConflictWhenAdding(true);
+            Subject.Definition.Id = 3;
+            Subject.Definition.Name = "Download Client Name";
+
+            var thrown = Assert.ThrowsAsync<ReleaseAlreadyInDownloadClientException>(async () => await Subject.Download(TorrentFileRelease(), CreateIndexer()));
+
+            thrown.DownloadClientId.Should().Be(3);
+            thrown.DownloadClientName.Should().Be("Download Client Name");
+        }
+
+        [Test]
         public void Download_should_report_a_magnet_link_the_client_already_has()
         {
             GivenConflictWhenAdding(true);

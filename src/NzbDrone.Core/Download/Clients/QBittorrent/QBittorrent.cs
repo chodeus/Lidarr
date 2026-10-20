@@ -91,7 +91,7 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
                 // Older qBittorrent versions answer a torrent they already have with "Fails." instead of 409
                 if (HasTorrent(hash))
                 {
-                    throw new ReleaseAlreadyInDownloadClientException(remoteAlbum.Release, hash, "qBittorrent already has this torrent", ex);
+                    throw new ReleaseAlreadyInDownloadClientException(remoteAlbum.Release, hash, Definition.Id, Definition.Name, "qBittorrent already has this torrent", ex);
                 }
 
                 throw;
@@ -100,7 +100,7 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
             {
                 if (HasTorrent(hash))
                 {
-                    throw new ReleaseAlreadyInDownloadClientException(remoteAlbum.Release, hash, "qBittorrent already has this torrent", ex);
+                    throw new ReleaseAlreadyInDownloadClientException(remoteAlbum.Release, hash, Definition.Id, Definition.Name, "qBittorrent already has this torrent", ex);
                 }
 
                 throw new DownloadClientRejectedReleaseException(remoteAlbum.Release, "qBittorrent rejected the magnet link due to a conflict", ex);
@@ -170,7 +170,7 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
                 // Older qBittorrent versions answer a torrent they already have with "Fails." instead of 409
                 if (HasTorrent(hash))
                 {
-                    throw new ReleaseAlreadyInDownloadClientException(remoteAlbum.Release, hash, "qBittorrent already has this torrent", ex);
+                    throw new ReleaseAlreadyInDownloadClientException(remoteAlbum.Release, hash, Definition.Id, Definition.Name, "qBittorrent already has this torrent", ex);
                 }
 
                 throw;
@@ -179,7 +179,7 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
             {
                 if (HasTorrent(hash))
                 {
-                    throw new ReleaseAlreadyInDownloadClientException(remoteAlbum.Release, hash, "qBittorrent already has this torrent", ex);
+                    throw new ReleaseAlreadyInDownloadClientException(remoteAlbum.Release, hash, Definition.Id, Definition.Name, "qBittorrent already has this torrent", ex);
                 }
 
                 throw new DownloadClientRejectedReleaseException(remoteAlbum.Release, "qBittorrent rejected the torrent file due to a conflict", ex);

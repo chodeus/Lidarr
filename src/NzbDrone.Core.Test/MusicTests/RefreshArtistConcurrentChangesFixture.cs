@@ -339,6 +339,28 @@ namespace NzbDrone.Core.Test.MusicTests
             _artistService.GetArtist(other.Id).LastInfoSync.Should().BeAfter(new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc));
         }
 
+        // The real auto-tagging service over a rule for unmonitored artists; the edit that unmonitors comes during the lookup
+        [Test]
+        public void should_tag_by_rules_against_the_artist_as_stored_after_its_refresh()
+        {
+            Mocker.GetMock<IRootFolderRepository>().Setup(s => s.All()).Returns(new List<RootFolder>());
+            Mocker.GetMock<IAutoTaggingRepository>().Setup(s => s.All()).Returns(new List<AutoTag>
+            {
+                new AutoTag
+                {
+                    Name = "Auto Tag Name",
+                    Specifications = new List<IAutoTaggingSpecification> { new MonitoredSpecification { Name = "Monitored", Negate = true } },
+                    Tags = new HashSet<int> { 5 }
+                }
+            });
+            Mocker.SetConstant<IAutoTaggingService>(Mocker.Resolve<AutoTaggingService>());
+            GivenLookup(EditArtist);
+
+            Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
+
+            _artistService.GetArtist(_artist.Id).Tags.Should().Contain(5);
+        }
+
         [Test]
         public void should_keep_an_edit_saved_while_auto_tagging_decides()
         {

@@ -108,7 +108,7 @@ namespace NzbDrone.Core.Test.Housekeeping.Housekeepers
                 .BuildList();
             Db.InsertMany(tags);
 
-            Db.Insert(new RootFolder { Name = "Music", Path = "/music", DefaultTags = new HashSet<int> { tags[0].Id } });
+            Db.Insert(new RootFolder { Name = "Root Folder Name", Path = "/path/to/root-folder", DefaultTags = new HashSet<int> { tags[0].Id } });
 
             Subject.Clean();
             AllStoredModels.Should().ContainSingle().Which.Id.Should().Be(tags[0].Id);

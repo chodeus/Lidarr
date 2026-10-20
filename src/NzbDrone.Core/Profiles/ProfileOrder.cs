@@ -5,7 +5,7 @@ using NzbDrone.Core.Datastore;
 
 namespace NzbDrone.Core.Profiles
 {
-    // Shared by delay and tagging profiles: tagged profiles are numbered 1..n by priority and the default (Id 1) is always last
+    // Shared by delay and tagging profiles: tagged profiles rank by ascending order (Reorder and Renumber make it 1..n), and the default (Id 1) is last
     public static class ProfileOrder
     {
         public const int DefaultProfileId = 1;

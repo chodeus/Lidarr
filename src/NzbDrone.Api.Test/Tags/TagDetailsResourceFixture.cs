@@ -15,7 +15,7 @@ namespace NzbDrone.Api.Test.Tags
             var details = new TagDetails
             {
                 Id = 3,
-                Label = "kids",
+                Label = "Tag Label",
                 ArtistIds = new List<int>(),
                 NotificationIds = new List<int>(),
                 RestrictionIds = new List<int>(),

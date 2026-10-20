@@ -19,7 +19,7 @@ using NzbDrone.Core.Validation;
 
 namespace NzbDrone.Core.Download.Clients.QBittorrent
 {
-    public class QBittorrent : TorrentClientBase<QBittorrentSettings>
+    public class QBittorrent : TorrentClientBase<QBittorrentSettings>, ITorrentPresenceCheck
     {
         private readonly IQBittorrentProxySelector _proxySelector;
         private readonly ICached<SeedingTimeCacheEntry> _seedingTimeCache;
@@ -86,8 +86,23 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
             {
                 Proxy.AddTorrentFromUrl(magnetLink, addHasSetShareLimits && setShareLimits ? remoteAlbum.SeedConfiguration : null, Settings);
             }
+            catch (QBittorrentAddFailedException ex)
+            {
+                // Older qBittorrent versions answer a torrent they already have with "Fails." instead of 409
+                if (HasTorrent(hash))
+                {
+                    throw new ReleaseAlreadyInDownloadClientException(remoteAlbum.Release, hash, "qBittorrent already has this torrent", ex);
+                }
+
+                throw;
+            }
             catch (DownloadClientException ex) when (ex.InnerException is HttpException httpException && httpException.Response.StatusCode is HttpStatusCode.Conflict)
             {
+                if (HasTorrent(hash))
+                {
+                    throw new ReleaseAlreadyInDownloadClientException(remoteAlbum.Release, hash, "qBittorrent already has this torrent", ex);
+                }
+
                 throw new DownloadClientRejectedReleaseException(remoteAlbum.Release, "qBittorrent rejected the magnet link due to a conflict", ex);
             }
 
@@ -150,8 +165,23 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
             {
                 Proxy.AddTorrentFromFile(filename, fileContent, addHasSetShareLimits ? remoteAlbum.SeedConfiguration : null, Settings);
             }
+            catch (QBittorrentAddFailedException ex)
+            {
+                // Older qBittorrent versions answer a torrent they already have with "Fails." instead of 409
+                if (HasTorrent(hash))
+                {
+                    throw new ReleaseAlreadyInDownloadClientException(remoteAlbum.Release, hash, "qBittorrent already has this torrent", ex);
+                }
+
+                throw;
+            }
             catch (DownloadClientException ex) when (ex.InnerException is HttpException httpException && httpException.Response.StatusCode is HttpStatusCode.Conflict)
             {
+                if (HasTorrent(hash))
+                {
+                    throw new ReleaseAlreadyInDownloadClientException(remoteAlbum.Release, hash, "qBittorrent already has this torrent", ex);
+                }
+
                 throw new DownloadClientRejectedReleaseException(remoteAlbum.Release, "qBittorrent rejected the torrent file due to a conflict", ex);
             }
 
@@ -200,6 +230,26 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
             }
 
             return hash;
+        }
+
+        // A failed check counts as no: a conflict stays a plain rejection, and a remembered one is let through
+        public bool HasTorrent(string infoHash)
+        {
+            try
+            {
+                // API v1's torrent check can't tell a missing torrent apart
+                if (ProxyApiVersion < new Version(2, 0))
+                {
+                    return false;
+                }
+
+                return Proxy.IsTorrentLoaded(infoHash.ToLowerInvariant(), Settings);
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug(ex, "Unable to check whether qBittorrent already has {0}", infoHash);
+                return false;
+            }
         }
 
         protected bool WaitForTorrent(string hash)

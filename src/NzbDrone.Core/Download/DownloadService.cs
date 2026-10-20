@@ -29,7 +29,21 @@ namespace NzbDrone.Core.Download
         private readonly IRateLimitService _rateLimitService;
         private readonly IEventAggregator _eventAggregator;
         private readonly ISeedConfigProvider _seedConfigProvider;
+        private readonly IDuplicateReleaseCache _duplicateReleaseCache;
         private readonly Logger _logger;
+
+        // Develop's constructor, kept for plugins built against it; built this way, a release the client already has isn't remembered
+        public DownloadService(IProvideDownloadClient downloadClientProvider,
+                               IDownloadClientStatusService downloadClientStatusService,
+                               IIndexerFactory indexerFactory,
+                               IIndexerStatusService indexerStatusService,
+                               IRateLimitService rateLimitService,
+                               IEventAggregator eventAggregator,
+                               ISeedConfigProvider seedConfigProvider,
+                               Logger logger)
+            : this(downloadClientProvider, downloadClientStatusService, indexerFactory, indexerStatusService, rateLimitService, eventAggregator, seedConfigProvider, null, logger)
+        {
+        }
 
         public DownloadService(IProvideDownloadClient downloadClientProvider,
                                IDownloadClientStatusService downloadClientStatusService,
@@ -38,6 +52,7 @@ namespace NzbDrone.Core.Download
                                IRateLimitService rateLimitService,
                                IEventAggregator eventAggregator,
                                ISeedConfigProvider seedConfigProvider,
+                               IDuplicateReleaseCache duplicateReleaseCache,
                                Logger logger)
         {
             _downloadClientProvider = downloadClientProvider;
@@ -47,6 +62,7 @@ namespace NzbDrone.Core.Download
             _rateLimitService = rateLimitService;
             _eventAggregator = eventAggregator;
             _seedConfigProvider = seedConfigProvider;
+            _duplicateReleaseCache = duplicateReleaseCache;
             _logger = logger;
         }
 
@@ -107,6 +123,12 @@ namespace NzbDrone.Core.Download
             catch (ReleaseBlockedException)
             {
                 _logger.Trace("Release {0} previously added to blocklist, not sending to download client again.", remoteAlbum);
+                throw;
+            }
+            catch (ReleaseAlreadyInDownloadClientException ex)
+            {
+                _logger.Debug("{0} already has {1}, so it won't be grabbed again for a while", downloadClient.Definition.Name, remoteAlbum);
+                _duplicateReleaseCache?.Remember(remoteAlbum.Release, ex.InfoHash, downloadClient.Definition.Id, downloadClient.Definition.Name);
                 throw;
             }
             catch (DownloadClientRejectedReleaseException)

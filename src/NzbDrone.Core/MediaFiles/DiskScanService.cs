@@ -83,6 +83,10 @@ namespace NzbDrone.Core.MediaFiles
                 artistIds = new List<int>();
             }
 
+            // GetArtists throws for an id that is gone or repeated, so an artist deleted after the scan was queued would fail it for all
+            var storedArtists = artistIds.Any() ? _artistService.AllArtistPaths() : new Dictionary<int, string>();
+            artistIds = artistIds.Where(storedArtists.ContainsKey).Distinct().ToList();
+
             var mediaFileList = new List<IFileInfo>();
 
             var musicFilesStopwatch = Stopwatch.StartNew();

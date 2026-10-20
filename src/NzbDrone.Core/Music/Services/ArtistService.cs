@@ -39,6 +39,11 @@ namespace NzbDrone.Core.Music
             UpdateArtist(artist, false);
         }
 
+        void UpdateArtistTags(Artist artist)
+        {
+            UpdateArtist(artist);
+        }
+
         List<Artist> UpdateArtists(List<Artist> artist, bool useExistingRelativeFolder);
         Dictionary<int, string> AllArtistPaths();
         bool ArtistPathExists(string folder);
@@ -261,6 +266,15 @@ namespace NzbDrone.Core.Music
         {
             _cache.Clear();
             _artistRepository.SetFields(artist, a => a.Path);
+        }
+
+        public void UpdateArtistTags(Artist artist)
+        {
+            _cache.Clear();
+
+            var storedArtist = GetArtist(artist.Id);
+            _artistRepository.SetFields(artist, a => a.Tags);
+            _eventAggregator.PublishEvent(new ArtistEditedEvent(artist, storedArtist));
         }
 
         public List<Artist> UpdateArtists(List<Artist> artist, bool useExistingRelativeFolder)

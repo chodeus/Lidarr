@@ -404,7 +404,19 @@ namespace NzbDrone.Core.Music
                 }
                 catch (Exception e)
                 {
-                    var artist = _artistService.GetArtist(artistId);
+                    Artist artist;
+
+                    try
+                    {
+                        artist = _artistService.GetArtist(artistId);
+                    }
+                    catch (ModelNotFoundException)
+                    {
+                        // Merged into another artist, or deleted, during the refresh
+                        _logger.Error(e, "Couldn't refresh info for Artist {0}, which no longer exists", artistId);
+                        continue;
+                    }
+
                     _logger.Error(e, "Couldn't refresh info for Artist '{0}' [{1}]", artist.Name, artist.ForeignArtistId);
                     UpdateTags(artist);
                     artists.Add(artist);
@@ -447,7 +459,17 @@ namespace NzbDrone.Core.Music
 
             if (tagsAdded.Any() || tagsRemoved.Any())
             {
-                _artistService.UpdateArtist(artist);
+                // Applied to a fresh read and saved alone, so an edit saved while the rules ran stays
+                var stored = Stored(artist);
+
+                if (stored == null)
+                {
+                    return;
+                }
+
+                stored.Tags.ExceptWith(tagsRemoved);
+                stored.Tags.UnionWith(tagsAdded);
+                _artistService.UpdateArtistTags(stored);
                 _logger.Debug("Updated tags for '{0}'. Added: {1}, Removed: {2}", artist.Name, tagsAdded.Count, tagsRemoved.Count);
             }
         }

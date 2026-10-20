@@ -6,10 +6,12 @@ using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Cache;
+using NzbDrone.Common.Http;
 using NzbDrone.Core.AutoTagging;
 using NzbDrone.Core.AutoTagging.Specifications;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
+using NzbDrone.Core.History;
 using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.MediaFiles.Commands;
 using NzbDrone.Core.Messaging.Commands;
@@ -67,6 +69,7 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IAutoTaggingService>().Setup(s => s.GetTagChanges(It.IsAny<Artist>())).Returns(new AutoTaggingChanges());
             Mocker.GetMock<IConfigService>().SetupGet(s => s.RescanAfterRefresh).Returns(RescanAfterRefreshType.Never);
             Mocker.GetMock<IRootFolderService>().Setup(s => s.All()).Returns(new List<RootFolder>());
+            Mocker.GetMock<IHistoryService>().Setup(s => s.GetByArtist(It.IsAny<int>(), It.IsAny<EntityHistoryEventType?>())).Returns(new List<EntityHistory>());
 
             _updated = new List<ArtistUpdatedEvent>();
             Mocker.GetMock<IEventAggregator>().Setup(s => s.PublishEvent(It.IsAny<ArtistUpdatedEvent>())).Callback<ArtistUpdatedEvent>(e => _updated.Add(e));
@@ -290,6 +293,64 @@ namespace NzbDrone.Core.Test.MusicTests
 
             ExceptionVerification.ExpectedErrors(2);
             _artistService.GetArtist(_artist.Id).Tags.Should().Contain(5);
+        }
+
+        private Artist GivenAnotherArtist(string foreignArtistId)
+        {
+            var metadata = Builder<ArtistMetadata>.CreateNew().With(m => m.Id = 0).With(m => m.ForeignArtistId = foreignArtistId).Build();
+            Db.Insert(metadata);
+
+            var artist = Builder<Artist>.CreateNew()
+                                        .With(a => a.Id = 0)
+                                        .With(a => a.ArtistMetadataId = metadata.Id)
+                                        .With(a => a.Path = ("/music/" + foreignArtistId).AsOsAgnostic())
+                                        .With(a => a.Tags = new HashSet<int>())
+                                        .With(a => a.LastInfoSync = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc))
+                                        .Build();
+            Db.Insert(artist);
+            artist.Metadata = metadata;
+
+            return artist;
+        }
+
+        // The merge deletes the refreshed artist, then its album refresh fails; the next artist must still refresh
+        [Test]
+        public void should_refresh_the_rest_of_the_batch_when_a_merged_artist_then_fails()
+        {
+            var target = GivenAnotherArtist("artist-target");
+            var other = GivenAnotherArtist("artist-other");
+
+            Mocker.GetMock<IProvideArtistInfo>()
+                  .Setup(s => s.GetArtistInfo("artist-1", It.IsAny<int>()))
+                  .Returns(() => new Artist { CleanName = "artistnamerenamed", SortName = "artist name renamed", Metadata = target.Metadata.Value, Albums = new List<Album>() });
+            Mocker.GetMock<IProvideArtistInfo>()
+                  .Setup(s => s.GetArtistInfo("artist-other", It.IsAny<int>()))
+                  .Returns(() => new Artist { CleanName = "artistother", SortName = "artist other", Metadata = other.Metadata.Value, Albums = new List<Album>() });
+
+            var refreshes = 0;
+            Mocker.GetMock<IRefreshAlbumService>()
+                  .Setup(s => s.RefreshAlbumInfo(It.IsAny<List<Album>>(), It.IsAny<List<Album>>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<DateTime?>()))
+                  .Returns(() => refreshes++ == 0 ? throw new HttpException(new HttpResponse(new HttpRequest("https://example.test/"), new HttpHeader(), Array.Empty<byte>(), System.Net.HttpStatusCode.ServiceUnavailable)) : false);
+
+            Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id, other.Id }));
+
+            ExceptionVerification.ExpectedErrors(1);
+            ExceptionVerification.ExpectedWarns(1);
+            _artistService.GetArtist(other.Id).LastInfoSync.Should().BeAfter(new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc));
+        }
+
+        [Test]
+        public void should_keep_an_edit_saved_while_auto_tagging_decides()
+        {
+            Mocker.GetMock<IAutoTaggingService>()
+                  .Setup(s => s.GetTagChanges(It.IsAny<Artist>()))
+                  .Callback(EditArtist)
+                  .Returns(new AutoTaggingChanges { TagsToAdd = new HashSet<int> { 9 } });
+
+            Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
+
+            var stored = _artistService.GetArtist(_artist.Id);
+            new { stored.Monitored, Tags = stored.Tags.OrderBy(t => t).ToList() }.Should().BeEquivalentTo(new { Monitored = false, Tags = new List<int> { 7, 9 } });
         }
 
         // Fails by name for a field the refresh sets but doesn't save, such as one added upstream

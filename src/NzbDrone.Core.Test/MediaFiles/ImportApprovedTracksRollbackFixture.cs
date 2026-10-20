@@ -179,6 +179,8 @@ namespace NzbDrone.Core.Test.MediaFiles
 
         private List<ImportResult> Import(params ImportDecision<LocalTrack>[] decisions)
         {
+            // Resolved here, so it gets the services each test sets
+            Mocker.SetConstant<IReplaceTrackFiles>(Mocker.Resolve<TrackFileReplacementService>());
             return Subject.Import(decisions.ToList(), true, new DownloadClientItem { DownloadId = "dl-1" });
         }
 

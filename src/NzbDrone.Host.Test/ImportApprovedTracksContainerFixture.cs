@@ -43,10 +43,13 @@ namespace NzbDrone.App.Test
             container.RegisterInstance<IOptions<LogOptions>>(new Mock<IOptions<LogOptions>>().Object);
 
             var importer = container.GetServiceProvider().GetRequiredService<IImportApprovedTracks>();
+            var replacer = typeof(ImportApprovedTracks).GetField("_trackFileReplacer", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(importer);
+
+            replacer.Should().BeOfType<TrackFileReplacementService>();
 
             foreach (var field in new[] { "_lyricFileService", "_metadataFileService", "_otherExtraFileService" })
             {
-                typeof(ImportApprovedTracks).GetField(field, BindingFlags.NonPublic | BindingFlags.Instance).GetValue(importer).Should().NotBeNull(field);
+                typeof(TrackFileReplacementService).GetField(field, BindingFlags.NonPublic | BindingFlags.Instance).GetValue(replacer).Should().NotBeNull(field);
             }
         }
     }

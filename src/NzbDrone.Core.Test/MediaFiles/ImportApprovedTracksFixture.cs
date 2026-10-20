@@ -97,6 +97,8 @@ namespace NzbDrone.Core.Test.MediaFiles
             Mocker.GetMock<IDiskProvider>()
                 .Setup(s => s.GetParentFolder(It.IsAny<string>()))
                 .Returns<string>(p => Path.GetDirectoryName(p));
+
+            Mocker.SetConstant<IReplaceTrackFiles>(Mocker.Resolve<TrackFileReplacementService>());
         }
 
         [Test]

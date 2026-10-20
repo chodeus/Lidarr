@@ -189,6 +189,8 @@ namespace NzbDrone.Core.Test.MediaFiles
 
         private List<ImportResult> Import(params ImportDecision<LocalTrack>[] decisions)
         {
+            // Resolved here, so it gets the services each test sets
+            Mocker.SetConstant<IReplaceTrackFiles>(Mocker.Resolve<TrackFileReplacementService>());
             return Subject.Import(decisions.ToList(), true, new DownloadClientItem { DownloadId = "dl-1" });
         }
 
@@ -715,6 +717,51 @@ namespace NzbDrone.Core.Test.MediaFiles
                 Content = File.ReadAllText(path),
                 OldRecycled = _recycled.Any(r => r.Content == "A old 1")
             }.Should().BeEquivalentTo(new { Content = "A old 1", OldRecycled = false });
+        }
+
+        [Test]
+        public void should_put_back_what_moved_aside_when_a_later_file_of_the_album_cannot()
+        {
+            var album = GivenAlbum("A", "CD1", "CD2");
+
+            // A plain file has the hidden folder's name, so the second file can't move aside
+            File.WriteAllText(Path.Combine(_artist.Path, "CD2", ".lidarr-replaced"), "not a folder");
+            GivenOnlyTheseImport(album);
+
+            Assert.Catch<IOException>(() => Import(Incoming(album)));
+
+            new
+            {
+                FilesOnDisk = album.OldPaths.Count(File.Exists),
+                LeftAside = Directory.Exists(Path.Combine(_artist.Path, "CD1", ".lidarr-replaced"))
+            }.Should().BeEquivalentTo(new { FilesOnDisk = 2, LeftAside = false });
+        }
+
+        [Test]
+        public void should_put_the_next_album_back_when_putting_one_back_fails()
+        {
+            var a = GivenAlbum("A", "A");
+            var b = GivenAlbum("B", "B");
+            GivenOnlyTheseImport();
+
+            var files = new Mock<IMediaFileService>();
+            files.Setup(s => s.GetFilesByAlbum(It.IsAny<int>())).Returns<int>(id => _mediaFileService.GetFilesByAlbum(id));
+            files.Setup(s => s.Delete(It.IsAny<TrackFile>(), It.IsAny<DeleteMediaFileReason>())).Callback<TrackFile, DeleteMediaFileReason>((f, r) => _mediaFileService.Delete(f, r));
+            files.Setup(s => s.GetFileWithPath(It.IsAny<string>())).Returns<string>(p => _mediaFileService.GetFileWithPath(p));
+            files.Setup(s => s.AddMany(It.Is<List<TrackFile>>(l => l.All(f => f.AlbumId != a.Album.Id)))).Callback<List<TrackFile>>(f => _mediaFileService.AddMany(f));
+            files.Setup(s => s.AddMany(It.Is<List<TrackFile>>(l => l.Any(f => f.AlbumId == a.Album.Id)))).Throws(new InvalidOperationException("database is locked"));
+            Mocker.SetConstant(files.Object);
+
+            Import(Incoming(a), Incoming(b));
+
+            ExceptionVerification.ExpectedErrors(1);
+            new
+            {
+                AOnDisk = a.OldPaths.Count(File.Exists),
+                BOnDisk = b.OldPaths.Count(File.Exists),
+                BRows = Db.All<TrackFile>().Count(f => f.AlbumId == b.Album.Id),
+                BTrackLinked = Db.All<Track>().Single(t => t.Id == b.OldTracks[0].Id).TrackFileId > 0
+            }.Should().BeEquivalentTo(new { AOnDisk = 1, BOnDisk = 1, BRows = 1, BTrackLinked = true });
         }
     }
 }

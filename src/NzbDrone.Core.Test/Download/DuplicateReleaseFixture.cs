@@ -43,12 +43,9 @@ namespace NzbDrone.Core.Test.Download
                            .Returns(() => _stillHeld);
             _stillHeld = true;
 
+            // Grabs name the client by id: DownloadService resolves it through Get, with or without feat/download-client-fallback
             Mocker.GetMock<IProvideDownloadClient>()
                   .Setup(p => p.Get(1))
-                  .Returns(_downloadClient.Object);
-
-            Mocker.GetMock<IProvideDownloadClient>()
-                  .Setup(p => p.GetDownloadClient(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<HashSet<int>>()))
                   .Returns(_downloadClient.Object);
         }
 
@@ -88,7 +85,7 @@ namespace NzbDrone.Core.Test.Download
                            .Callback<RemoteAlbum, IIndexer>((r, i) => ((TorrentInfo)r.Release).InfoHash = Hash)
                            .ThrowsAsync(refusal);
 
-            await FluentActions.Awaiting(() => Subject.DownloadReport(grabbed, null)).Should().ThrowAsync<DownloadClientRejectedReleaseException>();
+            await FluentActions.Awaiting(() => Subject.DownloadReport(grabbed, 1)).Should().ThrowAsync<DownloadClientRejectedReleaseException>();
         }
 
         private Task GivenTheClientAlreadyHasIt()
@@ -172,7 +169,7 @@ namespace NzbDrone.Core.Test.Download
             _downloadClient.Setup(c => c.Download(It.IsAny<RemoteAlbum>(), It.IsAny<IIndexer>()))
                            .ThrowsAsync(new ReleaseAlreadyInDownloadClientException(grabbed.Release, Hash, 1, "qBittorrent", "qBittorrent already has this torrent", null));
 
-            await FluentActions.Awaiting(() => Subject.DownloadReport(grabbed, null)).Should().ThrowAsync<DownloadClientRejectedReleaseException>();
+            await FluentActions.Awaiting(() => Subject.DownloadReport(grabbed, 1)).Should().ThrowAsync<DownloadClientRejectedReleaseException>();
 
             Decide(RemoteAlbum(7, null)).Accepted.Should().BeFalse();
             Decide(RemoteAlbum(9, Hash)).Accepted.Should().BeFalse();
@@ -257,7 +254,7 @@ namespace NzbDrone.Core.Test.Download
                                // The torrent is gone when this check asks, then re-added and refused again before it answers
                                if (++checks == 1)
                                {
-                                   FluentActions.Awaiting(() => Subject.DownloadReport(RemoteAlbum(7, null), null)).Should().ThrowAsync<DownloadClientRejectedReleaseException>().GetAwaiter().GetResult();
+                                   FluentActions.Awaiting(() => Subject.DownloadReport(RemoteAlbum(7, null), 1)).Should().ThrowAsync<DownloadClientRejectedReleaseException>().GetAwaiter().GetResult();
                                    return false;
                                }
 
@@ -284,14 +281,11 @@ namespace NzbDrone.Core.Test.Download
             var client = Mocker.Resolve<QBittorrent>();
             client.Definition = new DownloadClientDefinition { Id = 1, Name = "qBittorrent", Settings = new QBittorrentSettings { Host = "127.0.0.1", Port = 2222, MusicCategory = "music" } };
             Mocker.GetMock<IProvideDownloadClient>().Setup(p => p.Get(1)).Returns(client);
-            Mocker.GetMock<IProvideDownloadClient>()
-                  .Setup(p => p.GetDownloadClient(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<HashSet<int>>()))
-                  .Returns(client);
 
             var grabbed = RemoteAlbum(7, null);
             grabbed.Release.DownloadUrl = "magnet:?xt=urn:btih:ZPBPA2P6ROZPKRHK44D5OW6NHXU5Z6KR&tr=udp://abc";
 
-            await FluentActions.Awaiting(() => Subject.DownloadReport(grabbed, null)).Should().ThrowAsync<ReleaseAlreadyInDownloadClientException>();
+            await FluentActions.Awaiting(() => Subject.DownloadReport(grabbed, 1)).Should().ThrowAsync<ReleaseAlreadyInDownloadClientException>();
 
             Decide(RemoteAlbum(7, null)).Accepted.Should().BeFalse();
             Decide(RemoteAlbum(9, Hash.ToLowerInvariant(), "another-listing")).Accepted.Should().BeFalse();

@@ -1,6 +1,6 @@
 # Fixed: Match imported files whose artist tag lists several artists or holds a web address
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. It is stacked on `feat/artist-alias-distance` and merges after it. Reviewed in [#PR_NUMBER](https://github.com/chodeus/Lidarr/pull/PR_NUMBER).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. It is stacked on `feat/artist-alias-distance` and merges after it. Reviewed in [#56](https://github.com/chodeus/Lidarr/pull/56).
 
 Import identification scores the files' artist tag, the album artist where there is one, as a single name against the release artist. Artist carries the heaviest weight in the album distance. A tag that names the album artist alongside others, such as "Artist A;Artist B" or "Artist A feat. Artist B", took a large artist penalty. A web address that a download site wrote into the album artist tag took the full penalty. Either could leave a correct release short of the import threshold.
 

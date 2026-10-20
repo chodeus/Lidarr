@@ -66,6 +66,10 @@ namespace NzbDrone.Core.Test.MusicTests
                   .Setup(s => s.FindById(It.IsAny<string>()))
                   .Returns(default(Artist));
 
+            Mocker.GetMock<IArtistService>(MockBehavior.Strict)
+                  .Setup(s => s.AllArtistPaths())
+                  .Returns(() => new Dictionary<int, string> { { _artist.Id, _artist.Path } });
+
             Mocker.GetMock<IAlbumService>(MockBehavior.Strict)
                 .Setup(s => s.InsertMany(It.IsAny<List<Album>>()));
 
@@ -185,8 +189,8 @@ namespace NzbDrone.Core.Test.MusicTests
             GivenRescanAfterManualRefresh();
 
             Mocker.GetMock<IArtistService>(MockBehavior.Strict)
-                .Setup(s => s.GetArtists(It.IsAny<IEnumerable<int>>()))
-                .Returns(new List<Artist>());
+                .Setup(s => s.AllArtistPaths())
+                .Returns(new Dictionary<int, string>());
 
             Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }) { Trigger = CommandTrigger.Manual });
 

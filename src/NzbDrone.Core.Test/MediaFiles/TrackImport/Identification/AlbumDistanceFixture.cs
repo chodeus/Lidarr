@@ -185,8 +185,10 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             DistanceCalculator.AlbumReleaseDistance(localTracks, release, mapping).NormalizedDistance().Should().NotBe(0.0);
         }
 
-        private double DistanceWithArtistTag(string artistTag)
+        private double DistanceWithArtistTag(string artistTag, string releaseArtist = "artist")
         {
+            _artist.Name = releaseArtist;
+
             var tracks = GivenTracks(3);
             var release = GivenAlbumRelease("album", tracks);
             var localTracks = GivenLocalTracks(tracks, release);
@@ -202,22 +204,41 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         [TestCase("artist / guest")]
         [TestCase("guest, artist")]
         [TestCase("artist & guest")]
-        [TestCase("guest feat. artist")]
+        [TestCase("artist feat. guest")]
         [TestCase("artist ft. guest")]
-        [TestCase("guest featuring artist")]
-        public void should_match_files_tagged_with_several_artists(string artistTag)
+        [TestCase("artist featuring guest")]
+        public void should_score_a_tag_crediting_several_artists_closer_than_the_same_text_as_one_name(string artistTag)
         {
-            DistanceWithArtistTag(artistTag).Should().Be(0.0);
+            var runTogether = new string(artistTag.Where(char.IsLetterOrDigit).ToArray());
+
+            DistanceWithArtistTag(artistTag).Should().BeLessThan(DistanceWithArtistTag(runTogether));
+            DistanceWithArtistTag(artistTag).Should().BeLessThan(DistanceWithArtistTag(artistTag, "other band"));
+        }
+
+        [TestCase("Artist & Band", "Artist & Band", "Band")]
+        [TestCase("Artist/Band", "Artist/Band", "Band")]
+        [TestCase("Artist, Band & Orchestra", "Artist, Band & Orchestra", "Orchestra")]
+        [TestCase("Artist & the Band", "Artist and the Band", "the Band")]
+        public void should_rank_the_whole_credit_above_one_of_its_artists(string artistTag, string wholeCredit, string oneArtist)
+        {
+            DistanceWithArtistTag(artistTag, wholeCredit).Should().BeLessThan(DistanceWithArtistTag(artistTag, oneArtist));
+        }
+
+        [TestCase("artist feat. guest")]
+        [TestCase("artist ft guest")]
+        [TestCase("artist featuring guest")]
+        public void should_rank_the_main_artist_above_a_featured_guest(string artistTag)
+        {
+            DistanceWithArtistTag(artistTag, "artist").Should().BeLessThan(DistanceWithArtistTag(artistTag, "guest"));
         }
 
         [TestCase("Artist & Band")]
         [TestCase("Artist/Band")]
         [TestCase("Artist, Band & Orchestra")]
+        [TestCase("Band Feat")]
         public void should_match_an_artist_whose_name_contains_a_separator(string name)
         {
-            _artist.Name = name;
-
-            DistanceWithArtistTag(name).Should().Be(0.0);
+            DistanceWithArtistTag(name, name).Should().Be(0.0);
         }
 
         [TestCase("guest;other guest")]
@@ -234,7 +255,15 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         [TestCase(" example.com ")]
         public void should_not_score_a_web_address_in_the_artist_tag(string artistTag)
         {
-            DistanceWithArtistTag(artistTag).Should().Be(0.0);
+            DistanceWithArtistTag(artistTag, "other band").Should().Be(0.0);
+        }
+
+        [TestCase("artist - www.example.com")]
+        [TestCase("artist @ example.net/")]
+        [TestCase("artist | example.ru")]
+        public void should_still_score_a_name_followed_by_a_web_address(string artistTag)
+        {
+            DistanceWithArtistTag(artistTag).Should().BeLessThan(DistanceWithArtistTag(artistTag, "other band"));
         }
 
         [TestCase("d.j.name")]

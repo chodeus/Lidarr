@@ -13,12 +13,16 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
 {
     public static class DistanceCalculator
     {
+        // One artist of several is weaker evidence than the whole credit, and must not beat a near miss on it such as "&" for "and"
+        private const double CreditedArtistPenalty = 0.2;
+
         private static readonly Logger Logger = NzbDroneLogger.GetLogger(typeof(DistanceCalculator));
 
         public static readonly List<string> VariousArtistIds = new List<string> { "89ad4ac3-39f7-470e-963a-56509c546377" };
         private static readonly List<string> VariousArtistNames = new List<string> { "various artists", "various", "va", "unknown" };
-        private static readonly Regex ArtistSeparators = new Regex(@"\s*(?:;|/|,|&|\b(?:feat|ft)\b\.?|\bfeaturing\b)\s*", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex WebAddress = new Regex(@"^(?:[a-z][a-z0-9+.-]*://|www\.)|\.(?:com|net|org|info|biz|ru|io)/?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex FeaturedArtists = new Regex(@"\s+(?:feat\.?|ft\.?|featuring)\s+.*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex ArtistSeparators = new Regex(@"\s*[;/,&]\s*", RegexOptions.Compiled);
+        private static readonly Regex WebAddress = new Regex(@"^(?:[a-z][a-z0-9+.-]*://\S+|www\.\S+|[^\s/]+\.(?:com|net|org|info|biz|ru|io)/?)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly List<IsoCountry> PreferredCountries = new List<string>
         {
             "United States",
@@ -33,10 +37,13 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
                 localTrack.FileTrackInfo.TrackNumbers[0] != totalTrackNumber;
         }
 
-        // The whole tag, so a name that contains a separator still matches, and each artist it lists
-        private static IEnumerable<string> TaggedArtists(string artist)
+        // Each artist the tag credits, leaving out guests after "feat.", or none when it credits one
+        private static List<string> CreditedArtists(string tag)
         {
-            return new[] { artist }.Concat(ArtistSeparators.Split(artist).Where(x => x.IsNotNullOrWhiteSpace()));
+            var main = FeaturedArtists.Replace(tag, "");
+            var artists = ArtistSeparators.Split(main).Where(x => x.IsNotNullOrWhiteSpace()).ToList();
+
+            return main != tag || artists.Count > 1 ? artists : new List<string>();
         }
 
         public static int GetTotalTrackNumber(Track track, List<Track> allTracks)
@@ -98,9 +105,11 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
             if (!VariousArtistIds.Contains(release.Album.Value.ArtistMetadata.Value.ForeignArtistId) && !WebAddress.IsMatch(artist.Trim()))
             {
                 var metadata = release.Album.Value.ArtistMetadata.Value;
+                var names = new[] { metadata.Name }.Concat(metadata.Aliases ?? new List<string>()).ToList();
 
-                // Files tagged with an artist's former or alternate name, or with several artists in one tag, still match
-                dist.AddStringToClosest("artist", TaggedArtists(artist), new[] { metadata.Name }.Concat(metadata.Aliases ?? new List<string>()));
+                // Files tagged with an artist's former or alternate name still match, and so, less closely, do tags crediting several artists
+                var penalty = CreditedArtists(artist).Select(a => Distance.ClosestPenalty(a, names) + CreditedArtistPenalty).Append(Distance.ClosestPenalty(artist, names)).Min();
+                dist.Add("artist", penalty);
                 Logger.Trace("artist: {0} vs {1}; {2}", artist, release.Album.Value.ArtistMetadata.Value.Name, dist.NormalizedDistance());
             }
 

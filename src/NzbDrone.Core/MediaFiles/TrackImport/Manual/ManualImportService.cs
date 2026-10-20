@@ -441,6 +441,13 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
             {
                 var trackedDownload = groupedTrackedDownload.First().TrackedDownload;
                 var importArtist = groupedTrackedDownload.First().ImportResult.ImportDecision.Item.Artist;
+
+                // Unset when completed-download handling never processed the download; GetMediaFiles fills it the same way
+                if (trackedDownload.ImportItem == null)
+                {
+                    trackedDownload.ImportItem = _provideImportItemService.ProvideImportItem(trackedDownload.DownloadItem, trackedDownload.ImportItem);
+                }
+
                 var outputPath = trackedDownload.ImportItem.OutputPath.FullPath;
 
                 if (_diskProvider.FolderExists(outputPath))

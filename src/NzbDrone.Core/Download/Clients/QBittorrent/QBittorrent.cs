@@ -232,26 +232,6 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
             return hash;
         }
 
-        // A failed check counts as no: a conflict stays a plain rejection, and a remembered one is let through
-        public bool HasTorrent(string infoHash)
-        {
-            try
-            {
-                // API v1's torrent check can't tell a missing torrent apart
-                if (ProxyApiVersion < new Version(2, 0))
-                {
-                    return false;
-                }
-
-                return Proxy.IsTorrentLoaded(infoHash.ToLowerInvariant(), Settings);
-            }
-            catch (Exception ex)
-            {
-                _logger.Debug(ex, "Unable to check whether qBittorrent already has {0}", infoHash);
-                return false;
-            }
-        }
-
         protected bool WaitForTorrent(string hash)
         {
             var count = 10;
@@ -276,6 +256,26 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
 
             _logger.Warn("Failed to load torrent '{0}' within 500 ms, skipping additional parameters.", hash);
             return false;
+        }
+
+        // A failed check counts as no: a conflict stays a plain rejection, and a remembered one is let through
+        public bool HasTorrent(string infoHash)
+        {
+            try
+            {
+                // API v1's torrent check can't tell a missing torrent apart
+                if (ProxyApiVersion < new Version(2, 0))
+                {
+                    return false;
+                }
+
+                return Proxy.IsTorrentLoaded(infoHash.ToLowerInvariant(), Settings);
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug(ex, "Unable to check whether qBittorrent already has {0}", infoHash);
+                return false;
+            }
         }
 
         public override string Name => "qBittorrent";

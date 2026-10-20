@@ -226,12 +226,12 @@ namespace NzbDrone.Core.Test.Profiles.Tagging
             repo.Setup(r => r.Insert(It.IsAny<TaggingProfile>())).Throws(new InvalidOperationException("database is locked"));
             var subject = NewService(repo.Object);
 
-            subject.BestForTags(new HashSet<int> { 5 }).Id.Should().Be(1);
+            subject.BestForTags(new HashSet<int> { 5 }).Order.Should().Be(int.MaxValue);
 
             Assert.Throws<InvalidOperationException>(() => subject.Add(new TaggingProfile { Name = "Added", Tags = new HashSet<int> { 6 } }));
 
             _realRepo.Get(legacy.Id).Order.Should().Be(1);
-            subject.BestForTags(new HashSet<int> { 5 }).Id.Should().Be(legacy.Id);
+            subject.BestForTags(new HashSet<int> { 5 }).Order.Should().Be(1);
         }
 
         [Test]
@@ -378,6 +378,26 @@ namespace NzbDrone.Core.Test.Profiles.Tagging
             save.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
 
             subject.GetSeededDefaultProfile().WriteAudioTags.Should().Be(WriteAudioTagsType.Sync);
+        }
+
+        [Test]
+        public void best_for_tags_should_not_pick_a_default_stored_out_of_place()
+        {
+            var seeded = _realRepo.Get(1);
+            seeded.Order = 0;
+            _realRepo.SetFields(seeded, p => p.Order);
+
+            var tagged = InsertProfile("Tagged", 1, 5);
+
+            Subject.BestForTags(new HashSet<int> { 5 }).Id.Should().Be(tagged.Id);
+        }
+
+        [Test]
+        public void best_for_tags_should_not_pick_the_default_over_a_profile_left_at_the_maximum_order()
+        {
+            var legacy = InsertProfile("Moved after the default by an older reorder", int.MaxValue, 5);
+
+            Subject.BestForTags(new HashSet<int> { 5 }).Id.Should().Be(legacy.Id);
         }
 
         [Test]

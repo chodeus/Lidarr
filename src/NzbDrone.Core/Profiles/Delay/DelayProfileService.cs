@@ -152,9 +152,12 @@ namespace NzbDrone.Core.Profiles.Delay
 
         private DelayProfile FetchBestForTags(HashSet<int> tagIds)
         {
+            // The default ranks last whatever its stored order; only a write puts an older out-of-place order right
             return All()
                 .Where(r => r.Tags.Intersect(tagIds).Any() || r.Tags.Empty())
-                .OrderBy(d => d.Order).First();
+                .OrderBy(d => d.Id == ProfileOrder.DefaultProfileId)
+                .ThenBy(d => d.Order)
+                .First();
         }
 
         public List<DelayProfile> Reorder(int id, int? afterId)

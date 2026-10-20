@@ -133,8 +133,8 @@ namespace NzbDrone.Core.Profiles.Tagging
             return Cached(key, () => FetchBestForTags(tagIds));
         }
 
-        // Tagging looks these up for every file, so only a miss waits for the writers' lock, under which it reads and
-        // stores so their cache clear can't land in between
+        // Tagging looks these up for every file, so only a miss (or a lookup nothing matches) waits for the writers' lock,
+        // under which it reads and stores so their cache clear can't land in between
         private TaggingProfile Cached(string key, Func<TaggingProfile> fetch)
         {
             var cached = _bestForTagsCache.Find(key);
@@ -152,9 +152,12 @@ namespace NzbDrone.Core.Profiles.Tagging
 
         private TaggingProfile FetchBestForTags(HashSet<int> tagIds)
         {
+            // The default ranks last whatever its stored order; only a write puts an older out-of-place order right
             return All()
                 .Where(r => r.Tags.Intersect(tagIds).Any() || r.Tags.Empty())
-                .OrderBy(d => d.Order).FirstOrDefault();
+                .OrderBy(d => d.Id == ProfileOrder.DefaultProfileId)
+                .ThenBy(d => d.Order)
+                .FirstOrDefault();
         }
 
         public List<TaggingProfile> Reorder(int id, int? afterId)

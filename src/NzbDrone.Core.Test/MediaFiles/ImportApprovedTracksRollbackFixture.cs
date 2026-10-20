@@ -35,7 +35,6 @@ namespace NzbDrone.Core.Test.MediaFiles
         private ArtistMetadata _metadata;
         private List<(string Path, string Subfolder, string Content)> _recycled;
 
-        // DiskProviderBase's own file and folder operations on the real file system
         private class TestAlbum
         {
             public Album Album { get; set; }
@@ -63,6 +62,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             Mocker.SetConstant<IReleaseRepository>(Mocker.Resolve<ReleaseRepository>());
             Mocker.SetConstant<IReleaseService>(Mocker.Resolve<ReleaseService>());
             Mocker.SetConstant<ITrackRepository>(Mocker.Resolve<TrackRepository>());
+            Mocker.SetConstant<IHistoryRepository>(Mocker.Resolve<EntityHistoryRepository>());
 
             var trackService = Mocker.Resolve<TrackService>();
             Mocker.SetConstant<ITrackService>(trackService);

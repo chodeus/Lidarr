@@ -27,7 +27,7 @@ using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.MediaFiles
 {
-    // Audit repros: setup mirrors ImportApprovedTracksRollbackFixture
+    // Setup mirrors ImportApprovedTracksRollbackFixture
     [TestFixture]
     public class ImportApprovedTracksRealServicesRollbackFixture : DbTest<ImportApprovedTracks, TrackFile>
     {
@@ -64,6 +64,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             Mocker.SetConstant<IReleaseRepository>(Mocker.Resolve<ReleaseRepository>());
             Mocker.SetConstant<IReleaseService>(Mocker.Resolve<ReleaseService>());
             Mocker.SetConstant<ITrackRepository>(Mocker.Resolve<TrackRepository>());
+            Mocker.SetConstant<IHistoryRepository>(Mocker.Resolve<EntityHistoryRepository>());
 
             _trackService = Mocker.Resolve<TrackService>();
             Mocker.SetConstant<ITrackService>(_trackService);
@@ -193,7 +194,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             Db.All<AlbumRelease>().Single(r => r.Id == album.NewRelease.Id).Monitored.Should().BeFalse();
         }
 
-        // P1: two albums share one folder; the one that imports recycles the other's backups
+        // Two albums share one folder; recycling for the one that imports must leave the other's backups alone
         [Test]
         public void shared_folder_should_keep_the_files_of_the_album_that_imported_nothing_when_it_comes_second()
         {
@@ -203,6 +204,7 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             var results = Import(a, b);
 
+            ExceptionVerification.ExpectedWarns(2);
             results.Should().Contain(r => r.Result == ImportResultType.Imported && r.ImportDecision.Item.Album.Id == a.Album.Id);
             StateOf(b).Should().BeEquivalentTo(new { RecycledFiles = Array.Empty<string>(), FilesOnDisk = 3, Rows = 3, RowsWithoutFile = 0, OldReleaseMonitored = true });
             AlbumShouldBeAsBefore(b);
@@ -230,13 +232,14 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             var results = Import(b, a);
 
+            ExceptionVerification.ExpectedWarns(2);
             results.Should().Contain(r => r.Result == ImportResultType.Imported && r.ImportDecision.Item.Album.Id == a.Album.Id);
             _recycled.Where(r => r.Content.StartsWith("B")).Select(r => r.Content).Should().BeEmpty("B imported nothing, so its files should not be recycled");
             AlbumShouldBeAsBefore(b);
             _recycled.Select(r => r.Content).Should().BeEquivalentTo(new[] { "A old 1", "A old 2", "A old 3" });
         }
 
-        // P2: the real lyric file service runs on TrackFileDeletedEvent, as in the app
+        // The real lyric file service runs on TrackFileDeletedEvent, as in the app
         [Test]
         public void should_keep_the_lyrics_of_an_album_it_puts_back()
         {
@@ -254,6 +257,7 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             var results = Import(album);
 
+            ExceptionVerification.ExpectedWarns(2);
             results.Should().OnlyContain(r => r.Result != ImportResultType.Imported);
             AlbumShouldBeAsBefore(album);
             var restoredRow = Db.All<TrackFile>().Single(f => f.Path == album.OldPaths[0]);
@@ -266,7 +270,6 @@ namespace NzbDrone.Core.Test.MediaFiles
             }.Should().BeEquivalentTo(new { Recycled = Array.Empty<string>(), LyricOnDisk = true, LyricRowsForRestoredFile = 1, LyricRows = 1 });
         }
 
-        // P2: the backups are recycled before the new rows are written
         [Test]
         public void should_put_the_album_back_when_recording_the_new_files_fails()
         {
@@ -304,7 +307,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             });
         }
 
-        // P3: a refresh writes the releases it read while the import ran (read during, write after the restore)
+        // The refresh reads the releases during the import and writes them after the restore
         [Test]
         public void should_keep_the_restored_release_when_a_refresh_writes_releases_it_read_during_the_import()
         {
@@ -317,6 +320,8 @@ namespace NzbDrone.Core.Test.MediaFiles
                   .Throws(new DestinationAlreadyExistsException("destination exists"));
 
             Import(album);
+
+            ExceptionVerification.ExpectedWarns(2);
             releases.UpdateMany(snapshot);
 
             var monitored = Db.All<AlbumRelease>().Single(r => r.AlbumId == album.Album.Id && r.Monitored);
@@ -338,10 +343,11 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             Import(album);
 
+            ExceptionVerification.ExpectedWarns(2);
             AlbumShouldBeAsBefore(album);
         }
 
-        // Input shape 0: the first download of an album without files
+        // The first download of an album without files
         [Test]
         public void should_put_the_release_back_when_an_album_without_files_imports_nothing()
         {
@@ -370,7 +376,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             Db.All<AlbumRelease>().Single(r => r.Id == album.NewRelease.Id).Monitored.Should().BeTrue();
         }
 
-        // Input shape: many files over gapped disc folders and the artist folder itself
+        // Files over gapped disc folders and the artist folder itself
         [Test]
         public void should_put_back_files_spread_over_gapped_disc_folders()
         {
@@ -379,6 +385,7 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             Import(album);
 
+            ExceptionVerification.ExpectedWarns(2);
             AlbumShouldBeAsBefore(album);
             _recycled.Should().BeEmpty();
             Directory.GetDirectories(_artist.Path, ".*", SearchOption.AllDirectories).Should().BeEmpty();
@@ -402,7 +409,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             Directory.GetDirectories(_artist.Path, ".*", SearchOption.AllDirectories).Should().BeEmpty();
         }
 
-        // Sentinel/shape: two releases flagged monitored; develop's RemoveExistingTrackFiles never read the flag
+        // develop's RemoveExistingTrackFiles never read the monitored flag, so two flagged releases must still import
         [Test]
         public void should_still_import_when_two_releases_are_monitored()
         {

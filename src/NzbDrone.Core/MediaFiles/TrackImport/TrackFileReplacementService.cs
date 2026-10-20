@@ -31,7 +31,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
         private readonly ITrackService _trackService;
         private readonly IDiskProvider _diskProvider;
         private readonly IRecycleBinProvider _recycleBinProvider;
-        private readonly IHistoryService _historyService;
+        private readonly IHistoryRepository _historyRepository;
         private readonly ILyricFileService _lyricFileService;
         private readonly IMetadataFileService _metadataFileService;
         private readonly IOtherExtraFileService _otherExtraFileService;
@@ -41,7 +41,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                                            ITrackService trackService,
                                            IDiskProvider diskProvider,
                                            IRecycleBinProvider recycleBinProvider,
-                                           IHistoryService historyService,
+                                           IHistoryRepository historyRepository,
                                            ILyricFileService lyricFileService,
                                            IMetadataFileService metadataFileService,
                                            IOtherExtraFileService otherExtraFileService,
@@ -51,7 +51,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             _trackService = trackService;
             _diskProvider = diskProvider;
             _recycleBinProvider = recycleBinProvider;
-            _historyService = historyService;
+            _historyRepository = historyRepository;
             _lyricFileService = lyricFileService;
             _metadataFileService = metadataFileService;
             _otherExtraFileService = otherExtraFileService;
@@ -214,15 +214,31 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                 }
             }
 
+            if (_historyRepository == null || back.Empty())
+            {
+                return;
+            }
+
             try
             {
-                // RemoveExistingTrackFiles recorded these as deleted
-                _historyService.RemoveTrackFileDeleted(replacement.Album.Id, back.SelectMany(f => f.TrackIds, (f, id) => (id, f.TrackFile.Path)).ToDictionary(x => x.id, x => x.Path), replacement.Started);
+                RemoveDeletionHistory(replacement, back);
             }
             catch (Exception e)
             {
                 _logger.Warn(e, "Couldn't remove the deletion history of the files put back for {0}", replacement.Album);
             }
+        }
+
+        // RemoveExistingTrackFiles recorded these as deleted; stored keys are camelCase
+        private void RemoveDeletionHistory(ReplacedAlbum replacement, List<ReplacedFile> back)
+        {
+            var pathsByTrack = back.SelectMany(f => f.TrackIds, (f, id) => (id, f.TrackFile.Path)).ToDictionary(x => x.id, x => x.Path);
+            var entries = _historyRepository.GetByAlbum(replacement.Album.Id, EntityHistoryEventType.TrackFileDeleted)
+                .Where(h => h.Date >= replacement.Started && pathsByTrack.TryGetValue(h.TrackId, out var path) && h.SourceTitle == path && h.Data.GetValueOrDefault("reason") == nameof(DeleteMediaFileReason.Upgrade))
+                .Select(h => h.Id)
+                .ToList();
+
+            _historyRepository.DeleteMany(entries);
         }
 
         // One file that can't move leaves the rest to go back, and waits where the error says

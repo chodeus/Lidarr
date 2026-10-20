@@ -67,6 +67,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             Mocker.SetConstant<IReleaseRepository>(Mocker.Resolve<ReleaseRepository>());
             Mocker.SetConstant<IReleaseService>(Mocker.Resolve<ReleaseService>());
             Mocker.SetConstant<ITrackRepository>(Mocker.Resolve<TrackRepository>());
+            Mocker.SetConstant<IHistoryRepository>(Mocker.Resolve<EntityHistoryRepository>());
 
             _trackService = Mocker.Resolve<TrackService>();
             Mocker.SetConstant<ITrackService>(_trackService);
@@ -206,6 +207,7 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             var results = Import(Incoming(a), Incoming(b));
 
+            ExceptionVerification.ExpectedWarns(2);
             results.Should().Contain(r => r.Result == ImportResultType.Imported && r.ImportDecision.Item.Album.Id == a.Album.Id);
             new
             {
@@ -240,7 +242,6 @@ namespace NzbDrone.Core.Test.MediaFiles
         [Test]
         public void should_not_leave_track_file_deleted_history_for_files_it_put_back()
         {
-            Mocker.SetConstant<IHistoryRepository>(Mocker.Resolve<EntityHistoryRepository>());
             var history = Mocker.Resolve<EntityHistoryService>();
             _deletedHandlers.Add(e => history.Handle(e));
             Mocker.SetConstant<IHistoryService>(history);
@@ -250,6 +251,7 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             var results = Import(Incoming(album));
 
+            ExceptionVerification.ExpectedWarns(2);
             results.Should().OnlyContain(r => r.Result != ImportResultType.Imported);
             album.OldPaths.Should().OnlyContain(p => File.Exists(p));
             Db.All<TrackFile>().Where(f => f.AlbumId == album.Album.Id).Should().HaveCount(3);
@@ -260,7 +262,6 @@ namespace NzbDrone.Core.Test.MediaFiles
         [Test]
         public void should_keep_other_deletion_history_when_it_puts_files_back()
         {
-            Mocker.SetConstant<IHistoryRepository>(Mocker.Resolve<EntityHistoryRepository>());
             var history = Mocker.Resolve<EntityHistoryService>();
             _deletedHandlers.Add(e => history.Handle(e));
             Mocker.SetConstant<IHistoryService>(history);
@@ -285,15 +286,16 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             Import(Incoming(album));
 
+            ExceptionVerification.ExpectedWarns(2);
             Db.All<EntityHistory>().Select(h => h.Id).Should().BeEquivalentTo(kept);
         }
 
         [Test]
         public void should_still_restore_the_album_when_removing_its_deletion_history_fails()
         {
-            Mocker.GetMock<IHistoryService>()
-                  .Setup(s => s.RemoveTrackFileDeleted(It.IsAny<int>(), It.IsAny<Dictionary<int, string>>(), It.IsAny<DateTime>()))
-                  .Throws(new InvalidOperationException("database is locked"));
+            var history = new Mock<IHistoryRepository>();
+            history.Setup(s => s.GetByAlbum(It.IsAny<int>(), It.IsAny<EntityHistoryEventType?>())).Throws(new InvalidOperationException("database is locked"));
+            Mocker.SetConstant(history.Object);
             var album = GivenAlbum("A", "A", "A", "A");
             GivenOnlyTheseImport();
 
@@ -305,7 +307,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             Db.All<TrackFile>().Select(f => f.Path).Should().BeEquivalentTo(album.OldPaths);
         }
 
-        // Error says the switch failed, but the in-memory flags flipped first and the events go out after
+        // The TrackImported events must carry the release the database kept
         [Test]
         public void should_report_the_release_the_database_kept_when_switching_fails()
         {
@@ -321,6 +323,7 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             Import(Incoming(album));
 
+            ExceptionVerification.ExpectedErrors(1);
             var kept = Db.All<AlbumRelease>().Single(r => r.AlbumId == album.Album.Id && r.Monitored).Id;
             imported.Should().HaveCount(1);
             imported.Select(e => e.TrackInfo.Album.AlbumReleases.Value.Single(r => r.Monitored).Id).Should().Equal(new[] { kept });
@@ -345,7 +348,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             Db.All<AlbumRelease>().Single(r => r.Id == album.NewRelease.Id).Monitored.Should().BeTrue();
         }
 
-        // The same database read failure the AddMany catch handles, 15 lines earlier
+        // A database read before any track imports; every album moved aside must go back
         [Test]
         public void should_put_the_album_back_when_loading_the_quality_profile_fails()
         {
@@ -354,6 +357,8 @@ namespace NzbDrone.Core.Test.MediaFiles
             _artist.QualityProfile = new LazyLoaded<QualityProfile>();
 
             var thrown = Assert.Catch<Exception>(() => Import(Incoming(album)));
+
+            ExceptionVerification.ExpectedWarns(1);
             thrown.StackTrace.Should().Contain("QualityModelComparer..ctor");
 
             new
@@ -396,6 +401,8 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             Import(Incoming(a), Incoming(b));
 
+            ExceptionVerification.ExpectedWarns(2);
+
             // B's file went to the bin, as develop's upgrade would have sent it, so its lyric goes too
             new
             {
@@ -423,6 +430,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             var results = Import(Incoming(album));
 
             ExceptionVerification.ExpectedErrors(1);
+            ExceptionVerification.ExpectedWarns(2);
             results.Should().OnlyContain(r => r.Result != ImportResultType.Imported);
             new
             {
@@ -544,6 +552,8 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             Import(Incoming(album));
 
+            ExceptionVerification.ExpectedErrors(1);
+            ExceptionVerification.ExpectedWarns(2);
             var waiting = Path.Combine(_artist.Path, "A", ".lidarr-replaced", album.Album.Id.ToString());
             new
             {
@@ -570,6 +580,8 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             Import(Incoming(album));
 
+            ExceptionVerification.ExpectedErrors(1);
+            ExceptionVerification.ExpectedWarns(2);
             new
             {
                 Back = new[] { album.OldPaths[0], album.OldPaths[2] }.Count(File.Exists),
@@ -681,6 +693,7 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             Assert.Catch<InvalidOperationException>(() => Import(Incoming(album)));
 
+            ExceptionVerification.ExpectedWarns(1);
             new
             {
                 Content = File.ReadAllText(path),
@@ -724,6 +737,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             Import(Incoming(a), Incoming(b));
 
             ExceptionVerification.ExpectedErrors(1);
+            ExceptionVerification.ExpectedWarns(4);
             new
             {
                 AOnDisk = a.OldPaths.Count(File.Exists),

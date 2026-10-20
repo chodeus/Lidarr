@@ -49,7 +49,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
         private readonly IReplaceTrackFiles _trackFileReplacer;
         private readonly Logger _logger;
 
-        // Develop's constructor, kept for plugins built against it; without the extra file services a put-back album loses its extras, as in develop
+        // Develop's constructor, kept for plugins built against it; a put-back album then loses its extras and keeps its deletion history, as in develop
         public ImportApprovedTracks(IUpgradeMediaFiles trackFileUpgrader,
                                     IMediaFileService mediaFileService,
                                     IAudioTagService audioTagService,
@@ -67,7 +67,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                                     IEventAggregator eventAggregator,
                                     IManageCommandQueue commandQueueManager,
                                     Logger logger)
-            : this(trackFileUpgrader, mediaFileService, audioTagService, trackService, artistService, addArtistService, albumService, refreshAlbumService, rootFolderService, recycleBinProvider, extraService, diskProvider, historyService, releaseService, eventAggregator, commandQueueManager, new TrackFileReplacementService(mediaFileService, trackService, diskProvider, recycleBinProvider, historyService, null, null, null, logger), logger)
+            : this(trackFileUpgrader, mediaFileService, audioTagService, trackService, artistService, addArtistService, albumService, refreshAlbumService, rootFolderService, recycleBinProvider, extraService, diskProvider, historyService, releaseService, eventAggregator, commandQueueManager, new TrackFileReplacementService(mediaFileService, trackService, diskProvider, recycleBinProvider, null, null, null, null, logger), logger)
         {
         }
 

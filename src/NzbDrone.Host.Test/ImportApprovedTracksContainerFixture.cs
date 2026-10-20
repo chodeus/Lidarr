@@ -47,7 +47,7 @@ namespace NzbDrone.App.Test
 
             replacer.Should().BeOfType<TrackFileReplacementService>();
 
-            foreach (var field in new[] { "_lyricFileService", "_metadataFileService", "_otherExtraFileService" })
+            foreach (var field in new[] { "_lyricFileService", "_metadataFileService", "_otherExtraFileService", "_historyRepository" })
             {
                 typeof(TrackFileReplacementService).GetField(field, BindingFlags.NonPublic | BindingFlags.Instance).GetValue(replacer).Should().NotBeNull(field);
             }

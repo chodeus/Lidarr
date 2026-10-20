@@ -40,19 +40,24 @@ namespace NzbDrone.Core.Profiles.Tagging
         {
             lock (_syncRoot)
             {
-                var all = All();
-
-                if (ProfileOrder.MakeRoom(all, p => p.Order, (p, order) => p.Order = order))
+                try
                 {
-                    _repo.SetFields(all, p => p.Order);
+                    var all = All();
+
+                    if (ProfileOrder.MakeRoom(all, p => p.Order, (p, order) => p.Order = order))
+                    {
+                        _repo.SetFields(all, p => p.Order);
+                    }
+
+                    profile.Order = ProfileOrder.Next(all, p => p.Order);
+
+                    return _repo.Insert(profile);
                 }
-
-                profile.Order = ProfileOrder.Next(all, p => p.Order);
-
-                var result = _repo.Insert(profile);
-                _bestForTagsCache.Clear();
-
-                return result;
+                finally
+                {
+                    // The renumber commits even when the insert fails
+                    _bestForTagsCache.Clear();
+                }
             }
         }
 
@@ -108,7 +113,7 @@ namespace NzbDrone.Core.Profiles.Tagging
 
         public TaggingProfile GetSeededDefaultProfile()
         {
-            return _bestForTagsCache.Get("seeded-default", () => All().FirstOrDefault(p => p.Id == 1) ?? new TaggingProfile(), TimeSpan.FromSeconds(30));
+            return Cached("seeded-default", () => All().FirstOrDefault(p => p.Id == 1) ?? new TaggingProfile());
         }
 
         public List<TaggingProfile> AllForTag(int tagId)
@@ -125,7 +130,24 @@ namespace NzbDrone.Core.Profiles.Tagging
         public TaggingProfile BestForTags(HashSet<int> tagIds)
         {
             var key = "-" + tagIds.Select(v => v.ToString()).Join(",");
-            return _bestForTagsCache.Get(key, () => FetchBestForTags(tagIds), TimeSpan.FromSeconds(30));
+            return Cached(key, () => FetchBestForTags(tagIds));
+        }
+
+        // Tagging looks these up for every file, so only a miss waits for the writers' lock, under which it reads and
+        // stores so their cache clear can't land in between
+        private TaggingProfile Cached(string key, Func<TaggingProfile> fetch)
+        {
+            var cached = _bestForTagsCache.Find(key);
+
+            if (cached != null)
+            {
+                return cached;
+            }
+
+            lock (_syncRoot)
+            {
+                return _bestForTagsCache.Get(key, fetch, TimeSpan.FromSeconds(30));
+            }
         }
 
         private TaggingProfile FetchBestForTags(HashSet<int> tagIds)

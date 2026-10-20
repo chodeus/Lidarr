@@ -33,10 +33,27 @@ namespace NzbDrone.Core.Test.Profiles.Tagging
             return Db.Insert(new TaggingProfile { Name = name, Order = order, Tags = new HashSet<int>(tags), WriteAudioTags = WriteAudioTagsType.No });
         }
 
-        private Mock<ITaggingProfileRepository> Forwarding(Action<IList<TaggingProfile>> beforeManyWrite = null)
+        private static TaggingProfileService NewService(ITaggingProfileRepository repo)
+        {
+            return new TaggingProfileService(repo, new CacheManager());
+        }
+
+        private Mock<ITaggingProfileRepository> Forwarding(Action<IList<TaggingProfile>> beforeManyWrite = null, Action afterFirstRead = null)
         {
             var mock = new Mock<ITaggingProfileRepository>();
-            mock.Setup(r => r.All()).Returns(() => _realRepo.All());
+            var read = false;
+            mock.Setup(r => r.All()).Returns(() =>
+            {
+                var snapshot = _realRepo.All().ToList();
+
+                if (afterFirstRead != null && !read)
+                {
+                    read = true;
+                    afterFirstRead();
+                }
+
+                return snapshot;
+            });
             mock.Setup(r => r.Get(It.IsAny<int>())).Returns<int>(id => _realRepo.Get(id));
             mock.Setup(r => r.Insert(It.IsAny<TaggingProfile>())).Returns<TaggingProfile>(p => _realRepo.Insert(p));
             mock.Setup(r => r.Update(It.IsAny<TaggingProfile>())).Returns<TaggingProfile>(p => _realRepo.Update(p));
@@ -198,6 +215,169 @@ namespace NzbDrone.Core.Test.Profiles.Tagging
 
             _realRepo.Find(a.Id).Should().BeNull();
             subject.BestForTags(new HashSet<int> { 5 }).Id.Should().NotBe(a.Id);
+        }
+
+        [Test]
+        public void add_should_clear_the_cache_when_the_insert_fails_after_a_renumber()
+        {
+            var legacy = InsertProfile("Moved after the default by an older reorder", int.MaxValue, 5);
+
+            var repo = Forwarding();
+            repo.Setup(r => r.Insert(It.IsAny<TaggingProfile>())).Throws(new InvalidOperationException("database is locked"));
+            var subject = NewService(repo.Object);
+
+            subject.BestForTags(new HashSet<int> { 5 }).Id.Should().Be(1);
+
+            Assert.Throws<InvalidOperationException>(() => subject.Add(new TaggingProfile { Name = "Added", Tags = new HashSet<int> { 6 } }));
+
+            _realRepo.Get(legacy.Id).Order.Should().Be(1);
+            subject.BestForTags(new HashSet<int> { 5 }).Id.Should().Be(legacy.Id);
+        }
+
+        [Test]
+        public void add_should_put_a_default_stored_out_of_place_back_last()
+        {
+            var seeded = _realRepo.Get(1);
+            seeded.Order = 0;
+            _realRepo.SetFields(seeded, p => p.Order);
+
+            var added = Subject.Add(new TaggingProfile { Name = "Added", Tags = new HashSet<int> { 5 } });
+
+            _realRepo.Get(1).Order.Should().Be(int.MaxValue);
+            Subject.BestForTags(new HashSet<int> { 5 }).Id.Should().Be(added.Id);
+        }
+
+        [Test]
+        public void best_for_tags_should_not_cache_the_ranking_a_concurrent_reorder_replaced()
+        {
+            var a = InsertProfile("A", 1, 5);
+            var b = InsertProfile("B", 2, 5);
+
+            TaggingProfileService subject = null;
+            Task reorder = null;
+            var repo = Forwarding(afterFirstRead: () =>
+            {
+                // Unserialised, the reorder commits and clears the cache here, before the old read is stored
+                reorder = Task.Run(() => subject.Reorder(b.Id, null));
+                reorder.Wait(TimeSpan.FromMilliseconds(500));
+            });
+            subject = NewService(repo.Object);
+
+            subject.BestForTags(new HashSet<int> { 5 }).Id.Should().Be(a.Id);
+            reorder.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+
+            subject.BestForTags(new HashSet<int> { 5 }).Id.Should().Be(b.Id);
+        }
+
+        [Test]
+        public void best_for_tags_should_not_cache_a_profile_a_concurrent_delete_removed()
+        {
+            var a = InsertProfile("A", 1, 5);
+            InsertProfile("B", 2, 5);
+
+            TaggingProfileService subject = null;
+            Task delete = null;
+            var repo = Forwarding(afterFirstRead: () =>
+            {
+                delete = Task.Run(() => subject.Delete(a.Id));
+                delete.Wait(TimeSpan.FromMilliseconds(500));
+            });
+            subject = NewService(repo.Object);
+
+            subject.BestForTags(new HashSet<int> { 5 }).Id.Should().Be(a.Id);
+            delete.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+
+            _realRepo.Find(a.Id).Should().BeNull();
+            subject.BestForTags(new HashSet<int> { 5 }).Id.Should().NotBe(a.Id);
+        }
+
+        [Test]
+        public void cached_lookup_should_not_wait_for_another_lookups_database_read()
+        {
+            InsertProfile("A", 1, 5);
+            var b = InsertProfile("B", 2, 6);
+
+            var inRead = new ManualResetEventSlim();
+            var release = new ManualResetEventSlim();
+            var hold = false;
+            var repo = Forwarding();
+            repo.Setup(r => r.All()).Returns(() =>
+            {
+                var snapshot = _realRepo.All().ToList();
+
+                if (hold)
+                {
+                    inRead.Set();
+                    release.Wait(TimeSpan.FromSeconds(5));
+                }
+
+                return snapshot;
+            });
+            var subject = NewService(repo.Object);
+
+            subject.BestForTags(new HashSet<int> { 6 }).Id.Should().Be(b.Id);
+
+            hold = true;
+            var miss = Task.Run(() => subject.BestForTags(new HashSet<int> { 5 }));
+            inRead.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+
+            var hit = Task.Run(() => subject.BestForTags(new HashSet<int> { 6 }));
+            var finished = hit.Wait(TimeSpan.FromMilliseconds(500));
+            release.Set();
+            miss.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+
+            finished.Should().BeTrue();
+            hit.Result.Id.Should().Be(b.Id);
+        }
+
+        [Test]
+        public void cached_lookup_should_not_wait_for_a_writer()
+        {
+            InsertProfile("A", 1, 5);
+            var b = InsertProfile("B", 2, 6);
+
+            var inWrite = new ManualResetEventSlim();
+            var release = new ManualResetEventSlim();
+            var subject = NewService(Forwarding(_ =>
+            {
+                inWrite.Set();
+                release.Wait(TimeSpan.FromSeconds(5));
+            }).Object);
+
+            subject.BestForTags(new HashSet<int> { 6 }).Id.Should().Be(b.Id);
+
+            var reorder = Task.Run(() => subject.Reorder(b.Id, null));
+            inWrite.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+
+            var hit = Task.Run(() => subject.BestForTags(new HashSet<int> { 6 }));
+            var finished = hit.Wait(TimeSpan.FromMilliseconds(500));
+            release.Set();
+            reorder.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+
+            finished.Should().BeTrue();
+        }
+
+        [Test]
+        public void seeded_default_should_not_cache_the_profile_a_concurrent_save_replaced()
+        {
+            TaggingProfileService subject = null;
+            Task save = null;
+            var repo = Forwarding(afterFirstRead: () =>
+            {
+                save = Task.Run(() =>
+                {
+                    var seeded = _realRepo.Get(1);
+                    seeded.WriteAudioTags = WriteAudioTagsType.Sync;
+                    subject.Update(seeded);
+                });
+                save.Wait(TimeSpan.FromMilliseconds(500));
+            });
+            subject = new TaggingProfileService(repo.Object, new CacheManager());
+
+            subject.GetSeededDefaultProfile().WriteAudioTags.Should().NotBe(WriteAudioTagsType.Sync);
+            save.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+
+            subject.GetSeededDefaultProfile().WriteAudioTags.Should().Be(WriteAudioTagsType.Sync);
         }
 
         [Test]

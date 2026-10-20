@@ -43,19 +43,24 @@ namespace NzbDrone.Core.Profiles.Delay
         {
             lock (_syncRoot)
             {
-                var all = All();
-
-                if (ProfileOrder.MakeRoom(all, p => p.Order, (p, order) => p.Order = order))
+                try
                 {
-                    _repo.SetFields(all, p => p.Order);
+                    var all = All();
+
+                    if (ProfileOrder.MakeRoom(all, p => p.Order, (p, order) => p.Order = order))
+                    {
+                        _repo.SetFields(all, p => p.Order);
+                    }
+
+                    profile.Order = ProfileOrder.Next(all, p => p.Order);
+
+                    return _repo.Insert(profile);
                 }
-
-                profile.Order = ProfileOrder.Next(all, p => p.Order);
-
-                var result = _repo.Insert(profile);
-                _bestForTagsCache.Clear();
-
-                return result;
+                finally
+                {
+                    // The renumber commits even when the insert fails
+                    _bestForTagsCache.Clear();
+                }
             }
         }
 
@@ -130,7 +135,19 @@ namespace NzbDrone.Core.Profiles.Delay
         public DelayProfile BestForTags(HashSet<int> tagIds)
         {
             var key = "-" + tagIds.Select(v => v.ToString()).Join(",");
-            return _bestForTagsCache.Get(key, () => FetchBestForTags(tagIds), TimeSpan.FromSeconds(30));
+            var cached = _bestForTagsCache.Find(key);
+
+            // RSS sync looks this up for every release, so only a miss waits for the writers' lock
+            if (cached != null)
+            {
+                return cached;
+            }
+
+            // Misses read and store under the writers' lock, so their cache clear can't land in between
+            lock (_syncRoot)
+            {
+                return _bestForTagsCache.Get(key, () => FetchBestForTags(tagIds), TimeSpan.FromSeconds(30));
+            }
         }
 
         private DelayProfile FetchBestForTags(HashSet<int> tagIds)

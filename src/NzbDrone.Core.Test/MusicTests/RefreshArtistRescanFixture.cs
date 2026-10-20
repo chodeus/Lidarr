@@ -94,6 +94,24 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
+        public void should_leave_an_artist_merged_away_during_a_full_refresh_out_of_its_rescan()
+        {
+            var duplicate = GivenArtist("artist-old");
+            var target = GivenArtist("artist-target");
+            var other = GivenArtist("artist-other");
+            GivenLookup("artist-old", target);
+            GivenLookup("artist-target", target);
+            GivenLookup("artist-other", other);
+
+            Subject.Execute(new RefreshArtistCommand { Trigger = CommandTrigger.Manual });
+
+            ExceptionVerification.ExpectedWarns(1);
+            var rescan = _rescans.Should().ContainSingle().Subject;
+            rescan.ArtistIds.Should().BeEquivalentTo(new[] { target.Id, other.Id });
+            _artistService.GetArtists(rescan.ArtistIds).Should().HaveCount(2);
+        }
+
+        [Test]
         public void should_rescan_root_folders_when_a_new_artist_was_merged_away()
         {
             var duplicate = GivenArtist("artist-old");

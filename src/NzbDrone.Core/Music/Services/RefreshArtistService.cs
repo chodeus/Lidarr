@@ -453,8 +453,11 @@ namespace NzbDrone.Core.Music
                     }
                 }
 
-                // A full refresh scans the root folders so files outside any artist folder are still found
-                RescanArtists(artists.Select(a => a.Id).ToList(), RootFolders(), isNew, trigger, updated);
+                // A full refresh scans the root folders so files outside any artist folder are still found;
+                // the list was read before the refresh, so leave out artists merged away or deleted since
+                var stored = _artistService.AllArtistPaths();
+
+                RescanArtists(artists.Select(a => a.Id).Where(stored.ContainsKey).ToList(), RootFolders(), isNew, trigger, updated);
             }
         }
     }

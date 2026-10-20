@@ -10,6 +10,7 @@ using NzbDrone.Core.AutoTagging;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.ImportLists.Exclusions;
+using NzbDrone.Core.MediaFiles.Commands;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
@@ -200,6 +201,43 @@ namespace NzbDrone.Core.Test.MusicTests
 
             ExceptionVerification.ExpectedErrors(2);
             _artistService.GetArtist(_artist.Id).Monitored.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_keep_a_move_saved_during_the_lookup_of_an_artist_whose_path_needed_tidying()
+        {
+            var untidy = _artistService.GetArtist(_artist.Id);
+            untidy.Path = "/music/./Artist Name".AsOsAgnostic();
+            _artistService.UpdateArtist(untidy, false);
+            GivenLookup(EditArtist);
+
+            Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
+
+            _artistService.GetArtist(_artist.Id).Path.Should().Be("/other/Artist Name".AsOsAgnostic());
+        }
+
+        [Test]
+        public void should_keep_an_edit_when_auto_tagging_changes_the_tags()
+        {
+            Mocker.GetMock<IAutoTaggingService>().Setup(s => s.GetTagChanges(It.IsAny<Artist>())).Returns(new AutoTaggingChanges { TagsToAdd = new HashSet<int> { 9 } });
+            GivenLookup(EditArtist);
+
+            Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
+
+            var stored = _artistService.GetArtist(_artist.Id);
+            new { stored.Monitored, Tags = stored.Tags.OrderBy(t => t).ToList() }.Should().BeEquivalentTo(new { Monitored = false, Tags = new List<int> { 7, 9 } });
+        }
+
+        [Test]
+        public void should_rescan_a_new_artist_at_the_path_saved_during_its_refresh()
+        {
+            Mocker.GetMock<IConfigService>().SetupGet(s => s.RescanAfterRefresh).Returns(RescanAfterRefreshType.Always);
+            GivenLookup(EditArtist);
+
+            Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }, true));
+
+            Mocker.GetMock<IManageCommandQueue>()
+                  .Verify(q => q.Push(It.Is<RescanFoldersCommand>(c => c.Folders.Single() == "/other/Artist Name".AsOsAgnostic()), It.IsAny<CommandPriority>(), It.IsAny<CommandTrigger>()), Times.Once());
         }
 
         // Fails by name for a field the refresh sets but doesn't save, such as one added upstream

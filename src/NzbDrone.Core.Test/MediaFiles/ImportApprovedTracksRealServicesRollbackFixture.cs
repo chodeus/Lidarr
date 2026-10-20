@@ -37,38 +37,6 @@ namespace NzbDrone.Core.Test.MediaFiles
         private List<(string Path, string Subfolder, string Content)> _recycled;
         private List<Action<TrackFileDeletedEvent>> _deletedHandlers;
 
-        private class RealDiskProvider : DiskProviderBase
-        {
-            public RealDiskProvider()
-                : base(new FileSystem())
-            {
-            }
-
-            public override long? GetAvailableSpace(string path) => null;
-            public override void InheritFolderPermissions(string filename)
-            {
-            }
-
-            public override void SetEveryonePermissions(string filename)
-            {
-            }
-
-            public override void SetFilePermissions(string path, string mask, string group)
-            {
-            }
-
-            public override void SetPermissions(string path, string mask, string group)
-            {
-            }
-
-            public override void CopyPermissions(string sourcePath, string targetPath)
-            {
-            }
-
-            public override long? GetTotalSize(string path) => null;
-            public override bool TryCreateHardLink(string source, string destination) => false;
-        }
-
         private class TestAlbum
         {
             public string Name { get; set; }
@@ -83,7 +51,8 @@ namespace NzbDrone.Core.Test.MediaFiles
         [SetUp]
         public void Setup()
         {
-            Mocker.SetConstant<IDiskProvider>(new RealDiskProvider());
+            // Not a subclass: branches merged with this one add abstract members to DiskProviderBase
+            Mocker.SetConstant<IDiskProvider>(new Mock<DiskProviderBase>(new FileSystem()) { CallBase = true }.Object);
 
             // Extra files: none unless a test adds them
             Mocker.GetMock<ILyricFileService>().Setup(s => s.GetFilesByTrackFile(It.IsAny<int>())).Returns(new List<LyricFile>());

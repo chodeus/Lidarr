@@ -24,6 +24,14 @@ Second round, from an audit of the branch:
 
 Tests: `DelayProfileServiceDbFixture` and `TaggingProfileServiceDbFixture` run the real services over the test database. The races are injected at the repository, and the Update/Reorder race runs on two threads. Each new case failed before the fix. Four mutations (always renumbering, the overflow threshold, and each lock) each fail a test. `TagDetailsResourceFixture` covers the root folder mapping. Full Core suite: 3284 pass, and the 3 hardlink tests that fail on this Mac fail as before.
 
+Third round, from the Sonarr port of these fixes and an audit of it:
+
+- **Lookups racing a change.** A lookup that missed the cache read the profiles, then stored what it read. A reorder, delete or save that cleared the cache in between left the old ranking cached for 30 seconds. A miss now reads and stores under the writers' lock; a hit is served without it, since RSS sync and tagging look profiles up per release and per file. The tagging service's seeded default shares the cache and the same rule.
+- **Add after a failed insert.** Add's renumber commits before the insert, so when the insert failed the cache kept the old orders. Add now clears the cache either way.
+- **A default stored out of place.** An older save could leave the default at a low order, and an older reorder a tagged profile tied with it at `int.MaxValue`. Either way the default won every lookup. Lookups now rank the default last whatever its stored order, and `MakeRoom` renumbers on the next add.
+
+Tests: both DB fixtures run these against the real database: a reorder and a delete landing between a lookup's read and its store (on two threads), a failed insert after a renumber, a default stored out of place, a tagged profile at the maximum order, and cached lookups that must not wait for a writer or for another lookup's read. The tagging fixture also covers the seeded default. Each new case failed before its fix, except the four timing tests, which check that hits aren't serialised. Ten mutations each fail a test. Full Core suite: 3302 pass, and the 3 hardlink tests that fail on this Mac fail as before. Merged after the custom build's other branches, it builds, the plugin check passes, and the suite there passes 4143 and fails the same 3.
+
 ## Summary by CodeRabbit
 
 * **Bug Fixes**

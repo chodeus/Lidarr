@@ -8,7 +8,6 @@ using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.History;
 using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.MediaFiles;
-using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Music.Commands;
@@ -204,8 +203,8 @@ namespace NzbDrone.Core.Test.MusicTests
 
             Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
 
-            Mocker.GetMock<IEventAggregator>()
-                .Verify(v => v.PublishEvent(It.Is<ArtistUpdatedEvent>(e => e.Artist.Metadata.Value.Status == ArtistStatusType.Deleted)), Times.Once());
+            VerifyEventPublished<ArtistUpdatedEvent>();
+            Assert.That(_artist.Metadata.Value.Status, Is.EqualTo(ArtistStatusType.Deleted));
 
             Mocker.GetMock<IArtistService>()
                 .Verify(v => v.DeleteArtist(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
@@ -222,8 +221,8 @@ namespace NzbDrone.Core.Test.MusicTests
 
             Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
 
-            Mocker.GetMock<IEventAggregator>()
-                .Verify(v => v.PublishEvent(It.Is<ArtistUpdatedEvent>(e => e.Artist.Metadata.Value.Status == ArtistStatusType.Deleted)), Times.Once());
+            VerifyEventPublished<ArtistUpdatedEvent>();
+            Assert.That(_artist.Metadata.Value.Status, Is.EqualTo(ArtistStatusType.Deleted));
 
             Mocker.GetMock<IArtistService>()
                 .Verify(v => v.DeleteArtist(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
@@ -242,8 +241,8 @@ namespace NzbDrone.Core.Test.MusicTests
 
             Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
 
-            Mocker.GetMock<IEventAggregator>()
-                .Verify(v => v.PublishEvent(It.Is<ArtistUpdatedEvent>(e => e.Artist.Metadata.Value.Status == ArtistStatusType.Deleted)), Times.Once());
+            VerifyEventPublished<ArtistUpdatedEvent>();
+            Assert.That(_artist.Metadata.Value.Status, Is.EqualTo(ArtistStatusType.Deleted));
 
             ExceptionVerification.ExpectedErrors(2);
         }
@@ -259,8 +258,7 @@ namespace NzbDrone.Core.Test.MusicTests
 
             Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
 
-            Mocker.GetMock<IEventAggregator>()
-                .Verify(v => v.PublishEvent(It.IsAny<ArtistUpdatedEvent>()), Times.Never());
+            VerifyEventNotPublished<ArtistUpdatedEvent>();
 
             ExceptionVerification.ExpectedErrors(2);
         }

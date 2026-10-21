@@ -23,14 +23,33 @@ namespace NzbDrone.Api.Test.Authentication
             return JsonDocument.Parse(json).RootElement;
         }
 
-        [TestCase("subject-1")]
-        [TestCase("SUBJECT-1")]
-        public void should_let_in_the_configured_subject(string configuredUser)
+        [Test]
+        public void should_let_in_the_configured_subject()
         {
             var principal = Principal(("sub", "subject-1"));
 
-            OidcUserAuthorizer.TryAuthorize(configuredUser, principal, null).Should().BeTrue();
-            principal.FindFirst("user").Value.Should().Be(configuredUser);
+            OidcUserAuthorizer.TryAuthorize("subject-1", principal, null).Should().BeTrue();
+            principal.FindFirst("user").Value.Should().Be("subject-1");
+        }
+
+        [Test]
+        public void should_keep_out_a_subject_that_differs_only_in_case()
+        {
+            OidcUserAuthorizer.TryAuthorize("SUBJECT-1", Principal(("sub", "subject-1")), null).Should().BeFalse();
+        }
+
+        [Test]
+        public void should_keep_out_a_subject_shaped_like_the_configured_email()
+        {
+            OidcUserAuthorizer.TryAuthorize("user@example.com", Principal(("sub", "user@example.com")), null).Should().BeFalse();
+        }
+
+        [Test]
+        public void should_let_in_a_verified_email_in_another_case()
+        {
+            var principal = Principal(("sub", "subject-1"), ("email", "user@example.com"), ("email_verified", "true"));
+
+            OidcUserAuthorizer.TryAuthorize("User@Example.com", principal, null).Should().BeTrue();
         }
 
         [Test]
@@ -102,12 +121,13 @@ namespace NzbDrone.Api.Test.Authentication
             OidcUserAuthorizer.TryAuthorize("user@example.com", principal, null).Should().Be(expected);
         }
 
-        [Test]
-        public void should_prefer_the_user_info_subject()
+        [TestCase("subject-2", true)]
+        [TestCase("subject-1", false)]
+        public void should_prefer_the_user_info_subject(string configuredUser, bool expected)
         {
             var user = UserInfo("{\"sub\":\"subject-2\"}");
 
-            OidcUserAuthorizer.GetIdentifiers(Principal(("sub", "subject-1")), user).Should().Equal("subject-2");
+            OidcUserAuthorizer.TryAuthorize(configuredUser, Principal(("sub", "subject-1")), user).Should().Be(expected);
         }
 
         [TestCase(" ")]

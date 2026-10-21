@@ -886,7 +886,7 @@
   "OidcScopes": "OIDC Scopes",
   "OidcScopesHelpText": "The scopes to request from the OIDC provider, must include 'openid'",
   "OidcUserIdentifier": "OIDC User",
-  "OidcUserIdentifierHelpText": "The verified email address or subject identifier (sub) on the OIDC provider that will be used to log in to {appName}",
+  "OidcUserIdentifierHelpText": "An email address the OIDC provider has verified, or the user's subject identifier (sub), matched exactly. A value containing @ is only compared to the email",
   "Ok": "Ok",
   "OnAlbumDelete": "On Album Delete",
   "OnApplicationUpdate": "On Application Update",

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Security.Claims;
 using System.Text.Json;
 using NLog;
@@ -10,7 +9,7 @@ using NzbDrone.Core.Authentication;
 
 namespace Lidarr.Http.Authentication
 {
-    // Only the configured user gets in: matched by subject, or by an email the provider says is verified
+    // Only the configured user gets in: a setting with '@' matches an email the provider says is verified, any other the subject exactly
     public static class OidcUserAuthorizer
     {
         private static readonly Logger Logger = NzbDroneLogger.GetLogger(typeof(OidcUserAuthorizer));
@@ -24,9 +23,7 @@ namespace Lidarr.Http.Authentication
                 return false;
             }
 
-            var identifiers = GetIdentifiers(principal, user);
-
-            if (!identifiers.Any(i => string.Equals(i, configuredUser, StringComparison.OrdinalIgnoreCase)))
+            if (!Matches(configuredUser, principal, user))
             {
                 Logger.Error("User with subject '{0}' is not authorized to access this application", GetClaimValue(principal, user, "sub") ?? "unknown");
 
@@ -45,33 +42,23 @@ namespace Lidarr.Http.Authentication
             return true;
         }
 
-        public static List<string> GetIdentifiers(ClaimsPrincipal principal, JsonElement? user)
+        // Some providers let users choose their subject, so a subject must never pass for an email
+        private static bool Matches(string configuredUser, ClaimsPrincipal principal, JsonElement? user)
         {
-            var identifiers = new List<string>();
-
-            AddVerifiedEmail(identifiers, principal, user);
-
-            var subject = GetClaimValue(principal, user, "sub");
-
-            if (subject.IsNotNullOrWhiteSpace())
+            if (configuredUser.Contains('@'))
             {
-                identifiers.Add(subject);
+                return string.Equals(GetVerifiedEmail(principal, user), configuredUser, StringComparison.OrdinalIgnoreCase);
             }
 
-            return identifiers;
+            return string.Equals(GetClaimValue(principal, user, "sub"), configuredUser, StringComparison.Ordinal);
         }
 
         // The user info answer, when there is one, decides on its own whether the email counts
-        private static void AddVerifiedEmail(List<string> identifiers, ClaimsPrincipal principal, JsonElement? user)
+        private static string GetVerifiedEmail(ClaimsPrincipal principal, JsonElement? user)
         {
             if (user.HasValue && TryGetString(user.Value, "email", out var userInfoEmail))
             {
-                if (IsEmailVerified(user.Value))
-                {
-                    identifiers.Add(userInfoEmail);
-                }
-
-                return;
+                return IsEmailVerified(user.Value) ? userInfoEmail : null;
             }
 
             var email = principal?.FindFirst("email")?.Value;
@@ -80,8 +67,10 @@ namespace Lidarr.Http.Authentication
                 bool.TryParse(principal?.FindFirst("email_verified")?.Value, out var verified) &&
                 verified)
             {
-                identifiers.Add(email);
+                return email;
             }
+
+            return null;
         }
 
         private static string GetClaimValue(ClaimsPrincipal principal, JsonElement? user, string claim)

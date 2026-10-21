@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using NUnit.Framework;
@@ -135,6 +136,96 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             localTrack.FileTrackInfo.ArtistTitle = "Various Artists";
 
             DistanceCalculator.TrackDistance(localTrack, track, 1, true).NormalizedDistance().Should().Be(0.0);
+        }
+
+        private static double FingerprintPenalty(Track track, List<AcoustIdRecording> recordings)
+        {
+            var localTrack = new LocalTrack
+            {
+                FileTrackInfo = new ParsedTrackInfo { CleanTitle = track.Title, TrackNumbers = new[] { 0 } },
+                AcoustIdResults = recordings?.Select(x => x.Id).ToList() ?? new List<string> { "sibling" },
+                AcoustIdRecordings = recordings
+            };
+
+            return DistanceCalculator.TrackDistance(localTrack, track, 1).Penalties["recording_id"].Single();
+        }
+
+        private Track GivenTimedTrack(string title, int milliseconds)
+        {
+            var track = GivenTrack(title);
+            track.ForeignRecordingId = "11111111-1111-1111-1111-111111111111";
+            track.Duration = milliseconds;
+
+            return track;
+        }
+
+        private static List<AcoustIdRecording> Named(string title, double? seconds)
+        {
+            return new List<AcoustIdRecording> { new AcoustIdRecording { Id = "sibling", Title = title, Duration = seconds } };
+        }
+
+        [TestCase("one", 200)]
+        [TestCase("One!", 200)]
+        [TestCase("one", 210)]
+        [TestCase("one", 190)]
+        public void should_give_a_named_recording_with_the_tracks_title_and_length_the_sibling_penalty(string title, double seconds)
+        {
+            var track = GivenTimedTrack("one", 200000);
+
+            FingerprintPenalty(track, Named(title, seconds)).Should().Be(0.2);
+        }
+
+        [TestCase("two", 200)]
+        [TestCase("one (instrumental)", 200)]
+        [TestCase("", 200)]
+        [TestCase("one", 210.5)]
+        [TestCase("one", 189.5)]
+        [TestCase("one", null)]
+        public void should_penalise_a_named_recording_with_another_title_or_length(string title, double? seconds)
+        {
+            var track = GivenTimedTrack("one", 200000);
+
+            FingerprintPenalty(track, Named(title, seconds)).Should().Be(1.0);
+        }
+
+        [Test]
+        public void should_penalise_a_named_recording_when_the_track_has_no_length()
+        {
+            var track = GivenTimedTrack("one", 0);
+
+            FingerprintPenalty(track, Named("one", 0)).Should().Be(1.0);
+        }
+
+        [Test]
+        public void should_penalise_a_named_recording_without_a_length_against_a_short_track()
+        {
+            var track = GivenTimedTrack("one", 5000);
+
+            FingerprintPenalty(track, Named("one", null)).Should().Be(1.0);
+        }
+
+        [Test]
+        public void should_penalise_a_named_recording_when_neither_has_a_title()
+        {
+            var track = GivenTimedTrack("", 200000);
+
+            FingerprintPenalty(track, Named("", 200)).Should().Be(1.0);
+        }
+
+        [Test]
+        public void should_penalise_a_named_recording_without_its_title_and_length()
+        {
+            var track = GivenTimedTrack("one", 200000);
+
+            FingerprintPenalty(track, null).Should().Be(1.0);
+        }
+
+        [Test]
+        public void should_not_penalise_the_tracks_own_recording()
+        {
+            var track = GivenTimedTrack("one", 200000);
+
+            FingerprintPenalty(track, new List<AcoustIdRecording> { new AcoustIdRecording { Id = track.ForeignRecordingId } }).Should().Be(0.0);
         }
     }
 }

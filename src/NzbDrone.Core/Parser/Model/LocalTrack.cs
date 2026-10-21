@@ -20,6 +20,7 @@ namespace NzbDrone.Core.Parser.Model
         public ParsedAlbumInfo FolderAlbumInfo { get; set; }
         public ParsedAlbumInfo DownloadClientAlbumInfo { get; set; }
         public List<string> AcoustIdResults { get; set; }
+        public List<AcoustIdRecording> AcoustIdRecordings { get; set; }
         public Artist Artist { get; set; }
         public Album Album { get; set; }
         public AlbumRelease Release { get; set; }

@@ -352,7 +352,7 @@ namespace NzbDrone.Core.Parser
                 .WithRateLimit(0.334)
                 .Build();
 
-            var sb = new StringBuilder($"client={_acoustIdApiKey}&format=json&meta=recordingids&batch=1", 2000);
+            var sb = new StringBuilder($"client={_acoustIdApiKey}&format=json&meta=recordings&batch=1", 2000);
             for (var i = 0; i < toLookup.Count; i++)
             {
                 sb.Append($"&duration.{i}={toLookup[i].Item2.Duration:F0}&fingerprint.{i}={toLookup[i].Item2.Fingerprint}");
@@ -436,10 +436,12 @@ namespace NzbDrone.Core.Parser
                     _logger.Trace("Found: {0}, {1}, {2}", result.Id, result.Score, string.Join(", ", result.Recordings.Select(x => x.Id)));
                 }
 
-                var ids = fileResponse.Results.Where(x => x.Score > threshold && x.Recordings != null).SelectMany(y => y.Recordings.Select(z => z.Id)).Distinct().ToList();
+                var recordings = fileResponse.Results.Where(x => x.Score > threshold && x.Recordings != null).SelectMany(y => y.Recordings).ToList();
+                var ids = recordings.Select(z => z.Id).Distinct().ToList();
                 _logger.Trace("All recordings: {0}", string.Join("\n", ids));
 
                 toLookup[fileResponse.index].Item1.AcoustIdResults = ids;
+                toLookup[fileResponse.index].Item1.AcoustIdRecordings = recordings;
             }
 
             _logger.Debug("Fingerprinting complete.");
@@ -496,12 +498,7 @@ namespace NzbDrone.Core.Parser
         {
             public string Id { get; set; }
             public double Score { get; set; }
-            public List<RecordingResult> Recordings { get; set; }
-        }
-
-        public class RecordingResult
-        {
-            public string Id { get; set; }
+            public List<AcoustIdRecording> Recordings { get; set; }
         }
     }
 }

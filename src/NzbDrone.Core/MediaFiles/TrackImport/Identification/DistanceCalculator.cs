@@ -36,6 +36,24 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
             return track.AbsoluteTrackNumber + allTracks.Count(t => t.MediumNumber < track.MediumNumber);
         }
 
+        // A sibling recording costs 0.2, so a release holding the named recording still ranks first
+        private static double AcoustIdPenalty(LocalTrack localTrack, Track mbTrack)
+        {
+            if (localTrack.AcoustIdResults.Contains(mbTrack.ForeignRecordingId))
+            {
+                return 0.0;
+            }
+
+            return NamesSameSong(localTrack.AcoustIdRecordings, mbTrack) ? 0.2 : 1.0;
+        }
+
+        // AcoustID often names a sibling recording of the same song from another release; 10 s is track_length's grace
+        private static bool NamesSameSong(List<AcoustIdRecording> recordings, Track mbTrack)
+        {
+            return recordings != null && mbTrack.Duration > 0 &&
+                recordings.Any(r => r.Duration.HasValue && Math.Abs(r.Duration.Value - (mbTrack.Duration / 1000.0)) <= 10 && Distance.SameText(r.Title, mbTrack.Title));
+        }
+
         public static Distance TrackDistance(LocalTrack localTrack, Track mbTrack, int totalTrackNumber, bool includeArtist = false)
         {
             var dist = new Distance();
@@ -77,7 +95,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
             // for fingerprinted files
             if (localTrack.AcoustIdResults != null && musicBrainzTrack)
             {
-                dist.AddBool("recording_id", !localTrack.AcoustIdResults.Contains(mbTrack.ForeignRecordingId));
+                dist.Add("recording_id", AcoustIdPenalty(localTrack, mbTrack));
             }
 
             return dist;

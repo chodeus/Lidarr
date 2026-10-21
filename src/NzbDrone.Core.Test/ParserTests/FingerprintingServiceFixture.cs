@@ -265,6 +265,25 @@ FINGERPRINT=AQAHJlMURlEURcgP6cwRD43Y4Ptw9FowncWPWkf6GB9-JYdP9OgJHw8u4Apw4SsOHMdx
         }
 
         [Test]
+        public void should_keep_the_title_and_length_of_each_named_recording()
+        {
+            var response = "{\"fingerprints\": [{\"index\": \"0\", \"results\": [{\"id\": \"00000000-0000-0000-0000-00000000000a\", \"recordings\": [{\"id\": \"00000000-0000-0000-0000-000000000001\", \"title\": \"Song\", \"duration\": 201.5, \"artists\": [{\"id\": \"00000000-0000-0000-0000-00000000000b\", \"name\": \"Artist\"}]}, {\"id\": \"00000000-0000-0000-0000-000000000002\"}], \"score\": 0.9}, {\"id\": \"00000000-0000-0000-0000-00000000000c\", \"recordings\": [{\"id\": \"00000000-0000-0000-0000-000000000003\", \"title\": \"Other Song\", \"duration\": 180}], \"score\": 0.4}]}], \"status\": \"ok\"}";
+            HttpRequest sent = null;
+            Mocker.GetMock<IHttpClient>()
+                .Setup(o => o.Post<LookupResponse>(It.IsAny<HttpRequest>()))
+                .Callback<HttpRequest>(r => sent = r)
+                .Returns(new HttpResponse<LookupResponse>(new HttpResponse(new HttpRequest("dummy"), new HttpHeader(), response, HttpStatusCode.OK)));
+
+            var localTrack = new LocalTrack();
+            Subject.Lookup(new List<Tuple<LocalTrack, AcoustId>> { Tuple.Create(localTrack, new AcoustId { Duration = 201, Fingerprint = "fingerprint" }) }, 0.5);
+
+            Encoding.UTF8.GetString(sent.ContentData.Decompress()).Should().Contain("&meta=recordings&");
+            localTrack.AcoustIdResults.Should().Equal("00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002");
+            localTrack.AcoustIdRecordings.Select(x => x.Title).Should().Equal("Song", null);
+            localTrack.AcoustIdRecordings.Select(x => x.Duration).Should().Equal(201.5, null);
+        }
+
+        [Test]
         public void should_not_retry_indefinitely_if_too_many_requests()
         {
             var error = "{\"error\": {\"code\": 14, \"message\": \"rate limit (3 requests per second) exceeded, try again later\"}, \"status\": \"error\"}";

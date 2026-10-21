@@ -182,5 +182,12 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
 
             Add(key, 1.0);
         }
+
+        public static bool SameText(string value, string target)
+        {
+            var cleanValue = Clean(value ?? string.Empty);
+
+            return cleanValue.IsNotNullOrWhiteSpace() && cleanValue == Clean(target ?? string.Empty);
+        }
     }
 }

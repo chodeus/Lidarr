@@ -23,7 +23,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
 
         public static readonly List<string> VariousArtistIds = new List<string> { "89ad4ac3-39f7-470e-963a-56509c546377" };
         private static readonly List<string> VariousArtistNames = new List<string> { "various artists", "various", "va", "unknown" };
-        private static readonly Regex FeaturedArtists = new Regex(@"\s*[(\[]\s*(?:feat|ft|featuring)\b(?:\.\s*|\s+)(?=\w)[^)\]]*[)\]]?|\s+(?:feat|ft|featuring)\b(?:\.\s*|\s+)(?=\w).*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex FeaturedArtists = new Regex(@"\s*[(\[]\s*(?:feat|ft|featuring)\b(?:\.\s*|\s+)(?=\w)[^)\]]*[)\]]?|(?:\s+|\s*[;/,&]\s*)(?:feat|ft|featuring)\b(?:\.\s*|\s+)(?=\w).*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex Ampersand = new Regex(@"\s*&\s*", RegexOptions.Compiled);
         private static readonly Regex LeadingThe = new Regex(@"^\s*the\s+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex ArtistSeparators = new Regex(@"\s*[;/,&]\s*", RegexOptions.Compiled);
@@ -51,6 +51,17 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
         private static string LooseReading(string name)
         {
             return LeadingThe.Replace(Ampersand.Replace(name ?? "", " and "), "");
+        }
+
+        // A web address in the artist tag is a watermark, not a name, unless the artist is named like one
+        private static bool IsWatermark(string tag, List<string> names)
+        {
+            return IsWebAddress(tag) && !names.Any(IsWebAddress);
+        }
+
+        private static bool IsWebAddress(string name)
+        {
+            return WebAddress.IsMatch((name ?? "").Trim());
         }
 
         private static List<string> CreditedArtists(string tag)
@@ -115,13 +126,11 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
             var dist = new Distance();
 
             var artist = localTracks.MostCommon(x => x.FileTrackInfo.ArtistTitle) ?? "";
+            var metadata = release.Album.Value.ArtistMetadata.Value;
+            var names = new[] { metadata.Name }.Concat(metadata.Aliases ?? new List<string>()).ToList();
 
-            // A web address in the artist tag is a watermark, not a name, so like Various Artists it isn't scored
-            if (!VariousArtistIds.Contains(release.Album.Value.ArtistMetadata.Value.ForeignArtistId) && !WebAddress.IsMatch(artist.Trim()))
+            if (!VariousArtistIds.Contains(metadata.ForeignArtistId) && !IsWatermark(artist, names))
             {
-                var metadata = release.Album.Value.ArtistMetadata.Value;
-                var names = new[] { metadata.Name }.Concat(metadata.Aliases ?? new List<string>()).ToList();
-
                 var penalty = CreditedArtists(artist).Select(a => Distance.ClosestPenalty(a, names) + CreditedArtistPenalty).Append(WholeCreditPenalty(artist, names)).Min();
                 dist.Add("artist", penalty);
                 Logger.Trace("artist: {0} vs {1}; {2}", artist, release.Album.Value.ArtistMetadata.Value.Name, dist.NormalizedDistance());

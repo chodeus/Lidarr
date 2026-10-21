@@ -185,7 +185,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             DistanceCalculator.AlbumReleaseDistance(localTracks, release, mapping).NormalizedDistance().Should().NotBe(0.0);
         }
 
-        private double DistanceWithArtistTag(string artistTag, string releaseArtist = "artist")
+        private double DistanceWithArtistTag(string artistTag, string releaseArtist = "artist", string albumTag = "album")
         {
             _artist.Name = releaseArtist;
 
@@ -195,6 +195,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             var mapping = GivenMapping(localTracks, tracks);
 
             localTracks.ForEach(t => t.FileTrackInfo.ArtistTitle = artistTag);
+            localTracks.ForEach(t => t.FileTrackInfo.AlbumTitle = albumTag);
 
             return DistanceCalculator.AlbumReleaseDistance(localTracks, release, mapping).NormalizedDistance();
         }
@@ -257,6 +258,14 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             DistanceWithArtistTag(artistTag, "band").Should().Be(DistanceWithArtistTag(artistTag, "artist"));
         }
 
+        [TestCase("artist;feat. guest", "artist feat. guest")]
+        [TestCase("artist,ft guest", "artist ft guest")]
+        [TestCase("artist/ft. guest", "artist ft. guest")]
+        public void should_leave_out_a_featured_guest_listed_after_a_separator(string artistTag, string spacedTag)
+        {
+            DistanceWithArtistTag(artistTag, "guest").Should().Be(DistanceWithArtistTag(spacedTag, "guest"));
+        }
+
         [TestCase("Artist & Band")]
         [TestCase("Artist/Band")]
         [TestCase("Artist, Band & Orchestra")]
@@ -288,6 +297,12 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         public void should_not_score_a_web_address_in_the_artist_tag(string artistTag)
         {
             DistanceWithArtistTag(artistTag, "other band").Should().Be(0.0);
+        }
+
+        [Test]
+        public void should_score_a_web_address_when_the_artist_is_named_like_one()
+        {
+            DistanceWithArtistTag("example.com", "example.com", "other album").Should().Be(DistanceWithArtistTag("artist", "artist", "other album"));
         }
 
         [TestCase("artist - www.example.com")]

@@ -1,8 +1,10 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
+using System.Linq;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.Music;
 
 namespace NzbDrone.Core.Download
 {
@@ -25,21 +27,21 @@ namespace NzbDrone.Core.Download
 
         public bool IgnoreDownload(TrackedDownload trackedDownload)
         {
-            // A download that never mapped to an artist, such as one with multiple matching artists, has no RemoteAlbum
+            // A download that never mapped to an artist, such as one with multiple matching artists, has no RemoteAlbum.
+            // It is ignored by its download id alone, which is what keeps it ignored when the queue is refreshed.
             var artist = trackedDownload.RemoteAlbum?.Artist;
-            var albums = trackedDownload.RemoteAlbum?.Albums;
+            var albums = trackedDownload.RemoteAlbum?.Albums ?? new List<Album>();
 
-            if (artist == null || albums == null || albums.Empty())
+            if (artist == null || albums.Empty())
             {
-                _logger.Warn("Unable to ignore download for unknown artist/album");
-                return false;
+                _logger.Debug("Ignoring download {0} that isn't matched to an artist and album", trackedDownload.DownloadItem.Title);
             }
 
             var downloadIgnoredEvent = new DownloadIgnoredEvent
             {
-                ArtistId = artist.Id,
+                ArtistId = artist?.Id ?? 0,
                 AlbumIds = albums.Select(e => e.Id).ToList(),
-                Quality = trackedDownload.RemoteAlbum.ParsedAlbumInfo.Quality,
+                Quality = trackedDownload.RemoteAlbum?.ParsedAlbumInfo?.Quality,
                 SourceTitle = trackedDownload.DownloadItem.Title,
                 DownloadClientInfo = trackedDownload.DownloadItem.DownloadClientInfo,
                 DownloadId = trackedDownload.DownloadItem.DownloadId,

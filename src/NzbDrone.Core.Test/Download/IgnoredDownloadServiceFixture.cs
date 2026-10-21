@@ -9,7 +9,6 @@ using NzbDrone.Core.Music;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Test.Framework;
-using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.Download
 {
@@ -43,29 +42,25 @@ namespace NzbDrone.Core.Test.Download
         }
 
         [Test]
-        public void should_not_ignore_a_download_that_never_mapped_to_an_artist()
+        public void should_ignore_a_download_that_never_mapped_to_an_artist_by_its_download_id()
         {
             _trackedDownload.RemoteAlbum = null;
 
-            Subject.IgnoreDownload(_trackedDownload).Should().BeFalse();
+            Subject.IgnoreDownload(_trackedDownload).Should().BeTrue();
 
             Mocker.GetMock<IEventAggregator>()
-                  .Verify(v => v.PublishEvent(It.IsAny<DownloadIgnoredEvent>()), Times.Never());
-
-            ExceptionVerification.ExpectedWarns(1);
+                  .Verify(v => v.PublishEvent(It.Is<DownloadIgnoredEvent>(e => e.ArtistId == 0 && e.AlbumIds.Count == 0 && e.DownloadId == "download-id")), Times.Once());
         }
 
         [Test]
-        public void should_not_ignore_a_download_without_albums()
+        public void should_ignore_a_download_without_albums_by_its_download_id()
         {
             _trackedDownload.RemoteAlbum.Albums = null;
 
-            Subject.IgnoreDownload(_trackedDownload).Should().BeFalse();
+            Subject.IgnoreDownload(_trackedDownload).Should().BeTrue();
 
             Mocker.GetMock<IEventAggregator>()
-                  .Verify(v => v.PublishEvent(It.IsAny<DownloadIgnoredEvent>()), Times.Never());
-
-            ExceptionVerification.ExpectedWarns(1);
+                  .Verify(v => v.PublishEvent(It.Is<DownloadIgnoredEvent>(e => e.AlbumIds.Count == 0 && e.DownloadId == "download-id")), Times.Once());
         }
     }
 }

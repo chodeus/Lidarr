@@ -662,5 +662,18 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
 
             ExceptionVerification.ExpectedWarns(1);
         }
+
+        [Test]
+        public void a_supplement_album_is_not_dropped_as_an_edition_of_an_ignored_album()
+        {
+            _metadataProfile.Ignored = new List<string> { "deluxe" };
+            GivenPrimaryWithLinkTo("other:9", NamedAlbum("mb-1", "First Album (Deluxe Edition)", 2011));
+            GivenSource(2, MetadataSourceRole.Supplementary, OtherFamily).Setup(s => s.GetArtistInfo("other:9", 1)).Returns(new Artist
+            {
+                Albums = new List<Album> { NamedAlbum("other:101", "First Album", 2001) }
+            });
+
+            Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("other:101");
+        }
     }
 }

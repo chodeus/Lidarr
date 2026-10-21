@@ -83,7 +83,8 @@ namespace NzbDrone.Core.MetadataSource.Sources
                 return found;
             }
 
-            var artist = Lookup(RouteFor(profile, lidarrId), Ask, () => new ArtistNotFoundException(lidarrId), MergeAlbums);
+            // Filtered before the supplements too, so a left-out edition can't make a supplement skip the album it is an edition of
+            var artist = WithoutIgnoredAlbums(Lookup(RouteFor(profile, lidarrId), Ask, () => new ArtistNotFoundException(lidarrId), MergeAlbums), metadataProfileId);
 
             AddSupplements(profile, artist, lidarrId, metadataProfileId, answered);
 

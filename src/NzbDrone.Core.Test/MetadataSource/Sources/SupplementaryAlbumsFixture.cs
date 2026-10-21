@@ -9,6 +9,7 @@ using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MetadataSource.Sources;
 using NzbDrone.Core.MetadataSource.Sources.Lidarr;
 using NzbDrone.Core.Music;
+using NzbDrone.Core.Profiles.Metadata;
 using NzbDrone.Core.Profiles.MetadataSources;
 using NzbDrone.Core.Test.Framework;
 
@@ -37,6 +38,8 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
 
             Mocker.GetMock<IMetadataSourceProfileService>().Setup(s => s.GetDefaultProfile()).Returns(() => _profile);
             Mocker.GetMock<IMetadataSourceFactory>().Setup(s => s.GetAvailableProviders()).Returns(() => _sources.ToList());
+            Mocker.GetMock<IMetadataProfileService>().Setup(s => s.Exists(It.IsAny<int>())).Returns(true);
+            Mocker.GetMock<IMetadataProfileService>().Setup(s => s.Get(It.IsAny<int>())).Returns(MetadataProfileAlbumFilterFixture.AlbumsOnlyProfile());
 
             Mocker.GetMock<IArtistService>().Setup(s => s.FindById(MusicBrainzId)).Returns(new Artist { Id = 5 });
             Mocker.GetMock<IAlbumService>().Setup(s => s.GetAlbumsByArtist(5)).Returns(new List<Album>

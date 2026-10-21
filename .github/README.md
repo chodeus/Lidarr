@@ -9,4 +9,9 @@ A queue item that never mapped to an artist (for example "found multiple artists
 ## Summary by CodeRabbit
 
 * **Bug Fixes**
-  * Downloads with missing artist or album information, including downloads without an album list, are safely left unignored and do not generate an ignored-download notification. Downloads with a mapped artist and album continue to be marked as ignored and generate the corresponding notification. Incomplete download details also trigger a warning.
+  * Downloads missing artist or album information are now safely marked as ignored by download ID.
+  * Ignored-download notifications are published even when artist or album details are unavailable.
+  * Matched downloads continue to record their associated artist and album information.
+
+* **Documentation**
+  * Added guidance on handling unmatched downloads and their history records.

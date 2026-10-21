@@ -422,8 +422,9 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
                 {
                     var trackedDownload = _trackedDownloadService.Find(downloadId);
 
-                    // The tracked-download cache can miss a download still seeding, such as after a restart, so Auto copies instead of moving
-                    var importMode = trackedDownload == null && message.ImportMode == ImportMode.Auto ? ImportMode.Copy : message.ImportMode;
+                    // The tracked-download cache can miss a download still seeding, such as after a restart: unless asked to move, the album copies when any of its downloads is unknown
+                    var anyUnknown = importAlbumId.Select(x => x.DownloadId).Where(x => x.IsNotNullOrWhiteSpace()).Distinct().Any(id => _trackedDownloadService.Find(id) == null);
+                    var importMode = anyUnknown && message.ImportMode != ImportMode.Move ? ImportMode.Copy : message.ImportMode;
                     var importResults = _importApprovedTracks.Import(albumImportDecisions, message.ReplaceExistingFiles, trackedDownload?.DownloadItem, importMode);
 
                     imported.AddRange(importResults);

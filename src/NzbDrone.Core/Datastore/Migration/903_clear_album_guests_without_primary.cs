@@ -8,7 +8,7 @@ namespace NzbDrone.Core.Datastore.Migration
     {
         protected override void MainDbUpgrade()
         {
-            // 902 stored the whole credit as guests when the album's own artist wasn't in it, and only then do the two match.
+            // Earlier builds' credit refresh stored the whole credit as guests when the album's own artist wasn't in it, and only then do the two match.
             Execute.Sql("UPDATE \"AlbumArtistCredits\" SET \"Guests\" = '' WHERE \"Guests\" = \"Credit\"");
         }
     }

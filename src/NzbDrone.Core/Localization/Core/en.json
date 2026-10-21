@@ -697,7 +697,7 @@
   "Links": "Links",
   "ListOptionsLoadError": "Unable to load list options",
   "ListRefreshInterval": "List Refresh Interval",
-  "ListSyncLevelHelpText": "Artists in library will be handled based on your selection if they fall off or do not appear on your list(s)",
+  "ListSyncLevelHelpText": "Artists in library will be handled based on your selection if they fall off or do not appear on your list(s), including artists you added yourself. Nothing is cleaned while a list item can't be matched to an artist.",
   "ListSyncTag": "List Sync Tag",
   "ListSyncTagHelpText": "This tag will be added when an artist falls off or is no longer on your list(s)",
   "ListWillRefreshEveryInterp": "List will refresh every {0}",

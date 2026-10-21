@@ -16,7 +16,7 @@ namespace NzbDrone.Core.ImportLists
 
         ImportListStatus GetListStatus(int importListId);
         void UpdateListSyncStatus(int importListId, bool removedItems);
-        void MarkListsAsCleaned();
+        void MarkListsAsCleaned(List<int> importListIds);
     }
 
     public class ImportListStatusService : ProviderStatusServiceBase<IImportList, ImportListStatus>, IImportListStatusService
@@ -54,13 +54,14 @@ namespace NzbDrone.Core.ImportLists
             }
         }
 
-        public void MarkListsAsCleaned()
+        // Only the lists the clean read: one that dropped an item while it ran keeps its flag for the next clean
+        public void MarkListsAsCleaned(List<int> importListIds)
         {
             lock (_syncRoot)
             {
                 var toUpdate = new List<ImportListStatus>();
 
-                foreach (var status in _providerStatusRepository.All().Where(s => s.HasRemovedItemSinceLastClean))
+                foreach (var status in _providerStatusRepository.All().Where(s => s.HasRemovedItemSinceLastClean && importListIds.Contains(s.ProviderId)))
                 {
                     status.HasRemovedItemSinceLastClean = false;
                     toUpdate.Add(status);

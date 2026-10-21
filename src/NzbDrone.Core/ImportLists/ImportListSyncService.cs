@@ -5,6 +5,7 @@ using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.Datastore;
 using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.ImportLists.ImportListItems;
 using NzbDrone.Core.IndexerSearch;
@@ -15,6 +16,7 @@ using NzbDrone.Core.Music;
 using NzbDrone.Core.Music.Commands;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Tags;
 using NzbDrone.Core.ThingiProvider.Events;
 
 namespace NzbDrone.Core.ImportLists
@@ -33,6 +35,7 @@ namespace NzbDrone.Core.ImportLists
         private readonly IAddArtistService _addArtistService;
         private readonly IAddAlbumService _addAlbumService;
         private readonly IEventAggregator _eventAggregator;
+        private readonly ITagService _tagService;
         private readonly IManageCommandQueue _commandQueueManager;
         private readonly IConfigService _configService;
         private readonly Logger _logger;
@@ -51,6 +54,7 @@ namespace NzbDrone.Core.ImportLists
                                      IEventAggregator eventAggregator,
                                      IManageCommandQueue commandQueueManager,
                                      IConfigService configService,
+                                     ITagService tagService,
                                      Logger logger)
         {
             _importListFactory = importListFactory;
@@ -67,13 +71,15 @@ namespace NzbDrone.Core.ImportLists
             _eventAggregator = eventAggregator;
             _commandQueueManager = commandQueueManager;
             _configService = configService;
+            _tagService = tagService;
             _logger = logger;
         }
 
-        private bool AllListsSuccessfulWithAPendingClean()
+        // The lists with a pending clean, or none unless every list synced and none is failing
+        private List<int> ListsWithAPendingClean()
         {
             var lists = _importListFactory.AutomaticAddEnabled(false);
-            var anyRemoved = false;
+            var pending = new List<int>();
 
             foreach (var list in lists)
             {
@@ -82,19 +88,22 @@ namespace NzbDrone.Core.ImportLists
                 if (status.DisabledTill.HasValue)
                 {
                     // list failed the last time it was synced.
-                    return false;
+                    return new List<int>();
                 }
 
                 if (!status.LastInfoSync.HasValue)
                 {
                     // list has never been synced.
-                    return false;
+                    return new List<int>();
                 }
 
-                anyRemoved |= status.HasRemovedItemSinceLastClean;
+                if (status.HasRemovedItemSinceLastClean)
+                {
+                    pending.Add(list.Definition.Id);
+                }
             }
 
-            return anyRemoved;
+            return pending;
         }
 
         private List<Album> SyncAll()
@@ -110,7 +119,7 @@ namespace NzbDrone.Core.ImportLists
 
             var listItems = _listFetcherAndParser.Fetch().ToList();
 
-            var processed = ProcessListItems(listItems);
+            var processed = ProcessAndStoreMappedArtists(listItems);
 
             TryCleanLibrary();
 
@@ -123,9 +132,21 @@ namespace NzbDrone.Core.ImportLists
 
             var listItems = _listFetcherAndParser.FetchSingleList(definition).ToList();
 
-            var processed = ProcessListItems(listItems);
+            var processed = ProcessAndStoreMappedArtists(listItems);
 
             TryCleanLibrary();
+
+            return processed;
+        }
+
+        // Processing maps each item to its artist in place; the stored items keep that artist id for the clean
+        private List<Album> ProcessAndStoreMappedArtists(List<ImportListItemInfo> listItems)
+        {
+            var keys = listItems.Select(ImportListItemService.KeyOf).ToList();
+
+            var processed = ProcessListItems(listItems);
+
+            _importListItemService.StoreMappedArtistIds(keys.Zip(listItems, (key, item) => (key, item.ArtistMusicBrainzId)).ToList());
 
             return processed;
         }
@@ -401,24 +422,31 @@ namespace NzbDrone.Core.ImportLists
                 return;
             }
 
-            if (AllListsSuccessfulWithAPendingClean())
+            var pending = ListsWithAPendingClean();
+
+            if (pending.Any())
             {
-                CleanLibrary();
+                CleanLibrary(pending);
             }
         }
 
-        private void CleanLibrary()
+        private void CleanLibrary(List<int> pendingListIds)
         {
             if (_configService.ListSyncLevel == ListSyncLevelType.Disabled)
             {
                 return;
             }
 
+            if (_configService.ListSyncLevel == ListSyncLevelType.KeepAndTag && _tagService.All().None(t => t.Id == _configService.ListSyncTag))
+            {
+                _logger.Warn("Not cleaning the library: the tag set for Clean Library Level no longer exists");
+                return;
+            }
+
             var artistsToUpdate = new List<Artist>();
-            var artistsInLibrary = _artistService.GetAllArtists();
             var allListItems = _importListItemService.All();
 
-            var listArtistIds = allListItems.Select(l => l.ArtistMusicBrainzId).Where(x => x.IsNotNullOrWhiteSpace()).ToHashSet();
+            var listArtistIds = allListItems.SelectMany(l => new[] { l.ArtistMusicBrainzId, l.MappedArtistMusicBrainzId }).Where(x => x.IsNotNullOrWhiteSpace()).ToHashSet();
             var listArtistNames = allListItems.Where(l => l.Artist.IsNotNullOrWhiteSpace()).Select(l => l.Artist.CleanArtistName()).ToHashSet();
             var listAlbumIds = allListItems.Select(l => l.AlbumMusicBrainzId).Where(x => x.IsNotNullOrWhiteSpace()).Distinct().ToList();
 
@@ -432,6 +460,21 @@ namespace NzbDrone.Core.ImportLists
             }
 
             var artistsWithListedAlbums = listedAlbums.Select(a => a.ArtistMetadataId).ToHashSet();
+            var listedAlbumIds = listedAlbums.SelectMany(a => a.OldForeignAlbumIds.Append(a.ForeignAlbumId)).ToHashSet();
+
+            // Fail closed: an item tied to no artist by id or by an album in the library would leave its artist matched by name alone
+            var unresolved = allListItems.Where(l => l.ArtistMusicBrainzId.IsNullOrWhiteSpace() &&
+                                                     l.MappedArtistMusicBrainzId.IsNullOrWhiteSpace() &&
+                                                     (l.AlbumMusicBrainzId.IsNullOrWhiteSpace() || !listedAlbumIds.Contains(l.AlbumMusicBrainzId)))
+                                         .ToList();
+
+            if (unresolved.Any())
+            {
+                _logger.Warn("Not cleaning the library: {0} list items aren't matched to an artist, such as {1}", unresolved.Count, unresolved.First());
+                return;
+            }
+
+            var artistsInLibrary = _artistService.GetAllArtists();
 
             foreach (var artist in artistsInLibrary)
             {
@@ -449,12 +492,10 @@ namespace NzbDrone.Core.ImportLists
                             break;
                         case ListSyncLevelType.KeepAndUnmonitor when artist.Monitored:
                             _logger.Info("{0} was in your library, but not found in your lists --> Keeping in library but unmonitoring it", artist);
-                            artist.Monitored = false;
                             artistsToUpdate.Add(artist);
                             break;
                         case ListSyncLevelType.KeepAndTag when !artist.Tags.Contains(_configService.ListSyncTag):
                             _logger.Info("{0} was in your library, but not found in your lists --> Keeping in library but tagging it", artist);
-                            artist.Tags.Add(_configService.ListSyncTag);
                             artistsToUpdate.Add(artist);
                             break;
                         default:
@@ -463,8 +504,38 @@ namespace NzbDrone.Core.ImportLists
                 }
             }
 
-            _artistService.UpdateArtists(artistsToUpdate, true);
-            _importListStatusService.MarkListsAsCleaned();
+            // Read again just before writing, so an edit made while the lists were compared isn't overwritten
+            var fresh = artistsToUpdate.Select(a => FindArtist(a.Id)).Where(a => a != null && ApplyCleanLevel(a)).ToList();
+
+            _artistService.UpdateArtists(fresh, true);
+            _importListStatusService.MarkListsAsCleaned(pendingListIds);
+        }
+
+        private Artist FindArtist(int artistId)
+        {
+            try
+            {
+                return _artistService.GetArtist(artistId);
+            }
+            catch (ModelNotFoundException)
+            {
+                return null;
+            }
+        }
+
+        private bool ApplyCleanLevel(Artist artist)
+        {
+            switch (_configService.ListSyncLevel)
+            {
+                case ListSyncLevelType.KeepAndUnmonitor when artist.Monitored:
+                    artist.Monitored = false;
+                    return true;
+                case ListSyncLevelType.KeepAndTag when !artist.Tags.Contains(_configService.ListSyncTag):
+                    artist.Tags.Add(_configService.ListSyncTag);
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         public void HandleAsync(ProviderDeletedEvent<IImportList> message)

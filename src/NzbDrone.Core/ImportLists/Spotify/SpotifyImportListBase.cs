@@ -24,6 +24,7 @@ namespace NzbDrone.Core.ImportLists.Spotify
     {
         private IHttpClient _httpClient;
         private IImportListRepository _importListRepository;
+        private bool _mappingFailed;
 
         protected ISpotifyProxy _spotifyProxy;
         private readonly IMetadataRequestBuilder _requestBuilder;
@@ -109,7 +110,18 @@ namespace NzbDrone.Core.ImportLists.Spotify
             }
 
             // map to musicbrainz ids
+            _mappingFailed = false;
             releases = MapSpotifyReleases(releases);
+
+            // Unmapped items would replace the stored ones by name only, which a library clean can't match
+            if (_mappingFailed)
+            {
+                _importListStatusService.RecordFailure(Definition.Id);
+            }
+            else
+            {
+                _importListStatusService.RecordSuccess(Definition.Id);
+            }
 
             return CleanupListItems(releases);
         }
@@ -173,6 +185,7 @@ namespace NzbDrone.Core.ImportLists.Spotify
             catch (Exception e)
             {
                 _logger.Error(e);
+                _mappingFailed = true;
                 map = new Dictionary<string, string>();
             }
 
@@ -244,10 +257,12 @@ namespace NzbDrone.Core.ImportLists.Spotify
             catch (HttpException e)
             {
                 _logger.Warn(e, "Unable to communicate with LidarrAPI");
+                _mappingFailed = true;
             }
             catch (Exception e)
             {
                 _logger.Error(e);
+                _mappingFailed = true;
             }
         }
 
@@ -288,10 +303,12 @@ namespace NzbDrone.Core.ImportLists.Spotify
             catch (HttpException e)
             {
                 _logger.Warn(e, "Unable to communicate with LidarrAPI");
+                _mappingFailed = true;
             }
             catch (Exception e)
             {
                 _logger.Error(e);
+                _mappingFailed = true;
             }
         }
 

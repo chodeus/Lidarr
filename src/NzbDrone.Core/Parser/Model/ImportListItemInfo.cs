@@ -9,6 +9,10 @@ namespace NzbDrone.Core.Parser.Model
         public string ImportList { get; set; }
         public string Artist { get; set; }
         public string ArtistMusicBrainzId { get; set; }
+
+        // Stored only: the artist id the sync mapped an item to, when the list gave none
+        public string MappedArtistMusicBrainzId { get; set; }
+
         public string Album { get; set; }
         public string AlbumMusicBrainzId { get; set; }
         public DateTime ReleaseDate { get; set; }

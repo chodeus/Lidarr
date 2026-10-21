@@ -92,7 +92,7 @@ namespace NzbDrone.Core.Music.ArtistCredits
             }
 
             var naming = _namingConfigService.GetConfig();
-            var namesUseGuests = new[] { naming.StandardTrackFormat, naming.MultiDiscTrackFormat }.Any(f => f?.IndexOf("Album Guests", StringComparison.OrdinalIgnoreCase) >= 0);
+            var namesUseGuests = new[] { naming.StandardTrackFormat, naming.MultiDiscTrackFormat }.Any(f => f != null && FileNameBuilder.AlbumGuestsRegex.IsMatch(f));
             var stored = 0;
             var failures = 0;
 

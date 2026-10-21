@@ -75,6 +75,16 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
         }
 
         [Test]
+        public void should_name_the_albums_guests_with_the_token_written_without_a_space()
+        {
+            _namingConfig.StandardTrackFormat = "{Album Title} {AlbumGuests}";
+            AlbumArtistCreditLookup.Configure(id => new AlbumArtistCredit { AlbumId = id, Guests = "Guest One" }, () => false);
+
+            Subject.BuildTrackFileName(new List<Track> { _track }, _artist, _album, _trackFile)
+                   .Should().Be("Album Title Guest One");
+        }
+
+        [Test]
         public void should_drop_the_token_and_its_brackets_without_guests()
         {
             Subject.BuildTrackFileName(new List<Track> { _track }, _artist, _album, _trackFile)

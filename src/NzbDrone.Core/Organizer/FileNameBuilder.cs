@@ -58,6 +58,9 @@ namespace NzbDrone.Core.Organizer
         public static readonly Regex TrackTitleRegex = new Regex(@"(?<token>\{(?:Track)(?<separator>[- ._])(Clean)?Title(?::(?<customFormat>[0-9-]+))?\})",
                                                                             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+        public static readonly Regex AlbumGuestsRegex = new Regex(@"\{[- ._\[(]*Album[- ._]*Guests(?::[ a-z0-9+-]+(?<![- ]))?[- ._)\]]*\}",
+                                                                            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
         private static readonly Regex FileNameCleanupRegex = new Regex(@"([- ._])(\1)+", RegexOptions.Compiled);
         private static readonly Regex TrimSeparatorsRegex = new Regex(@"[- ._]+$", RegexOptions.Compiled);
 

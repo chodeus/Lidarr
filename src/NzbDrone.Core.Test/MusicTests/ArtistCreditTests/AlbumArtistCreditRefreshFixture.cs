@@ -281,9 +281,13 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
                   .Verify(q => q.Push(It.IsAny<RefreshAlbumArtistCreditsCommand>(), It.IsAny<CommandPriority>(), It.IsAny<CommandTrigger>()), Times.Never());
         }
 
-        [Test]
-        public void should_warn_when_the_guests_of_an_album_with_files_change()
+        [TestCase("{Album Title}{ (Album Guests)}")]
+        [TestCase("{Album Title} {AlbumGuests}")]
+        [TestCase("{Album Title} {album.guests}")]
+        [TestCase("{Album Title}{_Album_Guests_}")]
+        public void should_warn_when_the_guests_of_an_album_with_files_change(string format)
         {
+            _naming.StandardTrackFormat = format;
             var album = GivenAlbum("Song", 2020);
             GivenFile(album);
             GivenCredit(_ => PrimaryAndGuest());

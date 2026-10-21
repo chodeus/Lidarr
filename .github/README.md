@@ -1,6 +1,6 @@
 # Fixed: A queued rescan no longer fails when one of its artists was deleted
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Reviewed in [#PR_NUMBER](https://github.com/chodeus/Lidarr/pull/PR_NUMBER).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Reviewed in [#58](https://github.com/chodeus/Lidarr/pull/58).
 
 A rescan command names the artists it is for by id. `DiskScanService.Scan` read them back with `GetArtists`, which throws when an id is no longer stored, and also when one is repeated, and it did so after walking its folders. Commands wait in a queue, and a delete through the API or the UI doesn't, so an artist deleted before or during the scan failed it for every artist on it. By then the scan had already cleaned the database rows of files missing from its folders, so nothing was imported or matched in that run.
 

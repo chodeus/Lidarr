@@ -83,7 +83,7 @@ namespace NzbDrone.Core.MediaFiles
                 artistIds = new List<int>();
             }
 
-            // Read once, before any folder is cleaned: GetArtists throws for an id that is gone or repeated, and an artist can be deleted while the scan runs
+            // First read, before any folder is cleaned: GetArtists throws for an id that is gone or repeated. StillStored reads again for artists deleted during the scan
             var artists = artistIds.Any() ? _artistService.GetStoredArtists(artistIds) : new List<Artist>();
 
             var mediaFileList = new List<IFileInfo>();

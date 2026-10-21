@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using NzbDrone.Common.EnsureThat;
 
 namespace NzbDrone.Common.Cache
@@ -31,6 +32,7 @@ namespace NzbDrone.Common.Cache
         private readonly ConcurrentDictionary<string, CacheItem> _store;
         private readonly TimeSpan? _defaultLifeTime;
         private readonly bool _rollingExpiry;
+        private long _generation;
 
         public Cached(TimeSpan? defaultLifeTime = null, bool rollingExpiry = false)
         {
@@ -95,6 +97,7 @@ namespace NzbDrone.Common.Cache
             }
             else
             {
+                var generation = Interlocked.Read(ref _generation);
                 var newCacheItem = new CacheItem(function(), lifeTime);
                 if (cacheItem != null && _store.TryUpdate(key, newCacheItem, cacheItem))
                 {
@@ -104,6 +107,12 @@ namespace NzbDrone.Common.Cache
                 {
                     cacheItem = _store.GetOrAdd(key, newCacheItem);
                 }
+
+                // A value computed across a Clear may predate it, so it is returned but not kept
+                if (Interlocked.Read(ref _generation) != generation)
+                {
+                    TryRemove(key, newCacheItem);
+                }
             }
 
             return cacheItem.Object;
@@ -111,6 +120,7 @@ namespace NzbDrone.Common.Cache
 
         public void Clear()
         {
+            Interlocked.Increment(ref _generation);
             _store.Clear();
         }
 

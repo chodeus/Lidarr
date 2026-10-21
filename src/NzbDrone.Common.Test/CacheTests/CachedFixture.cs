@@ -20,6 +20,50 @@ namespace NzbDrone.Common.Test.CacheTests
         }
 
         [Test]
+        public void should_not_keep_a_value_loaded_across_a_clear()
+        {
+            var loading = new ManualResetEventSlim();
+            var release = new ManualResetEventSlim();
+            var load = new Thread(() => _cachedString.Get("Test", () =>
+            {
+                loading.Set();
+                release.Wait();
+                return "before the clear";
+            }));
+
+            load.Start();
+            loading.Wait();
+            _cachedString.Clear();
+            release.Set();
+            load.Join();
+
+            _cachedString.Find("Test").Should().BeNull();
+            _cachedString.Get("Test", () => "after the clear").Should().Be("after the clear");
+        }
+
+        [Test]
+        public void should_return_the_value_loaded_across_a_clear()
+        {
+            var loading = new ManualResetEventSlim();
+            var release = new ManualResetEventSlim();
+            string loaded = null;
+            var load = new Thread(() => loaded = _cachedString.Get("Test", () =>
+            {
+                loading.Set();
+                release.Wait();
+                return "before the clear";
+            }));
+
+            load.Start();
+            loading.Wait();
+            _cachedString.Clear();
+            release.Set();
+            load.Join();
+
+            loaded.Should().Be("before the clear");
+        }
+
+        [Test]
         public void should_call_function_once()
         {
             _cachedString.Get("Test", _worker.GetString);

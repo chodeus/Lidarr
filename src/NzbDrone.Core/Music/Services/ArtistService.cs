@@ -44,7 +44,7 @@ namespace NzbDrone.Core.Music
             UpdateArtist(artist);
         }
 
-        // Only the metadata's status, such as Deleted when the metadata source no longer has the artist; the default body stores nothing, as develop does
+        // Only the metadata's status, such as Deleted when the metadata source no longer has the artist; the empty default keeps other implementations compiling
         void UpdateMetadataStatus(Artist artist)
         {
         }
@@ -64,7 +64,7 @@ namespace NzbDrone.Core.Music
         private readonly Logger _logger;
         private readonly ICached<List<Artist>> _cache;
 
-        // develop's signature, kept for code built against it; it can't store the metadata status
+        // The existing signature, kept for code built against it; it can't store the metadata status
         public ArtistService(IArtistRepository artistRepository,
                              IEventAggregator eventAggregator,
                              IBuildArtistPaths artistPathBuilder,

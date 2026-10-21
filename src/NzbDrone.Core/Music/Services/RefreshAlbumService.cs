@@ -13,6 +13,7 @@ using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Music.Commands;
 using NzbDrone.Core.Music.Events;
+using NzbDrone.Core.Profiles.Metadata;
 using NzbDrone.Core.RootFolders;
 
 namespace NzbDrone.Core.Music
@@ -38,6 +39,7 @@ namespace NzbDrone.Core.Music
         private readonly IManageCommandQueue _commandQueueManager;
         private readonly ICheckIfAlbumShouldBeRefreshed _checkIfAlbumShouldBeRefreshed;
         private readonly IMapCoversToLocal _mediaCoverService;
+        private readonly IMetadataProfileService _metadataProfileService;
         private readonly Logger _logger;
 
         public RefreshAlbumService(IAlbumService albumService,
@@ -55,8 +57,30 @@ namespace NzbDrone.Core.Music
                                    ICheckIfAlbumShouldBeRefreshed checkIfAlbumShouldBeRefreshed,
                                    IMapCoversToLocal mediaCoverService,
                                    Logger logger)
+        : this(albumService, artistService, rootFolderService, addArtistService, artistMetadataService, releaseService, albumInfo, refreshAlbumReleaseService, mediaFileService, historyService, eventAggregator, commandQueueManager, checkIfAlbumShouldBeRefreshed, mediaCoverService, null, logger)
+        {
+        }
+
+        // Develop's constructor above is kept for plugins; without the profile service an unlisted album the source still has is kept
+        public RefreshAlbumService(IAlbumService albumService,
+                                   IArtistService artistService,
+                                   IRootFolderService rootFolderService,
+                                   IAddArtistService addArtistService,
+                                   IArtistMetadataService artistMetadataService,
+                                   IReleaseService releaseService,
+                                   IProvideAlbumInfo albumInfo,
+                                   IRefreshAlbumReleaseService refreshAlbumReleaseService,
+                                   IMediaFileService mediaFileService,
+                                   IHistoryService historyService,
+                                   IEventAggregator eventAggregator,
+                                   IManageCommandQueue commandQueueManager,
+                                   ICheckIfAlbumShouldBeRefreshed checkIfAlbumShouldBeRefreshed,
+                                   IMapCoversToLocal mediaCoverService,
+                                   IMetadataProfileService metadataProfileService,
+                                   Logger logger)
         : base(logger, artistMetadataService)
         {
+            _metadataProfileService = metadataProfileService;
             _albumService = albumService;
             _artistService = artistService;
             _rootFolderService = rootFolderService;
@@ -76,13 +100,11 @@ namespace NzbDrone.Core.Music
         protected override RemoteData GetRemoteData(Album local, List<Album> remote)
         {
             var result = new RemoteData();
+            var unlisted = IsUnlisted(local, remote) && ShouldDelete(local);
 
-            // remove not in remote list and ShouldDelete is true, unless a synced album has no usable copy at the source
-            if (remote != null &&
-                !remote.Any(x => x.ForeignAlbumId == local.ForeignAlbumId || x.OldForeignAlbumIds.Contains(local.ForeignAlbumId)) &&
-                ShouldDelete(local))
+            // remove not in remote list and ShouldDelete is true, unless there is something to keep: then the source decides
+            if (unlisted && !HasSomethingToKeep(local))
             {
-                result.MissingFromSource = HasSomethingToKeep(local) && !SourceHasAlbum(local);
                 return result;
             }
 
@@ -104,22 +126,49 @@ namespace NzbDrone.Core.Music
                 return result;
             }
 
+            // Removed as before only when the source moved it or the profile now leaves it out; an artist list that just missed it keeps it
+            if (unlisted && (MovedToAnotherArtist(tuple.Item1, local) || !ProfileAllows(tuple.Item2, local)))
+            {
+                return result;
+            }
+
             result.Entity = tuple.Item2;
             result.Entity.Id = local.Id;
             result.Metadata = tuple.Item3;
             return result;
         }
 
-        private bool SourceHasAlbum(Album local)
+        private static bool IsUnlisted(Album local, List<Album> remote)
         {
-            try
+            return remote != null && !remote.Any(x => x.ForeignAlbumId == local.ForeignAlbumId || x.OldForeignAlbumIds.Contains(local.ForeignAlbumId));
+        }
+
+        private static bool MovedToAnotherArtist(string sourceArtistId, Album local)
+        {
+            var localArtistId = local.ArtistMetadata?.Value?.ForeignArtistId;
+
+            return localArtistId != null && sourceArtistId != localArtistId;
+        }
+
+        // SkyHookProxy.FilterAlbums's rule, for the one album the artist's list left out
+        private bool ProfileAllows(Album remote, Album local)
+        {
+            var artist = local.Artist?.Value;
+
+            if (_metadataProfileService == null || artist == null)
             {
-                return _albumInfo.GetAlbumInfo(local.ForeignAlbumId).Item2.AlbumReleases.Value.Any();
+                return true;
             }
-            catch (AlbumNotFoundException)
-            {
-                return false;
-            }
+
+            var profile = _metadataProfileService.Exists(artist.MetadataProfileId) ? _metadataProfileService.Get(artist.MetadataProfileId) : _metadataProfileService.All().First();
+            var primaryTypes = profile.PrimaryAlbumTypes.Where(s => s.Allowed).Select(s => s.PrimaryAlbumType.Name).ToHashSet();
+            var secondaryTypes = profile.SecondaryAlbumTypes.Where(s => s.Allowed).Select(s => s.SecondaryAlbumType.Name).ToHashSet();
+            var releaseStatuses = profile.ReleaseStatuses.Where(s => s.Allowed).Select(s => s.ReleaseStatus.Name).ToHashSet();
+            var albumSecondaryTypes = remote.SecondaryTypes ?? new List<SecondaryAlbumType>();
+
+            return primaryTypes.Contains(remote.AlbumType) &&
+                   ((!albumSecondaryTypes.Any() && secondaryTypes.Contains("Studio")) || albumSecondaryTypes.Any(t => secondaryTypes.Contains(t.Name))) &&
+                   remote.AlbumReleases.Value.Any(r => releaseStatuses.Contains(r.Status));
         }
 
         protected override void EnsureNewParent(Album local, Album remote)
@@ -170,10 +219,10 @@ namespace NzbDrone.Core.Music
                 !_mediaFileService.GetFilesByAlbum(local.Id).Any();
         }
 
-        // Kept and marked only with files, a manual add or a past sync; anything else is deleted as develop does
+        // Kept and marked only with files, a manual add, a past sync or an earlier mark; anything else is deleted as develop does
         private bool HasSomethingToKeep(Album local)
         {
-            return local.LastInfoSync > DateTime.MinValue || !ShouldDelete(local);
+            return local.LastInfoSync > DateTime.MinValue || local.MetadataMissingSince.HasValue || !ShouldDelete(local);
         }
 
         protected override void MarkMissingFromSource(Album local)
@@ -381,8 +430,17 @@ namespace NzbDrone.Core.Music
                 updatedMusicbrainzAlbums = _albumInfo.GetChangedAlbums(lastUpdate.Value);
             }
 
+            var failed = false;
+
             foreach (var album in albums)
             {
+                // After a failure the source is likely down, and an unlisted album's check would only fail too: it is left alone
+                if (failed && IsUnlisted(album, remoteAlbums))
+                {
+                    _logger.Debug("Leaving Album '{0}' [{1}] alone until the next refresh", album.Title, album.ForeignAlbumId);
+                    continue;
+                }
+
                 if (forceAlbumRefresh ||
                     (updatedMusicbrainzAlbums is not { Count: not 0 } && _checkIfAlbumShouldBeRefreshed.ShouldRefresh(album)) ||
                     (updatedMusicbrainzAlbums is { Count: > 0 } && updatedMusicbrainzAlbums.Contains(album.ForeignAlbumId)))
@@ -393,6 +451,7 @@ namespace NzbDrone.Core.Music
                     }
                     catch (Exception e)
                     {
+                        failed = true;
                         _logger.Error(e, "Couldn't refresh info for Album '{0}' [{1}]", album.Title, album.ForeignAlbumId);
                     }
                 }

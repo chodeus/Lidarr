@@ -264,6 +264,112 @@ FINGERPRINT=AQAHJlMURlEURcgP6cwRD43Y4Ptw9FowncWPWkf6GB9-JYdP9OgJHw8u4Apw4SsOHMdx
                 .Verify(x => x.Post<LookupResponse>(It.IsAny<HttpRequest>()), Times.Exactly(2));
         }
 
+        private static string RecordingFor(string fingerprint)
+        {
+            return $"00000000-0000-0000-0000-0000000{fingerprint.Substring(2)}";
+        }
+
+        // Answers each fingerprint in a request with a recording derived from it, so a result landing on the wrong file shows
+        private static HttpResponse<LookupResponse> AnswerEachFingerprint(HttpRequest request)
+        {
+            var fingerprints = Encoding.UTF8.GetString(request.ContentData.Decompress()).Split('&')
+                .Where(x => x.StartsWith("fingerprint."))
+                .Select(x => x.Split('='))
+                .ToDictionary(x => int.Parse(x[0].Substring("fingerprint.".Length)), x => x[1]);
+
+            var answers = fingerprints.Select(x => $"{{\"index\": \"{x.Key}\", \"results\": [{{\"id\": \"00000000-0000-0000-0000-00000000000a\", \"recordings\": [{{\"id\": \"{RecordingFor(x.Value)}\"}}], \"score\": 0.9}}]}}");
+
+            return new HttpResponse<LookupResponse>(new HttpResponse(request, new HttpHeader(), $"{{\"fingerprints\": [{string.Join(", ", answers)}], \"status\": \"ok\"}}", HttpStatusCode.OK));
+        }
+
+        private static List<Tuple<LocalTrack, AcoustId>> GivenFingerprints(int count)
+        {
+            return Enumerable.Range(0, count).Select(i => Tuple.Create(new LocalTrack(), new AcoustId { Duration = 200, Fingerprint = $"fp{i:D5}" })).ToList();
+        }
+
+        [Test]
+        public void should_look_up_at_most_ten_fingerprints_per_request()
+        {
+            var sizes = new List<int>();
+            Mocker.GetMock<IHttpClient>()
+                .Setup(o => o.Post<LookupResponse>(It.IsAny<HttpRequest>()))
+                .Callback<HttpRequest>(r => sizes.Add(Encoding.UTF8.GetString(r.ContentData.Decompress()).Split('&').Count(x => x.StartsWith("fingerprint."))))
+                .Returns<HttpRequest>(AnswerEachFingerprint);
+
+            var files = GivenFingerprints(23);
+            Subject.Lookup(files, 0.5);
+
+            sizes.Should().Equal(10, 10, 3);
+            files.ForEach(x => x.Item1.AcoustIdResults.Should().Equal(RecordingFor(x.Item2.Fingerprint)));
+        }
+
+        [Test]
+        public void should_keep_the_other_batches_results_when_one_batch_fails()
+        {
+            var timeout = new WebException("Http request timed out", WebExceptionStatus.Timeout);
+            Mocker.GetMock<IHttpClient>()
+                .SetupSequence(o => o.Post<LookupResponse>(It.IsAny<HttpRequest>()))
+                .Throws(timeout)
+                .Throws(timeout)
+                .Returns(AnswerEachFingerprint(new HttpRequest("http://dummy") { ContentData = Encoding.UTF8.GetBytes(string.Join("&", Enumerable.Range(0, 5).Select(i => $"fingerprint.{i}=fp{i + 10:D5}"))).Compress() }));
+
+            var files = GivenFingerprints(15);
+            Subject.Lookup(files, 0.5);
+
+            files.Take(10).Should().OnlyContain(x => x.Item1.AcoustIdResults == null);
+            files.Skip(10).ToList().ForEach(x => x.Item1.AcoustIdResults.Should().Equal(RecordingFor(x.Item2.Fingerprint)));
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_retry_a_lookup_that_timed_out_once()
+        {
+            Mocker.GetMock<IHttpClient>()
+                .SetupSequence(o => o.Post<LookupResponse>(It.IsAny<HttpRequest>()))
+                .Throws(new WebException("Http request timed out", WebExceptionStatus.Timeout))
+                .Throws(new WebException("Http request timed out", WebExceptionStatus.Timeout))
+                .Throws(new WebException("Http request timed out", WebExceptionStatus.Timeout));
+
+            var files = GivenFingerprints(1);
+            Subject.Lookup(files, 0.5);
+
+            files[0].Item1.AcoustIdResults.Should().BeNull();
+            Mocker.GetMock<IHttpClient>().Verify(x => x.Post<LookupResponse>(It.IsAny<HttpRequest>()), Times.Exactly(2));
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_use_the_retry_after_a_timeout()
+        {
+            Mocker.GetMock<IHttpClient>()
+                .SetupSequence(o => o.Post<LookupResponse>(It.IsAny<HttpRequest>()))
+                .Throws(new WebException("Http request timed out", WebExceptionStatus.Timeout))
+                .Returns(AnswerEachFingerprint(new HttpRequest("http://dummy") { ContentData = Encoding.UTF8.GetBytes("fingerprint.0=fp00000").Compress() }));
+
+            var files = GivenFingerprints(1);
+            Subject.Lookup(files, 0.5);
+
+            files[0].Item1.AcoustIdResults.Should().Equal(RecordingFor("fp00000"));
+        }
+
+        [Test]
+        public void should_not_retry_a_lookup_that_failed_another_way()
+        {
+            Mocker.GetMock<IHttpClient>()
+                .Setup(o => o.Post<LookupResponse>(It.IsAny<HttpRequest>()))
+                .Throws(new WebException("Connection refused", WebExceptionStatus.ConnectFailure));
+
+            var files = GivenFingerprints(1);
+            Subject.Lookup(files, 0.5);
+
+            files[0].Item1.AcoustIdResults.Should().BeNull();
+            Mocker.GetMock<IHttpClient>().Verify(x => x.Post<LookupResponse>(It.IsAny<HttpRequest>()), Times.Once());
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
         [Test]
         public void should_keep_the_title_and_length_of_each_named_recording()
         {

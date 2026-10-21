@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -335,15 +336,13 @@ namespace NzbDrone.Core.Parser
 
         public void Lookup(List<Tuple<LocalTrack, AcoustId>> files, double threshold)
         {
-            var toLookup = files.Where(x => x.Item2 != null).ToList();
-            if (!toLookup.Any())
+            // AcoustID took 20 fingerprints in one request but refused 30 as too large
+            foreach (var batch in files.Where(x => x.Item2 != null).Chunk(10))
             {
-                return;
+                var toLookup = batch.ToList();
+                var response = GetResponse(GenerateRequest(toLookup));
+                ParseResponse(response, toLookup, threshold);
             }
-
-            var request = GenerateRequest(toLookup);
-            var response = GetResponse(request);
-            ParseResponse(response, toLookup, threshold);
         }
 
         public HttpRequest GenerateRequest(List<Tuple<LocalTrack, AcoustId>> toLookup)
@@ -380,6 +379,11 @@ namespace NzbDrone.Core.Parser
             {
                 _logger.Warn(e, "AcoustId API gave invalid response");
                 return retry > 0 ? GetResponse(request, retry - 1) : null;
+            }
+            catch (WebException e) when (e.Status == WebExceptionStatus.Timeout && retry > 0)
+            {
+                _logger.Debug(e, "AcoustId API lookup timed out, retrying once");
+                return GetResponse(request, 0);
             }
             catch (Exception e)
             {

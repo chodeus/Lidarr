@@ -149,7 +149,8 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
                 if (others.Any() || page == 1)
                 {
-                    return bootlegs;
+                    // Page 1 was read already: a bootleg there, before the run that ends here, also breaks the order
+                    return page != 1 && first.Releases.Any(IsBootleg) ? null : bootlegs;
                 }
             }
 
@@ -240,14 +241,19 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
                 throw new MetadataSourceUnavailableException("Discogs request for {0} failed with HTTP {1}", resource, (int)response.StatusCode);
             }
 
+            T result;
+
             try
             {
-                return response.Resource;
+                result = response.Resource;
             }
             catch (JsonException ex)
             {
                 throw new MetadataSourceUnavailableException("Discogs request for {0} returned an unreadable response: {1}", resource, ex.Message);
             }
+
+            // An empty answer is no proof the item is gone: only Discogs's 404 is
+            return result ?? throw new MetadataSourceUnavailableException("Discogs returned an empty response for {0}", resource);
         }
 
         private HttpResponse<T> Send<T>(string resource, string token, (string Key, string Value)[] query)

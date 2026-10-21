@@ -8,10 +8,14 @@ Ported from Sonarr's notification metadata links, in Sonarr's names and structur
 - Each provider defaults to no links, so existing notifications don't change until links are picked.
 - Health, download-failure and update messages carry no links, as in Sonarr. Import failures link the artist, since Lidarr knows it there.
 - Validation matches Sonarr: every selected link must be a known type, and Gotify's preferred link must be one of the selected links.
+- Only a canonical MusicBrainz id (the dashed 36-character form, not the empty GUID) gets a link, and a type selected twice links once.
+- Gotify switches to markdown once a poster or a link is added, so the message text is escaped then: a name such as "M*A*S*H", or a title shaped like a link, shows as written. Each link gets its own line. Sonarr sends it unescaped.
+- Pushcut leaves `actions` out when no links are selected, as develop's payload did.
+- Test messages: Telegram's always carries a Lidarr.audio link, Gotify's only when links are selected, and Pushcut's none.
 
 - The Telegram and Pushcut proxies keep develop's `SendNotification(title, message, settings)` overloads for plugins, and the new link overloads default to them.
 
-Tests: the generator (both links, several albums, selection, no artist, no artist ID), the validators, Telegram anchors, Pushcut actions, and Gotify's links, click URL and markdown content type. Fifteen mutations, all building, each fail a test.
+Tests: the generator (both links, several albums, selection, no artist, no artist ID, padded, empty and undashed ids, a type selected twice), the validators, Telegram anchors, Pushcut actions and no actions without links, and Gotify's links, click URL, markdown content type, escaped names with markdown and unescaped ones without. Twenty-two mutations, all building, each fail a test.
 
 ## Summary by CodeRabbit
 

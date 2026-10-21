@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using NzbDrone.Core.Music;
 
 namespace NzbDrone.Core.Notifications
@@ -17,7 +18,7 @@ namespace NzbDrone.Core.Notifications
 
             var artistId = artist.Metadata?.Value?.ForeignArtistId;
 
-            foreach (var link in metadataLinks)
+            foreach (var link in metadataLinks.Distinct())
             {
                 var linkType = (MetadataLinkType)link;
 
@@ -36,10 +37,10 @@ namespace NzbDrone.Core.Notifications
             return links;
         }
 
-        // Other metadata sources' IDs have no MusicBrainz page
+        // Other metadata sources' IDs have no MusicBrainz page; TryParseExact alone trims spaces and accepts the empty GUID
         private static bool IsMusicBrainzId(string id)
         {
-            return Guid.TryParseExact(id, "D", out _);
+            return id?.Length == 36 && Guid.TryParseExact(id, "D", out var guid) && guid != Guid.Empty;
         }
     }
 }

@@ -72,7 +72,7 @@ namespace NzbDrone.Core.Test.NotificationTests.MetadataLinks
         {
             Mocker.Resolve<PushcutProxy>().SendNotification("Title", "Message", new PushcutSettings());
 
-            Body.Should().Contain("\"actions\": []");
+            Body.Should().Contain("Message").And.NotContain("actions");
         }
 
         private static AlbumDownloadMessage ImportFailure()
@@ -118,8 +118,7 @@ namespace NzbDrone.Core.Test.NotificationTests.MetadataLinks
             links.Should().ContainSingle(l => l.Link == "https://musicbrainz.org/artist/11111111-1111-1111-1111-111111111111");
         }
 
-        [Test]
-        public void gotify_should_add_links_and_click_through_to_the_preferred_one()
+        private GotifyMessage GivenGotifyGrab(string message, params int[] metadataLinks)
         {
             GotifyMessage payload = null;
 
@@ -132,17 +131,43 @@ namespace NzbDrone.Core.Test.NotificationTests.MetadataLinks
             {
                 Settings = new GotifySettings
                 {
-                    MetadataLinks = new[] { (int)MetadataLinkType.MusicBrainzArtist, (int)MetadataLinkType.MusicBrainzAlbum },
+                    MetadataLinks = metadataLinks,
                     PreferredMetadataLink = (int)MetadataLinkType.MusicBrainzAlbum
                 }
             };
 
             gotify.OnGrab(new GrabMessage
             {
-                Message = "Grabbed",
+                Message = message,
                 Artist = new Artist { Metadata = new LazyLoaded<ArtistMetadata>(new ArtistMetadata { ForeignArtistId = "11111111-1111-1111-1111-111111111111" }) },
                 RemoteAlbum = new RemoteAlbum { Albums = new List<Album> { new Album { ForeignAlbumId = "22222222-2222-2222-2222-222222222222" } } }
             });
+
+            return payload;
+        }
+
+        [Test]
+        public void gotify_should_escape_names_once_links_turn_on_markdown_and_keep_each_link_on_its_own_line()
+        {
+            var payload = GivenGotifyGrab("M*A*S*H - [Untitled](https://example.invalid) [FLAC]", (int)MetadataLinkType.MusicBrainzArtist, (int)MetadataLinkType.MusicBrainzAlbum);
+
+            payload.Message.Should().StartWith(@"M\*A\*S\*H - \[Untitled\]\(https://example.invalid\) \[FLAC\]");
+            payload.Message.Should().Contain("1111)" + Environment.NewLine + Environment.NewLine + "[MusicBrainz Album]");
+        }
+
+        [Test]
+        public void gotify_should_send_names_as_they_are_without_markdown()
+        {
+            var payload = GivenGotifyGrab("M*A*S*H [FLAC]");
+
+            payload.Message.Should().StartWith("M*A*S*H [FLAC]");
+            payload.Extras.ClientDisplay.ContentType.Should().Be("text/plain");
+        }
+
+        [Test]
+        public void gotify_should_add_links_and_click_through_to_the_preferred_one()
+        {
+            var payload = GivenGotifyGrab("Grabbed", (int)MetadataLinkType.MusicBrainzArtist, (int)MetadataLinkType.MusicBrainzAlbum);
 
             payload.Message.Should().Contain("(https://musicbrainz.org/artist/11111111-1111-1111-1111-111111111111)").And.Contain("(https://musicbrainz.org/release-group/22222222-2222-2222-2222-222222222222)");
             payload.Extras.ClientNotification.Click.Url.Should().Be("https://musicbrainz.org/release-group/22222222-2222-2222-2222-222222222222");

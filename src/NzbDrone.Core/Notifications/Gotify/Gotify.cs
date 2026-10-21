@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using FluentValidation.Results;
 using NLog;
 using NzbDrone.Core.MediaCover;
@@ -129,20 +130,19 @@ namespace NzbDrone.Core.Notifications.Gotify
 
         private void SendNotification(string title, string message, Artist artist, List<Album> albums = null)
         {
-            var isMarkdown = false;
+            var poster = Settings.IncludeArtistPoster && artist != null
+                ? artist.Metadata.Value.Images.FirstOrDefault(x => x.CoverType == MediaCoverTypes.Poster)?.RemoteUrl
+                : null;
+            var links = NotificationMetadataLinkGenerator.GenerateLinks(artist, albums, Settings.MetadataLinks);
+            var isMarkdown = poster != null || links.Any();
             var sb = new StringBuilder();
 
-            sb.AppendLine(message);
+            // Names are plain text, so markdown would render "M*A*S*H" in italics or a title shaped like a link as a link
+            sb.AppendLine(isMarkdown ? EscapeMarkdown(message) : message);
 
-            if (Settings.IncludeArtistPoster && artist != null)
+            if (poster != null)
             {
-                var poster = artist.Metadata.Value.Images.FirstOrDefault(x => x.CoverType == MediaCoverTypes.Poster)?.RemoteUrl;
-
-                if (poster != null)
-                {
-                    isMarkdown = true;
-                    sb.AppendLine($"\r![]({poster})");
-                }
+                sb.AppendLine($"\r![]({poster})");
             }
 
             var payload = new GotifyMessage
@@ -151,15 +151,12 @@ namespace NzbDrone.Core.Notifications.Gotify
                 Priority = Settings.Priority
             };
 
-            var links = NotificationMetadataLinkGenerator.GenerateLinks(artist, albums, Settings.MetadataLinks);
-
             if (links.Any())
             {
-                isMarkdown = true;
-                sb.AppendLine("");
-
                 foreach (var link in links)
                 {
+                    // A blank line before each, or markdown runs the links together on one line
+                    sb.AppendLine("");
                     sb.AppendLine($"[{link.Label}]({link.Link})");
 
                     if ((int?)link.Type == Settings.PreferredMetadataLink)
@@ -173,6 +170,11 @@ namespace NzbDrone.Core.Notifications.Gotify
             payload.SetContentType(isMarkdown);
 
             _proxy.SendNotification(payload, Settings);
+        }
+
+        private static string EscapeMarkdown(string text)
+        {
+            return Regex.Replace(text, @"[\\`*_\[\]()#!<>]", @"\$0");
         }
     }
 }

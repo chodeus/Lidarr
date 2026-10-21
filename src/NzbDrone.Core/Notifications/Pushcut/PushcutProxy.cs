@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using FluentValidation.Results;
@@ -46,17 +47,10 @@ namespace NzbDrone.Core.Notifications.Pushcut
                 Title = title,
                 Text = message,
                 IsTimeSensitive = settings?.TimeSensitive,
-                Actions = new List<PushcutAction>()
-            };
 
-            foreach (var link in links)
-            {
-                payload.Actions.Add(new PushcutAction
-                {
-                    Name = link.Label,
-                    Url = link.Link
-                });
-            }
+                // Left out with no links, as develop sent it
+                Actions = links.Any() ? links.Select(l => new PushcutAction { Name = l.Label, Url = l.Link }).ToList() : null
+            };
 
             request.Method = HttpMethod.Post;
             request.Headers.ContentType = "application/json";

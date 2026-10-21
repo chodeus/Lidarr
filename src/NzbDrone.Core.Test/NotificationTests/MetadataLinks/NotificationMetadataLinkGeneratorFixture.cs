@@ -71,5 +71,24 @@ namespace NzbDrone.Core.Test.NotificationTests.MetadataLinks
 
             links.Should().BeEmpty();
         }
+
+        [TestCase(" 11111111-1111-1111-1111-111111111111 ")]
+        [TestCase("00000000-0000-0000-0000-000000000000")]
+        [TestCase("11111111111111111111111111111111")]
+        [TestCase("")]
+        public void should_not_link_an_id_that_is_not_a_canonical_musicbrainz_id(string id)
+        {
+            var artist = new Artist { Metadata = new LazyLoaded<ArtistMetadata>(new ArtistMetadata { ForeignArtistId = id }) };
+
+            NotificationMetadataLinkGenerator.GenerateLinks(artist, new List<Album> { new Album { ForeignAlbumId = id } }, AllLinks).Should().BeEmpty();
+        }
+
+        [Test]
+        public void should_link_a_type_selected_twice_once()
+        {
+            var links = NotificationMetadataLinkGenerator.GenerateLinks(_artist, null, new[] { (int)MetadataLinkType.MusicBrainzArtist, (int)MetadataLinkType.MusicBrainzArtist });
+
+            links.Should().ContainSingle();
+        }
     }
 }

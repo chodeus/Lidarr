@@ -34,7 +34,9 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
         private static readonly Regex ProfileLink = new Regex(@"\[(?:a|l|r|m)=([^\]]+)\]", RegexOptions.Compiled);
         private static readonly Regex ProfileMarkup = new Regex(@"\[/?(?:a|l|r|m)?\d*(?:b|i|u|url[^\]]*)?\]", RegexOptions.Compiled);
         private static readonly Regex DiscTrack = new Regex(@"^[A-Za-z]{0,3}(\d+)[-.]\d+", RegexOptions.Compiled);
-        private static readonly Regex VinylSide = new Regex(@"^([A-Z])\d*$", RegexOptions.Compiled);
+
+        // Discogs allows lower-case sides too
+        private static readonly Regex VinylSide = new Regex(@"^([A-Z])\d*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private static readonly Regex FormatQuantity = new Regex(@"^\d+x", RegexOptions.Compiled);
 
         // The artist list shortens names, as in Comp, TP, W/Lbl, Maxi, Unofficial and DVD-V
@@ -221,7 +223,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
             var side = VinylSide.Match(position ?? string.Empty);
 
-            return side.Success ? ((side.Groups[1].Value[0] - 'A') / 2) + 1 : 1;
+            return side.Success ? ((char.ToUpperInvariant(side.Groups[1].Value[0]) - 'A') / 2) + 1 : 1;
         }
 
         public static int DurationMs(string duration)

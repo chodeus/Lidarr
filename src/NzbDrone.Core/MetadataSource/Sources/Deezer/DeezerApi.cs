@@ -73,12 +73,25 @@ namespace NzbDrone.Core.MetadataSource.Sources.Deezer
                 var result = Get<DeezerPageResource<T>>(resource, ("index", (page * PageSize).ToString()), ("limit", PageSize.ToString()))
                     ?? throw new MetadataSourceUnavailableException("Deezer request for {0} failed: page {1} was not found", resource, page + 1);
 
+                if (result.Data == null || (result.Data.Count == 0 && result.Next != null))
+                {
+                    throw new MetadataSourceUnavailableException("Deezer returned page {0} of {1} without its items", page + 1, resource);
+                }
+
                 items.AddRange(result.Data);
 
-                if (result.Next == null || result.Data.Count == 0)
+                if (result.Next != null)
                 {
-                    return items;
+                    continue;
                 }
+
+                // Deezer counts the whole list, so fewer items than that is a short answer, not the end
+                if (items.Count < result.Total)
+                {
+                    throw new MetadataSourceUnavailableException("Deezer listed {0} of {1} items for {2}", items.Count, result.Total, resource);
+                }
+
+                return items;
             }
 
             throw new MetadataSourceUnavailableException("Deezer request for {0} failed: more than {1} pages", resource, MaxPages);
@@ -109,7 +122,13 @@ namespace NzbDrone.Core.MetadataSource.Sources.Deezer
                 throw new MetadataSourceUnavailableException("Deezer request for {0} failed: {1}", resource, ex.Message);
             }
 
-            if (result?.Error == null)
+            // An empty answer is no proof the item is gone: only Deezer's not-found code is
+            if (result == null)
+            {
+                throw new MetadataSourceUnavailableException("Deezer returned an empty response for {0}", resource);
+            }
+
+            if (result.Error == null)
             {
                 return result;
             }

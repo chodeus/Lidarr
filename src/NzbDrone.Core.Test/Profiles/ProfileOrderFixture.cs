@@ -124,5 +124,32 @@ namespace NzbDrone.Core.Test.Profiles
         {
             ProfileOrder.Next(_profiles.Take(1), p => p.Order).Should().Be(1);
         }
+
+        [TestCase(int.MaxValue)]
+        [TestCase(int.MaxValue - 1)]
+        public void make_room_should_renumber_when_next_would_reach_the_default(int order)
+        {
+            _profiles[2].Order = order;
+
+            MakeRoom().Should().BeTrue();
+
+            _profiles.Select(p => p.Order).Should().Equal(int.MaxValue, 1, 3, 2);
+            ProfileOrder.Next(_profiles, p => p.Order).Should().Be(4);
+        }
+
+        [Test]
+        public void make_room_should_leave_orders_alone_below_the_default()
+        {
+            _profiles[2].Order = int.MaxValue - 2;
+
+            MakeRoom().Should().BeFalse();
+
+            _profiles.Select(p => p.Order).Should().Equal(int.MaxValue, 1, int.MaxValue - 2, 3);
+        }
+
+        private bool MakeRoom()
+        {
+            return ProfileOrder.MakeRoom(_profiles, p => p.Order, (p, order) => p.Order = order);
+        }
     }
 }

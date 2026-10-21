@@ -84,8 +84,7 @@ namespace NzbDrone.Core.MediaFiles
             }
 
             // Read once, before any folder is cleaned: GetArtists throws for an id that is gone or repeated, and an artist can be deleted while the scan runs
-            var storedArtists = artistIds.Any() ? _artistService.AllArtistPaths() : new Dictionary<int, string>();
-            var artists = _artistService.GetArtists(artistIds.Where(storedArtists.ContainsKey).Distinct().ToList());
+            var artists = artistIds.Any() ? _artistService.GetStoredArtists(artistIds) : new List<Artist>();
 
             var mediaFileList = new List<IFileInfo>();
 
@@ -240,7 +239,9 @@ namespace NzbDrone.Core.MediaFiles
 
             _logger.Debug($"Updated info for {updatedFiles.Count} known files");
 
-            foreach (var artist in artists)
+            // An artist deleted while the scan ran gets no completion event, whose handlers write into its folder
+            var stillStored = artists.Any() ? _artistService.GetStoredArtists(artists.Select(a => a.Id)).Select(a => a.Id).ToHashSet() : new HashSet<int>();
+            foreach (var artist in artists.Where(a => stillStored.Contains(a.Id)))
             {
                 CompletedScanning(artist);
             }

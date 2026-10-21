@@ -16,6 +16,9 @@ namespace NzbDrone.Core.Music
         Dictionary<int, List<int>> AllArtistsTags();
         Artist GetArtistByMetadataId(int artistMetadataId);
         List<Artist> GetArtistByMetadataId(IEnumerable<int> artistMetadataId);
+
+        // Unlike Get(ids), the artists still stored, without throwing for an id that is gone or repeated; the default keeps other implementations compiling
+        List<Artist> FindStored(IEnumerable<int> artistIds) => All().Where(a => artistIds.Contains(a.Id)).ToList();
     }
 
     public class ArtistRepository : BasicRepository<Artist>, IArtistRepository
@@ -87,6 +90,13 @@ namespace NzbDrone.Core.Music
                 var strSql = "SELECT \"Id\" AS \"Key\", \"Tags\" AS \"Value\" FROM \"Artists\" WHERE \"Tags\" IS NOT NULL";
                 return conn.Query<KeyValuePair<int, List<int>>>(strSql).ToDictionary(x => x.Key, x => x.Value);
             }
+        }
+
+        public List<Artist> FindStored(IEnumerable<int> artistIds)
+        {
+            var ids = artistIds.Distinct().ToList();
+
+            return Query(s => ids.Contains(s.Id));
         }
 
         public List<Artist> GetArtistByMetadataId(IEnumerable<int> artistMetadataIds)

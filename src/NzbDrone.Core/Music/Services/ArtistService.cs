@@ -15,6 +15,10 @@ namespace NzbDrone.Core.Music
         Artist GetArtist(int artistId);
         Artist GetArtistByMetadataId(int artistMetadataId);
         List<Artist> GetArtists(IEnumerable<int> artistIds);
+
+        // Unlike GetArtists, the artists still stored, without throwing for an id that is gone or repeated; the default keeps other implementations compiling
+        List<Artist> GetStoredArtists(IEnumerable<int> artistIds) => GetAllArtists().Where(a => artistIds.Contains(a.Id)).ToList();
+
         Artist AddArtist(Artist newArtist, bool doRefresh);
         List<Artist> AddArtists(List<Artist> newArtists, bool doRefresh);
         Artist FindById(string foreignArtistId);
@@ -52,6 +56,11 @@ namespace NzbDrone.Core.Music
             _artistPathBuilder = artistPathBuilder;
             _cache = cacheManager.GetCache<List<Artist>>(GetType());
             _logger = logger;
+        }
+
+        public List<Artist> GetStoredArtists(IEnumerable<int> artistIds)
+        {
+            return _artistRepository.FindStored(artistIds);
         }
 
         public Artist AddArtist(Artist newArtist, bool doRefresh)

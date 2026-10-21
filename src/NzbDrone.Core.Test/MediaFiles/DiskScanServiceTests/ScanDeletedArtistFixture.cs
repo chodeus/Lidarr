@@ -98,6 +98,24 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
         }
 
         [Test]
+        public void should_not_report_an_artist_deleted_while_the_folders_are_read_as_scanned()
+        {
+            var other = GivenArtist("/music/Other Artist");
+            var scanned = new List<int>();
+            Mocker.GetMock<IEventAggregator>().Setup(s => s.PublishEvent(It.IsAny<ArtistScannedEvent>())).Callback<ArtistScannedEvent>(e => scanned.Add(e.Artist.Id));
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.FolderExists(_rootFolder)).Returns(true);
+            Mocker.GetMock<IDiskProvider>()
+                  .Setup(s => s.GetFileInfos(_rootFolder, true))
+                  .Callback(() => Mocker.Resolve<IArtistService>().DeleteArtist(other.Id, false))
+                  .Returns(new List<IFileInfo>());
+
+            Subject.Scan(new List<string> { _rootFolder }, FilterFilesType.Known, false, new List<int> { _kept.Id, other.Id });
+
+            ExceptionVerification.IgnoreWarns();
+            scanned.Should().Equal(_kept.Id);
+        }
+
+        [Test]
         public void should_report_only_stored_artists_as_skipped_when_the_root_folder_is_missing()
         {
             Subject.Scan(new List<string> { _kept.Path }, FilterFilesType.Known, false, new List<int> { _deleted.Id, _kept.Id, _kept.Id });

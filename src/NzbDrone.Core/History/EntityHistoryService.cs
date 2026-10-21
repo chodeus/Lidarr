@@ -26,6 +26,10 @@ namespace NzbDrone.Core.History
         List<EntityHistory> GetByAlbum(int albumId, EntityHistoryEventType? eventType);
         List<EntityHistory> Find(string downloadId, EntityHistoryEventType eventType);
         List<EntityHistory> FindByDownloadId(string downloadId);
+
+        // Unlike FindByDownloadId, keeps rows whose artist or album has since been deleted; the default keeps other implementations compiling
+        List<EntityHistory> FindAllByDownloadId(string downloadId) => FindByDownloadId(downloadId);
+
         string FindDownloadId(TrackImportedEvent trackedDownload);
         List<EntityHistory> Since(DateTime date, EntityHistoryEventType? eventType);
         void UpdateMany(IList<EntityHistory> items);
@@ -85,6 +89,11 @@ namespace NzbDrone.Core.History
         public List<EntityHistory> Find(string downloadId, EntityHistoryEventType eventType)
         {
             return _historyRepository.FindByDownloadId(downloadId).Where(c => c.EventType == eventType).ToList();
+        }
+
+        public List<EntityHistory> FindAllByDownloadId(string downloadId)
+        {
+            return _historyRepository.FindAllByDownloadId(downloadId);
         }
 
         public List<EntityHistory> FindByDownloadId(string downloadId)

@@ -53,7 +53,8 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
                     continue;
                 }
 
-                var downloadHistory = _historyService.FindByDownloadId(lastGrab.DownloadId);
+                // Keeps the rows of an album deleted since, until housekeeping removes them
+                var downloadHistory = _historyService.FindAllByDownloadId(lastGrab.DownloadId);
 
                 // Only track file events record where each file went, the download event records the parsed albums.
                 // A re-grabbed torrent keeps its info hash, so earlier attempts share this download id.
@@ -66,7 +67,7 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
                     continue;
                 }
 
-                var grabbedAlbumIds = downloadHistory.Where(h => h.EventType == EntityHistoryEventType.Grabbed)
+                var grabbedAlbumIds = downloadHistory.Where(h => h.EventType == EntityHistoryEventType.Grabbed && IsSameGrab(h, lastGrab))
                                                      .Select(h => h.AlbumId);
 
                 if (importedAlbumIds.Overlaps(grabbedAlbumIds))
@@ -79,6 +80,12 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
             }
 
             return Decision.Accept();
+        }
+
+        // A grab writes one row per album moments apart; an older grab of the same torrent was for other albums
+        private static bool IsSameGrab(EntityHistory grab, EntityHistory lastGrab)
+        {
+            return Math.Abs((grab.Date - lastGrab.Date).TotalMinutes) < 1;
         }
 
         private static bool IsSameRelease(ReleaseInfo release, EntityHistory grab)

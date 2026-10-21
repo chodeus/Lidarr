@@ -13,6 +13,10 @@ namespace NzbDrone.Core.History
         EntityHistory MostRecentForAlbum(int albumId);
         EntityHistory MostRecentForDownloadId(string downloadId);
         List<EntityHistory> FindByDownloadId(string downloadId);
+
+        // Unlike FindByDownloadId, keeps rows whose artist or album has since been deleted; the default keeps other implementations compiling
+        List<EntityHistory> FindAllByDownloadId(string downloadId) => FindByDownloadId(downloadId);
+
         List<EntityHistory> GetByArtist(int artistId, EntityHistoryEventType? eventType);
         List<EntityHistory> GetByAlbum(int albumId, EntityHistoryEventType? eventType);
         List<EntityHistory> FindDownloadHistory(int idArtistId, QualityModel quality);
@@ -51,6 +55,11 @@ namespace NzbDrone.Core.History
                     history.Album = album;
                     return history;
                 }).ToList();
+        }
+
+        public List<EntityHistory> FindAllByDownloadId(string downloadId)
+        {
+            return Query(h => h.DownloadId == downloadId);
         }
 
         public List<EntityHistory> GetByArtist(int artistId, EntityHistoryEventType? eventType)

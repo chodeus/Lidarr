@@ -51,7 +51,7 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
                   .Returns(_albumGrabs);
 
             Mocker.GetMock<IHistoryService>()
-                  .Setup(s => s.FindByDownloadId(_downloadId))
+                  .Setup(s => s.FindAllByDownloadId(_downloadId))
                   .Returns(_downloadHistory);
         }
 
@@ -225,7 +225,7 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
             });
 
             Mocker.GetMock<IHistoryService>()
-                  .Setup(s => s.FindByDownloadId(olderDownloadId))
+                  .Setup(s => s.FindAllByDownloadId(olderDownloadId))
                   .Returns(new List<EntityHistory>
                   {
                       new EntityHistory { DownloadId = olderDownloadId, AlbumId = ALBUM_ID, EventType = EntityHistoryEventType.Grabbed },

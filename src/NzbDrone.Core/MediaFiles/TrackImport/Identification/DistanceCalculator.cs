@@ -27,7 +27,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
         private static readonly Regex Ampersand = new Regex(@"\s*&\s*", RegexOptions.Compiled);
         private static readonly Regex LeadingThe = new Regex(@"^\s*the\s+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex ArtistSeparators = new Regex(@"\s*[;/,&]\s*", RegexOptions.Compiled);
-        private static readonly Regex WebAddress = new Regex(@"^(?:[a-z][a-z0-9+.-]*://[^\s;,&]+|www\.[^\s;,&]+|[^\s/;,&]+\.(?:com|net|org|info|biz|ru|io)(?:/[^\s;,&]*)?)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex WebAddress = new Regex(@"^(?:[a-z][a-z0-9+.-]*://[^\s;,&]+|www\.[^\s;,&]+|[^\s/;,&]+\.(?:com|net|org|info|biz|ru|io)(?:/[^\s;,&]*)?)(?:\?[^\s;,]*)?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly List<IsoCountry> PreferredCountries = new List<string>
         {
             "United States",

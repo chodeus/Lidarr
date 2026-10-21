@@ -294,6 +294,8 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         [TestCase("http://example.org/")]
         [TestCase(" example.com ")]
         [TestCase("example.com/album")]
+        [TestCase("https://example.com/?a=1&b=2")]
+        [TestCase("www.example.com?ref=1&id=2")]
         public void should_not_score_a_web_address_in_the_artist_tag(string artistTag)
         {
             DistanceWithArtistTag(artistTag, "other band").Should().Be(0.0);
@@ -309,6 +311,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         [TestCase("artist @ example.net/")]
         [TestCase("artist | example.ru")]
         [TestCase("www.example.com;artist")]
+        [TestCase("www.example.com?ref=1;artist")]
         public void should_still_score_a_name_followed_by_a_web_address(string artistTag)
         {
             DistanceWithArtistTag(artistTag).Should().BeLessThan(DistanceWithArtistTag(artistTag, "other band"));

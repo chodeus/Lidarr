@@ -66,9 +66,15 @@ namespace NzbDrone.Core.Download.TrackedDownloads
             return _cache.Find(downloadId);
         }
 
+        // A failed remap keeps the previous mapping and status
         private void UpdateCachedItem(TrackedDownload trackedDownload)
         {
-            MapRemoteAlbum(trackedDownload);
+            var mapping = MapRemoteAlbum(trackedDownload);
+
+            if (mapping.Failure == null)
+            {
+                mapping.ApplyTo(trackedDownload);
+            }
         }
 
         public void StopTracking(string downloadId)
@@ -115,7 +121,14 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                 IsTrackable = true
             };
 
-            MapRemoteAlbum(trackedDownload);
+            var mapping = MapRemoteAlbum(trackedDownload);
+            mapping.ApplyTo(trackedDownload);
+
+            if (mapping.Failure != null)
+            {
+                trackedDownload.Warn(new TrackedDownloadStatusMessage(trackedDownload.DownloadItem.Title, mapping.Failure));
+            }
+
             RestoreFromDownloadHistory(trackedDownload);
 
             LogItemChange(trackedDownload, existingItem?.DownloadItem, trackedDownload.DownloadItem);
@@ -150,14 +163,20 @@ namespace NzbDrone.Core.Download.TrackedDownloads
             }
         }
 
-        // Shared by first tracking and remaps after artist or album changes; a failed step keeps what the earlier steps mapped
-        private void MapRemoteAlbum(TrackedDownload trackedDownload)
+        // Builds the mapping on its own objects and never throws; callers apply it, so a reader never sees half a remap
+        private DownloadMapping MapRemoteAlbum(TrackedDownload trackedDownload)
         {
             var downloadItem = trackedDownload.DownloadItem;
+            var mapping = new DownloadMapping
+            {
+                RemoteAlbum = trackedDownload.RemoteAlbum,
+                Indexer = trackedDownload.Indexer,
+                Added = trackedDownload.Added
+            };
 
             try
             {
-                // Read before anything is cleared, so a failed read keeps the previous mapping
+                // Read before anything is mapped, so a failed read keeps the previous mapping
                 var historyItems = _historyService.FindByDownloadId(downloadItem.DownloadId)
                     .OrderByDescending(h => h.Date)
                     .ToList();
@@ -167,11 +186,11 @@ namespace NzbDrone.Core.Download.TrackedDownloads
 
                 if (parsedAlbumInfo != null)
                 {
-                    trackedDownload.RemoteAlbum = _parsingService.Map(parsedAlbumInfo);
+                    mapping.RemoteAlbum = _parsingService.Map(parsedAlbumInfo);
                 }
                 else
                 {
-                    trackedDownload.RemoteAlbum = null;
+                    mapping.RemoteAlbum = null;
                 }
 
                 if (historyItems.Any())
@@ -179,52 +198,35 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                     var firstHistoryItem = historyItems.First();
                     var grabbedEvent = historyItems.FirstOrDefault(v => v.EventType == EntityHistoryEventType.Grabbed);
 
-                    trackedDownload.Indexer = grabbedEvent?.Data?.GetValueOrDefault("indexer");
-                    trackedDownload.Added = grabbedEvent?.Date;
+                    mapping.Indexer = grabbedEvent?.Data?.GetValueOrDefault("indexer");
+                    mapping.Added = grabbedEvent?.Date;
 
                     if (parsedAlbumInfo == null ||
-                        trackedDownload.RemoteAlbum?.Artist == null ||
-                        trackedDownload.RemoteAlbum.Albums.Empty())
+                        mapping.RemoteAlbum?.Artist == null ||
+                        mapping.RemoteAlbum.Albums.Empty())
                     {
                         // Try parsing the original source title and if that fails, try parsing it as a special
                         var historyArtist = firstHistoryItem.Artist;
                         var historyAlbums = new List<Album> { firstHistoryItem.Album };
 
-                        parsedAlbumInfo = Parser.Parser.ParseAlbumTitle(firstHistoryItem.SourceTitle);
+                        parsedAlbumInfo = Parser.Parser.ParseAlbumTitle(firstHistoryItem.SourceTitle) ??
+                                          Parser.Parser.ParseAlbumTitleWithSearchCriteria(firstHistoryItem.SourceTitle, historyArtist, historyAlbums);
 
                         if (parsedAlbumInfo != null)
                         {
-                            trackedDownload.RemoteAlbum = _parsingService.Map(parsedAlbumInfo,
-                                firstHistoryItem.ArtistId,
-                                historyItems.Where(v => v.EventType == EntityHistoryEventType.Grabbed)
-                                    .Select(h => h.AlbumId).Distinct());
-                        }
-                        else
-                        {
-                            parsedAlbumInfo =
-                                Parser.Parser.ParseAlbumTitleWithSearchCriteria(firstHistoryItem.SourceTitle,
-                                    historyArtist,
-                                    historyAlbums);
-
-                            if (parsedAlbumInfo != null)
-                            {
-                                trackedDownload.RemoteAlbum = _parsingService.Map(parsedAlbumInfo,
-                                    firstHistoryItem.ArtistId,
-                                    historyItems.Where(v => v.EventType == EntityHistoryEventType.Grabbed)
-                                        .Select(h => h.AlbumId).Distinct());
-                            }
+                            mapping.RemoteAlbum = MapFromGrabHistory(parsedAlbumInfo, firstHistoryItem.ArtistId, historyItems) ?? mapping.RemoteAlbum;
                         }
                     }
 
-                    if (trackedDownload.RemoteAlbum != null)
+                    if (mapping.RemoteAlbum != null)
                     {
-                        trackedDownload.RemoteAlbum.Release ??= new ReleaseInfo();
-                        trackedDownload.RemoteAlbum.Release.Indexer = trackedDownload.Indexer;
-                        trackedDownload.RemoteAlbum.Release.Title = grabbedEvent?.SourceTitle ?? trackedDownload.RemoteAlbum.ParsedAlbumInfo?.ReleaseTitle;
+                        mapping.RemoteAlbum.Release ??= new ReleaseInfo();
+                        mapping.RemoteAlbum.Release.Indexer = mapping.Indexer;
+                        mapping.RemoteAlbum.Release.Title = grabbedEvent?.SourceTitle ?? mapping.RemoteAlbum.ParsedAlbumInfo?.ReleaseTitle;
 
                         if (Enum.TryParse(grabbedEvent?.Data?.GetValueOrDefault("indexerFlags"), true, out IndexerFlags flags))
                         {
-                            trackedDownload.RemoteAlbum.Release.IndexerFlags = flags;
+                            mapping.RemoteAlbum.Release.IndexerFlags = flags;
                         }
 
                         // Only the grab records the indexer id; later download history entries leave it 0
@@ -232,21 +234,21 @@ namespace NzbDrone.Core.Download.TrackedDownloads
 
                         if (grab != null)
                         {
-                            trackedDownload.RemoteAlbum.Release.IndexerId = grab.IndexerId;
+                            mapping.RemoteAlbum.Release.IndexerId = grab.IndexerId;
                         }
                     }
                 }
 
-                if (trackedDownload.RemoteAlbum != null)
+                if (mapping.RemoteAlbum != null)
                 {
-                    _aggregationService.Augment(trackedDownload.RemoteAlbum);
+                    _aggregationService.Augment(mapping.RemoteAlbum);
 
                     // Calculate custom formats
-                    trackedDownload.RemoteAlbum.CustomFormats = _formatCalculator.ParseCustomFormat(trackedDownload.RemoteAlbum, downloadItem.TotalSize);
+                    mapping.RemoteAlbum.CustomFormats = _formatCalculator.ParseCustomFormat(mapping.RemoteAlbum, downloadItem.TotalSize);
                 }
 
                 // Track it so it can be displayed in the queue even though we can't determine which artist it is for
-                if (trackedDownload.RemoteAlbum == null)
+                if (mapping.RemoteAlbum == null)
                 {
                     _logger.Trace("No Album found for download '{0}'", trackedDownload.DownloadItem.Title);
                 }
@@ -255,13 +257,33 @@ namespace NzbDrone.Core.Download.TrackedDownloads
             {
                 _logger.Debug(e, "Found multiple artists for " + downloadItem.Title);
 
-                trackedDownload.Warn("Unable to import automatically, found multiple artists: {0}", string.Join(", ", e.Artists));
+                mapping.Failure = $"Unable to import automatically, found multiple artists: {string.Join(", ", e.Artists)}";
             }
             catch (Exception e)
             {
                 _logger.Debug(e, "Failed to find album for " + downloadItem.Title);
 
-                trackedDownload.Warn("Unable to parse albums from title");
+                mapping.Failure = "Unable to parse albums from title";
+            }
+
+            return mapping;
+        }
+
+        // Null when the grab's artist or an album has been deleted since: the repository's Get throws for a missing row
+        private RemoteAlbum MapFromGrabHistory(ParsedAlbumInfo parsedAlbumInfo, int artistId, List<EntityHistory> historyItems)
+        {
+            try
+            {
+                return _parsingService.Map(parsedAlbumInfo,
+                    artistId,
+                    historyItems.Where(v => v.EventType == EntityHistoryEventType.Grabbed)
+                        .Select(h => h.AlbumId).Distinct());
+            }
+            catch (ApplicationException e)
+            {
+                _logger.Debug(e, "The artist or albums grabbed for artist {0} no longer exist", artistId);
+
+                return null;
             }
         }
 
@@ -385,6 +407,21 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                 cachedItems.ForEach(UpdateCachedItem);
 
                 _eventAggregator.PublishEvent(new TrackedDownloadRefreshedEvent(GetTrackedDownloads()));
+            }
+        }
+
+        private class DownloadMapping
+        {
+            public RemoteAlbum RemoteAlbum { get; set; }
+            public string Indexer { get; set; }
+            public DateTime? Added { get; set; }
+            public string Failure { get; set; }
+
+            public void ApplyTo(TrackedDownload trackedDownload)
+            {
+                trackedDownload.RemoteAlbum = RemoteAlbum;
+                trackedDownload.Indexer = Indexer;
+                trackedDownload.Added = Added;
             }
         }
     }

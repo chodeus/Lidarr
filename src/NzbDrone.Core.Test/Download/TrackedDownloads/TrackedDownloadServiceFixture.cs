@@ -6,6 +6,7 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Download;
+using NzbDrone.Core.Download.Aggregation;
 using NzbDrone.Core.Download.History;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.History;
@@ -582,6 +583,62 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
             Subject.Handle(new ArtistsDeletedEvent(new List<Artist> { remoteAlbum.Artist }, true, true));
 
             Subject.GetTrackedDownloads().Single().RemoteAlbum.Should().BeNull();
+        }
+
+        [Test]
+        public void should_not_show_a_partial_mapping_while_a_remap_runs()
+        {
+            var remoteAlbum = GivenGrabHistoryMapping();
+            GivenTrackedTorrent();
+
+            RemoteAlbum seen = null;
+
+            Mocker.GetMock<IParsingService>()
+                  .Setup(s => s.Map(It.IsAny<ParsedAlbumInfo>(), It.IsAny<int>(), It.IsAny<IEnumerable<int>>()))
+                  .Callback(() => seen = Subject.Find("35238").RemoteAlbum)
+                  .Returns(new RemoteAlbum { Artist = remoteAlbum.Artist, Albums = remoteAlbum.Albums });
+
+            Subject.Handle(new ArtistAddedEvent(remoteAlbum.Artist));
+
+            seen.Should().BeSameAs(remoteAlbum);
+        }
+
+        [Test]
+        public void should_keep_the_previous_mapping_and_messages_when_a_remap_fails_after_mapping()
+        {
+            var remoteAlbum = GivenGrabHistoryMapping();
+            GivenIncompleteImport("[{\"title\":\"Track Title\",\"messages\":[\"Not imported\"]}]");
+
+            var trackedDownload = GivenTrackedTorrent();
+
+            Mocker.GetMock<IParsingService>()
+                  .Setup(s => s.Map(It.IsAny<ParsedAlbumInfo>(), It.IsAny<int>(), It.IsAny<IEnumerable<int>>()))
+                  .Returns(new RemoteAlbum { Artist = remoteAlbum.Artist, Albums = new List<Album>() });
+            Mocker.GetMock<IRemoteAlbumAggregationService>()
+                  .Setup(s => s.Augment(It.IsAny<RemoteAlbum>()))
+                  .Throws(new InvalidOperationException("Database is locked"));
+
+            Subject.Handle(new ArtistAddedEvent(remoteAlbum.Artist));
+
+            trackedDownload.RemoteAlbum.Should().BeSameAs(remoteAlbum);
+            trackedDownload.Indexer.Should().Be("Test Indexer");
+            trackedDownload.StatusMessages.Should().ContainSingle(m => m.Title == "Track Title");
+        }
+
+        [Test]
+        public void should_track_a_new_download_with_a_warning_when_its_mapping_fails()
+        {
+            var remoteAlbum = GivenGrabHistoryMapping();
+
+            Mocker.GetMock<IRemoteAlbumAggregationService>()
+                  .Setup(s => s.Augment(It.IsAny<RemoteAlbum>()))
+                  .Throws(new InvalidOperationException("Database is locked"));
+
+            var trackedDownload = GivenTrackedTorrent();
+
+            trackedDownload.RemoteAlbum.Should().BeSameAs(remoteAlbum);
+            trackedDownload.Status.Should().Be(TrackedDownloadStatus.Warning);
+            trackedDownload.StatusMessages.Should().ContainSingle(m => m.Messages.Contains("Unable to parse albums from title"));
         }
     }
 }

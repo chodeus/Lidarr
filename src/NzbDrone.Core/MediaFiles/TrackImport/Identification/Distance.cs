@@ -200,7 +200,14 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
         {
             var decomposed = LatinAccents.Replace((input ?? string.Empty).ToLowerInvariant().Normalize(NormalizationForm.FormD), string.Empty);
 
-            return new string(decomposed.Where(c => char.IsLetterOrDigit(c) || CharUnicodeInfo.GetUnicodeCategory(c) == UnicodeCategory.NonSpacingMark).ToArray()).Normalize(NormalizationForm.FormC);
+            return new string(decomposed.Where(c => char.IsLetterOrDigit(c) || IsMark(c)).ToArray()).Normalize(NormalizationForm.FormC);
+        }
+
+        private static bool IsMark(char c)
+        {
+            var category = CharUnicodeInfo.GetUnicodeCategory(c);
+
+            return category == UnicodeCategory.NonSpacingMark || category == UnicodeCategory.SpacingCombiningMark || category == UnicodeCategory.EnclosingMark;
         }
     }
 }

@@ -224,6 +224,8 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         [TestCase("バラ", "バラ", 0.2)]
         [TestCase("バラ", "ハラ", 1.0)]
         [TestCase("ปี", "ปิ", 1.0)]
+        [TestCase("काला", "किला", 1.0)]
+        [TestCase("கால்", "கல்", 1.0)]
         public void should_keep_marks_outside_latin_letters_when_comparing_titles(string trackTitle, string recordingTitle, double penalty)
         {
             var track = GivenTimedTrack(trackTitle, 200000);

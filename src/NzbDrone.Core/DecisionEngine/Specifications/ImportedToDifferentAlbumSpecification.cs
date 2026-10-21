@@ -76,16 +76,16 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
                 }
 
                 _logger.Debug("Release grabbed for album {0} on {1} was imported into album(s) {2}", album.Id, lastGrab.Date, string.Join(", ", importedAlbumIds));
-                return Decision.Reject("Last grab of this release was imported into a different album");
+                return Decision.Reject("This release was imported into a different album since its last grab for this album");
             }
 
             return Decision.Accept();
         }
 
-        // A grab writes one row per album moments apart; an older grab of the same torrent was for other albums
+        // A grab writes one row per album within milliseconds; another grab of the same torrent was for its own albums
         private static bool IsSameGrab(EntityHistory grab, EntityHistory lastGrab)
         {
-            return Math.Abs((grab.Date - lastGrab.Date).TotalMinutes) < 1;
+            return Math.Abs((grab.Date - lastGrab.Date).TotalSeconds) < 5;
         }
 
         private static bool IsSameRelease(ReleaseInfo release, EntityHistory grab)

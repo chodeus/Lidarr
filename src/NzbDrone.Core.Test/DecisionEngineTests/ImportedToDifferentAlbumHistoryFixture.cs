@@ -122,6 +122,17 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
         }
 
         [Test]
+        public void should_reject_when_a_regrab_half_a_minute_earlier_was_for_the_album_it_imports_into()
+        {
+            var grab = DateTime.UtcNow.AddDays(-2);
+            GivenEvent(EntityHistoryEventType.Grabbed, _artist.Id, _wrong.Id, grab.AddSeconds(-30));
+            GivenEvent(EntityHistoryEventType.Grabbed, _artist.Id, _wanted.Id, grab);
+            GivenEvent(EntityHistoryEventType.TrackFileImported, _artist.Id, _wrong.Id, grab.AddHours(1));
+
+            Subject.IsSatisfiedBy(GivenTorrentRelease(), null).Accepted.Should().BeFalse();
+        }
+
+        [Test]
         public void should_reject_when_the_wrong_album_no_longer_exists_before_housekeeping()
         {
             var grab = DateTime.UtcNow.AddDays(-2);

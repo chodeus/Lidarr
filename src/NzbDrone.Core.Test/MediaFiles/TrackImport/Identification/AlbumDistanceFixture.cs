@@ -221,6 +221,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         [TestCase("Artist & the Band", "Artist and the Band", "the Band")]
         [TestCase("Tia & Lu", "Tia and Lu", "Lu")]
         [TestCase("Artist & Band", "Artist & The Band", "Band")]
+        [TestCase("Tia & Lu", "The Tia & Lu", "Tia")]
         [TestCase("Band Feat; Other Artist", "Band Feat", "Band")]
         [TestCase("Band Feat;Other Artist", "Band Feat", "Band")]
         [TestCase("Band Feat/Other Artist", "Band Feat", "Band")]
@@ -246,6 +247,14 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         public void should_rank_the_main_artist_above_a_featured_guest(string artistTag, string guest)
         {
             DistanceWithArtistTag(artistTag, "artist").Should().BeLessThan(DistanceWithArtistTag(artistTag, guest));
+        }
+
+        [Test]
+        public void should_keep_a_co_artist_listed_after_a_bracketed_guest()
+        {
+            const string artistTag = "artist (feat. guest) & band";
+
+            DistanceWithArtistTag(artistTag, "band").Should().Be(DistanceWithArtistTag(artistTag, "artist"));
         }
 
         [TestCase("Artist & Band")]
@@ -275,6 +284,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         [TestCase("example.net")]
         [TestCase("http://example.org/")]
         [TestCase(" example.com ")]
+        [TestCase("example.com/album")]
         public void should_not_score_a_web_address_in_the_artist_tag(string artistTag)
         {
             DistanceWithArtistTag(artistTag, "other band").Should().Be(0.0);
@@ -283,6 +293,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         [TestCase("artist - www.example.com")]
         [TestCase("artist @ example.net/")]
         [TestCase("artist | example.ru")]
+        [TestCase("www.example.com;artist")]
         public void should_still_score_a_name_followed_by_a_web_address(string artistTag)
         {
             DistanceWithArtistTag(artistTag).Should().BeLessThan(DistanceWithArtistTag(artistTag, "other band"));

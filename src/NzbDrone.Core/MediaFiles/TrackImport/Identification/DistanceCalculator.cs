@@ -13,20 +13,21 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
 {
     public static class DistanceCalculator
     {
-        // One artist of several is weaker evidence than the whole credit, and must not beat a near miss on it
+        // One artist of several is weaker evidence than the whole credit, so it only wins over a whole-credit miss of more than this
         private const double CreditedArtistPenalty = 0.2;
 
-        // Keeps the credit as written ahead of its "and" spelling when both are candidates
-        private const double AndReadingPenalty = 0.01;
+        // Keeps the credit as written ahead of its looser reading when both are candidates
+        private const double LooseReadingPenalty = 0.01;
 
         private static readonly Logger Logger = NzbDroneLogger.GetLogger(typeof(DistanceCalculator));
 
         public static readonly List<string> VariousArtistIds = new List<string> { "89ad4ac3-39f7-470e-963a-56509c546377" };
         private static readonly List<string> VariousArtistNames = new List<string> { "various artists", "various", "va", "unknown" };
-        private static readonly Regex FeaturedArtists = new Regex(@"(?:\s+|\s*[(\[]\s*)(?:feat|ft|featuring)\b(?:\.\s*|\s+)(?=\w).*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex FeaturedArtists = new Regex(@"\s*[(\[]\s*(?:feat|ft|featuring)\b(?:\.\s*|\s+)(?=\w)[^)\]]*[)\]]?|\s+(?:feat|ft|featuring)\b(?:\.\s*|\s+)(?=\w).*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex Ampersand = new Regex(@"\s*&\s*", RegexOptions.Compiled);
+        private static readonly Regex LeadingThe = new Regex(@"^\s*the\s+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex ArtistSeparators = new Regex(@"\s*[;/,&]\s*", RegexOptions.Compiled);
-        private static readonly Regex WebAddress = new Regex(@"^(?:[a-z][a-z0-9+.-]*://\S+|www\.\S+|[^\s/]+\.(?:com|net|org|info|biz|ru|io)/?)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex WebAddress = new Regex(@"^(?:[a-z][a-z0-9+.-]*://[^\s;,&]+|www\.[^\s;,&]+|[^\s/;,&]+\.(?:com|net|org|info|biz|ru|io)(?:/[^\s;,&]*)?)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly List<IsoCountry> PreferredCountries = new List<string>
         {
             "United States",
@@ -41,13 +42,17 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
                 localTrack.FileTrackInfo.TrackNumbers[0] != totalTrackNumber;
         }
 
-        // "&" and "and" read alike, which matters most for short names
+        // "&" against "and", or a missing leading "The", costs short names more than CreditedArtistPenalty
         private static double WholeCreditPenalty(string tag, List<string> names)
         {
-            return Math.Min(Distance.ClosestPenalty(tag, names), Distance.ClosestPenalty(Ampersand.Replace(tag, " and "), names.Select(n => Ampersand.Replace(n ?? "", " and "))) + AndReadingPenalty);
+            return Math.Min(Distance.ClosestPenalty(tag, names), Distance.ClosestPenalty(LooseReading(tag), names.Select(LooseReading)) + LooseReadingPenalty);
         }
 
-        // Each artist the tag credits, leaving out guests after "feat.", or none when it credits one
+        private static string LooseReading(string name)
+        {
+            return LeadingThe.Replace(Ampersand.Replace(name ?? "", " and "), "");
+        }
+
         private static List<string> CreditedArtists(string tag)
         {
             var main = FeaturedArtists.Replace(tag, "");
@@ -117,7 +122,6 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
                 var metadata = release.Album.Value.ArtistMetadata.Value;
                 var names = new[] { metadata.Name }.Concat(metadata.Aliases ?? new List<string>()).ToList();
 
-                // Files tagged with an artist's former or alternate name still match, and so, less closely, do tags crediting several artists
                 var penalty = CreditedArtists(artist).Select(a => Distance.ClosestPenalty(a, names) + CreditedArtistPenalty).Append(WholeCreditPenalty(artist, names)).Min();
                 dist.Add("artist", penalty);
                 Logger.Trace("artist: {0} vs {1}; {2}", artist, release.Album.Value.ArtistMetadata.Value.Name, dist.NormalizedDistance());

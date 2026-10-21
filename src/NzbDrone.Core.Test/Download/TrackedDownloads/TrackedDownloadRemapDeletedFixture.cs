@@ -212,5 +212,75 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
 
             Subject.Find("35238").RemoteAlbum?.Artist.Should().BeNull();
         }
+
+        [Test]
+        public void should_not_remap_to_an_artist_deleted_through_the_mass_editor()
+        {
+            var trackedDownload = GivenTrackedTorrent("Audio Artist - Audio Album [2018 - FLAC]");
+
+            // Read all the time by the queue and RSS sync; the bulk delete doesn't clear it
+            Mocker.Resolve<IArtistService>().GetAllArtists();
+
+            Mocker.Resolve<IArtistService>().DeleteArtists(new List<int> { _artist.Id }, false);
+            var deleted = new ArtistsDeletedEvent(new List<Artist> { _artist }, false, false);
+            ((AlbumService)Mocker.Resolve<IAlbumService>()).Handle(deleted);
+
+            // The history service deletes the artist's history on the same event
+            _history = new List<EntityHistory>();
+            Subject.Handle(deleted);
+
+            trackedDownload.RemoteAlbum?.Artist.Should().BeNull();
+        }
+
+        [Test]
+        public void should_keep_the_other_grabbed_albums_on_the_next_refresh_after_a_delete()
+        {
+            _history = new List<EntityHistory> { GivenGrab(_album.Id), GivenGrab(_secondAlbum.Id) };
+            GivenTrackedTorrent();
+
+            Mocker.Resolve<IAlbumService>().DeleteAlbum(_album.Id, false);
+            Subject.Handle(new AlbumDeletedEvent(_album, false, false));
+
+            var refreshed = Track("The torrent release folder");
+
+            refreshed.RemoteAlbum.Albums.Should().ContainSingle(a => a.Id == _secondAlbum.Id);
+        }
+
+        [Test]
+        public void should_keep_the_other_grabbed_albums_when_one_was_deleted_before_tracking()
+        {
+            _history = new List<EntityHistory> { GivenGrab(_album.Id), GivenGrab(_secondAlbum.Id) };
+            Mocker.Resolve<IAlbumService>().DeleteAlbum(_album.Id, false);
+
+            var trackedDownload = Track("The torrent release folder");
+
+            trackedDownload.RemoteAlbum.Albums.Should().ContainSingle(a => a.Id == _secondAlbum.Id);
+        }
+
+        [Test]
+        public void should_track_a_download_whose_grabbed_artist_was_deleted_without_a_warning()
+        {
+            Db.Delete(_artist);
+
+            var trackedDownload = Track("The torrent release folder");
+
+            trackedDownload.RemoteAlbum.Should().BeNull();
+            trackedDownload.Status.Should().Be(TrackedDownloadStatus.Ok);
+            trackedDownload.RemapPending.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_not_map_a_download_tracked_again_to_an_artist_deleted_through_the_mass_editor()
+        {
+            GivenTrackedTorrent("Audio Artist - Audio Album [2018 - FLAC]");
+
+            Mocker.Resolve<IArtistService>().GetAllArtists();
+            Mocker.Resolve<IArtistService>().DeleteArtists(new List<int> { _artist.Id }, false);
+            ((AlbumService)Mocker.Resolve<IAlbumService>()).Handle(new ArtistsDeletedEvent(new List<Artist> { _artist }, false, false));
+
+            var refreshed = Track("Audio Artist - Audio Album [2018 - FLAC]");
+
+            refreshed.RemoteAlbum?.Artist.Should().BeNull();
+        }
     }
 }

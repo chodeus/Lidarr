@@ -234,13 +234,17 @@ namespace NzbDrone.Core.Parser
             return null;
         }
 
+        // Grab history keeps the ids of albums deleted since, so only the albums that still exist are mapped
         public RemoteAlbum Map(ParsedAlbumInfo parsedAlbumInfo, int artistId, IEnumerable<int> albumIds)
         {
+            var artist = _artistService.GetArtist(artistId);
+            var ids = albumIds.ToHashSet();
+
             return new RemoteAlbum
             {
                 ParsedAlbumInfo = parsedAlbumInfo,
-                Artist = _artistService.GetArtist(artistId),
-                Albums = _albumService.GetAlbums(albumIds)
+                Artist = artist,
+                Albums = _albumService.GetAlbumsByArtist(artist.Id).Where(a => ids.Contains(a.Id)).ToList()
             };
         }
 

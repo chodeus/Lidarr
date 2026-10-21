@@ -6,6 +6,7 @@ using NzbDrone.Common.Cache;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Serializer;
 using NzbDrone.Core.CustomFormats;
+using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Download.Aggregation;
 using NzbDrone.Core.Download.History;
 using NzbDrone.Core.History;
@@ -217,6 +218,12 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                     mapping.RemoteAlbum = null;
                 }
 
+                // The artist list is cached, so the title can still match an artist just deleted
+                if (mapping.RemoteAlbum?.Artist != null && deletion.ArtistIds.Contains(mapping.RemoteAlbum.Artist.Id))
+                {
+                    mapping.RemoteAlbum = null;
+                }
+
                 if (historyItems.Any())
                 {
                     var firstHistoryItem = historyItems.First();
@@ -238,7 +245,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
 
                         if (parsedAlbumInfo != null)
                         {
-                            mapping.RemoteAlbum = MapFromGrabHistory(parsedAlbumInfo, firstHistoryItem.ArtistId, historyItems, deletion) ?? mapping.RemoteAlbum;
+                            mapping.RemoteAlbum = MapFromGrabHistory(parsedAlbumInfo, firstHistoryItem.ArtistId, historyItems);
                         }
                     }
 
@@ -293,20 +300,19 @@ namespace NzbDrone.Core.Download.TrackedDownloads
             return mapping;
         }
 
-        // Null when the grab's artist or an album has been deleted since: the repository's Get throws for a missing row
-        private RemoteAlbum MapFromGrabHistory(ParsedAlbumInfo parsedAlbumInfo, int artistId, List<EntityHistory> historyItems, Deletion deletion)
+        // Null when the grab's artist has been deleted since
+        private RemoteAlbum MapFromGrabHistory(ParsedAlbumInfo parsedAlbumInfo, int artistId, List<EntityHistory> historyItems)
         {
             try
             {
                 return _parsingService.Map(parsedAlbumInfo,
                     artistId,
                     historyItems.Where(v => v.EventType == EntityHistoryEventType.Grabbed)
-                        .Select(h => h.AlbumId).Distinct()
-                        .Where(id => !deletion.AlbumIds.Contains(id)));
+                        .Select(h => h.AlbumId).Distinct());
             }
-            catch (ApplicationException e)
+            catch (ModelNotFoundException e)
             {
-                _logger.Debug(e, "The artist or albums grabbed for artist {0} no longer exist", artistId);
+                _logger.Debug(e, "The artist grabbed as {0} no longer exists", artistId);
 
                 return null;
             }
@@ -365,13 +371,13 @@ namespace NzbDrone.Core.Download.TrackedDownloads
         public void Handle(AlbumInfoRefreshedEvent message)
         {
             Remap(t => t.RemoteAlbum?.Albums != null && t.RemoteAlbum.Albums.Any(a => message.Removed.Any(r => r.Id == a.Id)),
-                new Deletion(new List<Artist>(), message.Removed));
+                Deletion.OfAlbums);
         }
 
         public void Handle(AlbumDeletedEvent message)
         {
             Remap(t => t.RemoteAlbum?.Albums != null && t.RemoteAlbum.Albums.Any(a => a.Id == message.Album.Id || a.ForeignAlbumId == message.Album.ForeignAlbumId),
-                new Deletion(new List<Artist>(), new List<Album> { message.Album }));
+                Deletion.OfAlbums);
         }
 
         public void Handle(ArtistAddedEvent message)
@@ -383,7 +389,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
         public void Handle(ArtistsDeletedEvent message)
         {
             Remap(t => t.RemoteAlbum?.Artist != null && message.Artists.Any(a => a.Id == t.RemoteAlbum.Artist.Id || a.ForeignArtistId == t.RemoteAlbum.Artist.ForeignArtistId),
-                new Deletion(message.Artists, new List<Album>()));
+                Deletion.OfArtists(message.Artists));
         }
 
         private void Remap(Func<TrackedDownload, bool> affected, Deletion deletion)
@@ -402,19 +408,25 @@ namespace NzbDrone.Core.Download.TrackedDownloads
             }
         }
 
+        // Albums and artists are deleted before their events, so only the deleted artists' ids are needed
         private class Deletion
         {
-            public static readonly Deletion None = new Deletion(new List<Artist>(), new List<Album>());
+            public static readonly Deletion None = new Deletion(false, new List<Artist>());
+            public static readonly Deletion OfAlbums = new Deletion(true, new List<Artist>());
 
-            public Deletion(IEnumerable<Artist> artists, IEnumerable<Album> albums)
+            private Deletion(bool any, IEnumerable<Artist> artists)
             {
+                Any = any;
                 ArtistIds = artists.Select(a => a.Id).ToHashSet();
-                AlbumIds = albums.Select(a => a.Id).ToHashSet();
             }
 
+            public bool Any { get; }
             public HashSet<int> ArtistIds { get; }
-            public HashSet<int> AlbumIds { get; }
-            public bool Any => ArtistIds.Any() || AlbumIds.Any();
+
+            public static Deletion OfArtists(IEnumerable<Artist> artists)
+            {
+                return new Deletion(true, artists);
+            }
         }
 
         private class DownloadMapping

@@ -77,7 +77,9 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Deezer
         [Test]
         public void an_empty_page_that_points_to_a_next_one_is_an_outage()
         {
-            GivenAlbumPages(r => "{\"data\":[],\"next\":\"https://api.deezer.com/artist/10/albums?index=100\"}");
+            GivenAlbumPages(r => r.Url.Query.Contains("index=0")
+                ? "{\"data\":[],\"next\":\"https://api.deezer.com/artist/10/albums?index=100\"}"
+                : "{\"data\":[{\"id\":1,\"record_type\":\"album\",\"title\":\"A\"}],\"total\":1}");
 
             Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetArtistInfo("deezer:10", 1));
         }

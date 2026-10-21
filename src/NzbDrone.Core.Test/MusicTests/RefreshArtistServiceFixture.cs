@@ -93,6 +93,10 @@ namespace NzbDrone.Core.Test.MusicTests
                 .Setup(x => x.All())
                 .Returns(new List<RootFolder>());
 
+            Mocker.GetMock<IRootFolderService>()
+                .Setup(x => x.GetBestRootFolder(It.IsAny<string>()))
+                .Returns(new RootFolder { Path = "/music".AsOsAgnostic() });
+
             Mocker.GetMock<IMonitorNewAlbumService>()
                 .Setup(x => x.ShouldMonitorNewAlbum(It.IsAny<Album>(), It.IsAny<List<Album>>(), It.IsAny<NewItemMonitorTypes>()))
                 .Returns(true);

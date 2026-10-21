@@ -294,6 +294,23 @@ namespace NzbDrone.Core.Music
             return _rootFolderService.All().Select(x => x.Path).ToList();
         }
 
+        // The scan stops at a folder outside every root folder, which would leave the other artists unscanned
+        private bool InRootFolder(string path)
+        {
+            if (_rootFolderService.GetBestRootFolder(path) != null)
+            {
+                return true;
+            }
+
+            _logger.Warn("Not rescanning {0}: it isn't in a root folder", path);
+            return false;
+        }
+
+        private bool HasFilesOutside(int artistId, string path)
+        {
+            return _mediaFileService.GetFilesByArtist(artistId).Any(f => !path.IsParentPath(f.Path));
+        }
+
         private void RescanArtists(List<int> artistIds, List<string> folders, bool isNew, CommandTrigger trigger, bool infoUpdated)
         {
             var rescanAfterRefresh = _configService.RescanAfterRefresh;
@@ -326,7 +343,7 @@ namespace NzbDrone.Core.Music
                 filter = FilterFilesType.Known;
             }
 
-            if (shouldRescan)
+            if (shouldRescan && folders.Any())
             {
                 // some metadata has updated so rescan unmatched
                 // (but don't add new artists to reduce repeated searches against api)
@@ -357,11 +374,14 @@ namespace NzbDrone.Core.Music
                 }
             }
 
-            // A merged or deleted artist's files may sit in another artist's folder, so scan the root folders;
-            // GetArtists throws for a missing id, and so would the scan of a list that names one. Paths as stored now, in case of a move
+            // A merged or deleted artist's files may sit in another artist's folder, and files of an artist outside its folder are
+            // only cleaned up by scanning the root folders; GetArtists throws for a missing id, and so would the scan of a list that names one
             var stored = _artistService.AllArtistPaths();
-            var rescanIds = artists.Select(a => a.Id).Where(stored.ContainsKey).Distinct().ToList();
-            var folders = artistIds.All(stored.ContainsKey) ? rescanIds.Select(id => stored[id]).ToList() : RootFolders();
+            var rescanIds = artists.Select(a => a.Id).Where(stored.ContainsKey).Distinct().Where(id => InRootFolder(stored[id])).ToList();
+            var scanRootFolders = !artistIds.All(stored.ContainsKey) || rescanIds.Any(id => HasFilesOutside(id, stored[id]));
+
+            // Paths as stored now, in case of a move
+            var folders = scanRootFolders ? RootFolders() : rescanIds.Select(id => stored[id]).ToList();
 
             RescanArtists(rescanIds, folders, isNew, trigger, updated);
         }

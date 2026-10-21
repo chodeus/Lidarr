@@ -183,6 +183,9 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
 
         public override string Name => "SABnzbd";
 
+        // The add is a single request
+        public override bool CanFallBackFrom => true;
+
         public override IEnumerable<DownloadClientItem> GetItems()
         {
             foreach (var downloadClientItem in GetQueue().Concat(GetHistory()))

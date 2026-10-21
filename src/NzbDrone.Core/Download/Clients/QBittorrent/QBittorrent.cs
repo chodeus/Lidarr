@@ -215,6 +215,9 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
 
         public override string Name => "qBittorrent";
 
+        // Everything after the add request only warns when it fails
+        public override bool CanFallBackFrom => true;
+
         public override IEnumerable<DownloadClientItem> GetItems()
         {
             var version = Proxy.GetApiVersion(Settings);

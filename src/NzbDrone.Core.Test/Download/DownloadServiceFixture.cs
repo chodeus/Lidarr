@@ -63,6 +63,7 @@ namespace NzbDrone.Core.Test.Download
             _downloadClients.Add(mock.Object);
 
             mock.SetupGet(v => v.Protocol).Returns(nameof(UsenetDownloadProtocol));
+            mock.SetupGet(v => v.CanFallBackFrom).Returns(true);
 
             return mock;
         }
@@ -75,6 +76,7 @@ namespace NzbDrone.Core.Test.Download
             _downloadClients.Add(mock.Object);
 
             mock.SetupGet(v => v.Protocol).Returns(nameof(TorrentDownloadProtocol));
+            mock.SetupGet(v => v.CanFallBackFrom).Returns(true);
 
             return mock;
         }
@@ -249,6 +251,7 @@ namespace NzbDrone.Core.Test.Download
             var mock = new Mock<IDownloadClient>(MockBehavior.Default);
             mock.SetupGet(s => s.Definition).Returns(new DownloadClientDefinition { Id = id, Name = "Client " + id });
             mock.SetupGet(v => v.Protocol).Returns(nameof(UsenetDownloadProtocol));
+            mock.SetupGet(v => v.CanFallBackFrom).Returns(true);
 
             _downloadClients.Add(mock.Object);
 
@@ -292,6 +295,19 @@ namespace NzbDrone.Core.Test.Download
             Mocker.GetMock<IDownloadClientStatusService>().Verify(v => v.RecordSuccess(2), Times.Once());
             VerifyEventPublished<AlbumGrabbedEvent>();
             ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_not_fall_back_from_a_client_whose_add_can_partly_succeed()
+        {
+            var first = WithNamedUsenetClient(1);
+            var second = WithNamedUsenetClient(2);
+            first.SetupGet(v => v.CanFallBackFrom).Returns(false);
+            first.Setup(s => s.Download(It.IsAny<RemoteAlbum>(), It.IsAny<IIndexer>())).Throws(Unreachable("Client 1"));
+
+            Assert.ThrowsAsync<DownloadClientUnavailableException>(async () => await Subject.DownloadReport(_parseResult, null));
+
+            second.Verify(c => c.Download(It.IsAny<RemoteAlbum>(), It.IsAny<IIndexer>()), Times.Never());
         }
 
         [Test]

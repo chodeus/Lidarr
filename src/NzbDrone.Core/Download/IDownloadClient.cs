@@ -15,5 +15,8 @@ namespace NzbDrone.Core.Download
         void RemoveItem(DownloadClientItem item, bool deleteData);
         DownloadClientInfo GetStatus();
         void MarkItemAsImported(DownloadClientItem downloadClientItem);
+
+        // True only when an add that fails can't have left the release with the client, so the next client may take it
+        bool CanFallBackFrom => false;
     }
 }

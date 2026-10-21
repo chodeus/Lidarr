@@ -96,6 +96,8 @@ namespace NzbDrone.Core.Download
 
         public abstract string Protocol { get; }
 
+        public virtual bool CanFallBackFrom => false;
+
         public abstract Task<string> Download(RemoteAlbum remoteAlbum, IIndexer indexer);
         public abstract IEnumerable<DownloadClientItem> GetItems();
 

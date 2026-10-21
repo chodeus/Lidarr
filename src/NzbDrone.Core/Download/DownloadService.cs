@@ -148,7 +148,7 @@ namespace NzbDrone.Core.Download
                 {
                     return await SendTo(downloadClient, remoteAlbum, indexer);
                 }
-                catch (Exception ex) when (ClientNeverTookIt(ex))
+                catch (Exception ex) when (downloadClient.CanFallBackFrom && ClientNeverTookIt(ex))
                 {
                     _logger.Warn(ex, "Download client {0} could not take {1}, trying the next one", downloadClient.Definition.Name, remoteAlbum.Release.Title);
                 }

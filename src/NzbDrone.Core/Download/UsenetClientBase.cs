@@ -1,4 +1,6 @@
+using System;
 using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
 using NLog;
 using NzbDrone.Common.Disk;
@@ -77,7 +79,7 @@ namespace NzbDrone.Core.Download
 
                 throw new ReleaseDownloadException(remoteAlbum.Release, "Downloading nzb failed", ex);
             }
-            catch (WebException ex)
+            catch (Exception ex) when (ex is WebException or HttpRequestException)
             {
                 _logger.Error(ex, "Downloading nzb for release '{0}' failed ({1})", remoteAlbum.Release.Title, url);
 

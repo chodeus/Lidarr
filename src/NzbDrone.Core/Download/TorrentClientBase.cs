@@ -1,5 +1,6 @@
 using System;
 using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
 using MonoTorrent;
 using NLog;
@@ -189,7 +190,7 @@ namespace NzbDrone.Core.Download
 
                 throw new ReleaseDownloadException(remoteAlbum.Release, "Downloading torrent failed", ex);
             }
-            catch (WebException ex)
+            catch (Exception ex) when (ex is WebException or HttpRequestException)
             {
                 _logger.Error(ex, "Downloading torrent file for release '{0}' failed ({1})", remoteAlbum.Release.Title, torrentUrl);
 

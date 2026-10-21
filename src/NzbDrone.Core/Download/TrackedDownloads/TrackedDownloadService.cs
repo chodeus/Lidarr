@@ -117,7 +117,8 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                 DownloadItem = downloadItem,
                 Protocol = downloadClient.Protocol,
                 IsTrackable = true,
-                HasNotifiedManualInteractionRequired = existingItem?.HasNotifiedManualInteractionRequired ?? false
+                HasNotifiedManualInteractionRequired = existingItem?.HasNotifiedManualInteractionRequired ?? false,
+                ManualInteractionRequiredReason = existingItem?.ManualInteractionRequiredReason
             };
 
             try

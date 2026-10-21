@@ -253,9 +253,13 @@ namespace NzbDrone.Core.Download
         {
             trackedDownload.State = TrackedDownloadState.ImportBlocked;
 
-            if (!trackedDownload.HasNotifiedManualInteractionRequired)
+            // Once per reason: a download that keeps cycling through ImportPending stays quiet, one blocked for a new reason notifies again
+            var reason = string.Join(" ", trackedDownload.StatusMessages.SelectMany(m => m.Messages));
+
+            if (!trackedDownload.HasNotifiedManualInteractionRequired || trackedDownload.ManualInteractionRequiredReason != reason)
             {
                 trackedDownload.HasNotifiedManualInteractionRequired = true;
+                trackedDownload.ManualInteractionRequiredReason = reason;
 
                 var manualInteractionEvent = new ManualInteractionRequiredEvent(trackedDownload);
                 _eventAggregator.PublishEvent(manualInteractionEvent);

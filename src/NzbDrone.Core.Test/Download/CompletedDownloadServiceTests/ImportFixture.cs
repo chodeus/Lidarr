@@ -130,6 +130,33 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
         }
 
         [Test]
+        public void should_publish_manual_interaction_required_again_when_blocked_for_a_new_reason()
+        {
+            Mocker.GetMock<IParsingService>()
+                  .Setup(s => s.GetArtist(It.IsAny<string>()))
+                  .Returns((Artist)null);
+
+            Subject.Check(_trackedDownload);
+            _trackedDownload.State.Should().Be(TrackedDownloadState.ImportBlocked);
+
+            // The user adds the artist, but the title still maps no album
+            GivenArtistMatch();
+            _trackedDownload.RemoteAlbum = null;
+
+            for (var refresh = 0; refresh < 2; refresh++)
+            {
+                Subject.Check(_trackedDownload);
+                _trackedDownload.State.Should().Be(TrackedDownloadState.ImportPending);
+
+                Subject.Import(_trackedDownload);
+                _trackedDownload.State.Should().Be(TrackedDownloadState.ImportBlocked);
+            }
+
+            Mocker.GetMock<IEventAggregator>()
+                .Verify(v => v.PublishEvent(It.IsAny<ManualInteractionRequiredEvent>()), Times.Exactly(2));
+        }
+
+        [Test]
         public void should_not_mark_as_imported_if_all_files_were_rejected()
         {
             Mocker.GetMock<IDownloadedTracksImportService>()

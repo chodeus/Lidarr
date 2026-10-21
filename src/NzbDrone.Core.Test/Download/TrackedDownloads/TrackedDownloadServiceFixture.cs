@@ -106,11 +106,13 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
 
             var first = Subject.TrackDownload(client, item);
             first.HasNotifiedManualInteractionRequired = true;
+            first.ManualInteractionRequiredReason = "Unable to parse download";
 
             var second = Subject.TrackDownload(client, item);
 
             second.Should().NotBeSameAs(first);
             second.HasNotifiedManualInteractionRequired.Should().BeTrue();
+            second.ManualInteractionRequiredReason.Should().Be("Unable to parse download");
         }
 
         [Test]

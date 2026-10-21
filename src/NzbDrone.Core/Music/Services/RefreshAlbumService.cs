@@ -434,17 +434,17 @@ namespace NzbDrone.Core.Music
 
             foreach (var album in albums)
             {
-                // After a failure the source is likely down, and an unlisted album's check would only fail too: it is left alone
-                if (failed && IsUnlisted(album, remoteAlbums))
-                {
-                    _logger.Debug("Leaving Album '{0}' [{1}] alone until the next refresh", album.Title, album.ForeignAlbumId);
-                    continue;
-                }
-
                 if (forceAlbumRefresh ||
                     (updatedMusicbrainzAlbums is not { Count: not 0 } && _checkIfAlbumShouldBeRefreshed.ShouldRefresh(album)) ||
                     (updatedMusicbrainzAlbums is { Count: > 0 } && updatedMusicbrainzAlbums.Contains(album.ForeignAlbumId)))
                 {
+                    // After a failure the source is likely down, and an unlisted album's check would only fail too: it is left alone
+                    if (failed && IsUnlisted(album, remoteAlbums))
+                    {
+                        _logger.Debug("Leaving Album '{0}' [{1}] alone until the next refresh", album.Title, album.ForeignAlbumId);
+                        continue;
+                    }
+
                     try
                     {
                         updated |= RefreshAlbumInfo(album, remoteAlbums, forceUpdateFileTags);

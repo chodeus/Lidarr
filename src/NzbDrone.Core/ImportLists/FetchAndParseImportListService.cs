@@ -75,15 +75,7 @@ namespace NzbDrone.Core.ImportLists
                                  _logger.Debug("Found {0} reports from {1} ({2})", importListReports.Count, importList.Name, importListLocal.Definition.Name);
 
                                  result.AddRange(importListReports);
-
-                                 var removed = 0;
-
-                                 if (!FetchFailed(importList.Definition.Id, failureBefore))
-                                 {
-                                     removed = _importListItemService.SyncItemsForList(importListReports.ToList(), importList.Definition.Id);
-                                 }
-
-                                 _importListStatusService.UpdateListSyncStatus(importList.Definition.Id, removed > 0);
+                                 StoreItems(importList, importListReports, failureBefore);
                              }
                          }
                          catch (Exception e)
@@ -133,15 +125,7 @@ namespace NzbDrone.Core.ImportLists
                         _logger.Debug("Found {0} reports from {1} ({2})", importListReports.Count, importList.Name, importListLocal.Definition.Name);
 
                         result.AddRange(importListReports);
-
-                        var removed = 0;
-
-                        if (!FetchFailed(importList.Definition.Id, failureBefore))
-                        {
-                            removed = _importListItemService.SyncItemsForList(importListReports.ToList(), importList.Definition.Id);
-                        }
-
-                        _importListStatusService.UpdateListSyncStatus(importList.Definition.Id, removed > 0);
+                        StoreItems(importList, importListReports, failureBefore);
                     }
                 }
                 catch (Exception e)
@@ -157,6 +141,25 @@ namespace NzbDrone.Core.ImportLists
             result = result.DistinctBy(r => new { r.Artist, r.Album, r.ArtistMusicBrainzId, r.AlbumMusicBrainzId }).ToList();
 
             return result;
+        }
+
+        private void StoreItems(IImportList importList, IList<ImportListItemInfo> importListReports, DateTime? failureBefore)
+        {
+            // Deleted while its fetch ran: storing would bring back its items and status after the delete removed them
+            if (_importListFactory.Find(importList.Definition.Id) == null)
+            {
+                _logger.Debug("Import List {0} was deleted during its sync, not storing its items", importList.Definition.Name);
+                return;
+            }
+
+            var removed = 0;
+
+            if (!FetchFailed(importList.Definition.Id, failureBefore))
+            {
+                removed = _importListItemService.SyncItemsForList(importListReports.ToList(), importList.Definition.Id);
+            }
+
+            _importListStatusService.UpdateListSyncStatus(importList.Definition.Id, removed > 0);
         }
 
         // Lists catch their own errors and record them on the status instead of throwing

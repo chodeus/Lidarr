@@ -24,6 +24,7 @@ namespace NzbDrone.Core.ImportLists.Spotify
     {
         private IHttpClient _httpClient;
         private IImportListRepository _importListRepository;
+        private bool _mappingFailed;
 
         protected ISpotifyProxy _spotifyProxy;
         private readonly IMetadataRequestBuilder _requestBuilder;
@@ -109,7 +110,19 @@ namespace NzbDrone.Core.ImportLists.Spotify
             }
 
             // map to musicbrainz ids
+            _mappingFailed = false;
             releases = MapSpotifyReleases(releases);
+
+            // The mapping service is down: its items would replace the stored ones by name only. One item that fails to map
+            // is only stored without its ids, which holds a library clean back, without putting the whole list in backoff
+            if (_mappingFailed)
+            {
+                _importListStatusService.RecordFailure(Definition.Id);
+            }
+            else
+            {
+                _importListStatusService.RecordSuccess(Definition.Id);
+            }
 
             return CleanupListItems(releases);
         }
@@ -173,6 +186,7 @@ namespace NzbDrone.Core.ImportLists.Spotify
             catch (Exception e)
             {
                 _logger.Error(e);
+                _mappingFailed = true;
                 map = new Dictionary<string, string>();
             }
 

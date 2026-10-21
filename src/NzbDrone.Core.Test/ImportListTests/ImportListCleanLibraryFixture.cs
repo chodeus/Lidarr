@@ -10,6 +10,7 @@ using NzbDrone.Core.ImportLists.ImportListItems;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Tags;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Core.ThingiProvider.Events;
 
@@ -63,6 +64,10 @@ namespace NzbDrone.Core.Test.ImportListTests
                   .Returns(new List<ImportListItemInfo>());
 
             Mocker.GetMock<IArtistService>()
+                  .Setup(v => v.GetArtist(It.IsAny<int>()))
+                  .Returns<int>(id => _existingArtists.Single(a => a.Id == id));
+
+            Mocker.GetMock<IArtistService>()
                   .Setup(v => v.GetAllArtists())
                   .Returns(_existingArtists);
 
@@ -90,6 +95,10 @@ namespace NzbDrone.Core.Test.ImportListTests
                 Mocker.GetMock<IConfigService>()
                       .SetupGet(v => v.ListSyncTag)
                       .Returns(tagId.Value);
+
+                Mocker.GetMock<ITagService>()
+                      .Setup(v => v.All())
+                      .Returns(new List<Tag> { new Tag { Id = tagId.Value, Label = "not on a list" } });
             }
         }
 
@@ -201,7 +210,7 @@ namespace NzbDrone.Core.Test.ImportListTests
                   .Verify(v => v.UpdateArtists(It.Is<List<Artist>>(l => l.Count == 0), true), Times.Once());
 
             Mocker.GetMock<IImportListStatusService>()
-                  .Verify(v => v.MarkListsAsCleaned(), Times.Once());
+                  .Verify(v => v.MarkListsAsCleaned(It.IsAny<List<int>>()), Times.Once());
         }
 
         [Test]
@@ -216,7 +225,7 @@ namespace NzbDrone.Core.Test.ImportListTests
             VerifyUnmonitored(1, 3);
 
             Mocker.GetMock<IImportListStatusService>()
-                  .Verify(v => v.MarkListsAsCleaned(), Times.Once());
+                  .Verify(v => v.MarkListsAsCleaned(It.IsAny<List<int>>()), Times.Once());
         }
 
         [Test]
@@ -234,8 +243,8 @@ namespace NzbDrone.Core.Test.ImportListTests
 
         [TestCase("artist-1", null, null)]
         [TestCase("old-artist-1", null, null)]
-        [TestCase(null, "Artist 1", null)]
-        [TestCase(null, "ARTIST 1", null)]
+        [TestCase("another-artist", "Artist 1", null)]
+        [TestCase("another-artist", "ARTIST 1", null)]
         [TestCase(null, null, "album-1")]
         [TestCase(null, null, "old-album-1")]
         public void should_not_clean_artist_that_is_on_a_list(string artistId, string artistName, string albumId)
@@ -247,6 +256,73 @@ namespace NzbDrone.Core.Test.ImportListTests
             Subject.Execute(new ImportListSyncCommand());
 
             VerifyUnmonitored(2, 3);
+        }
+
+        [TestCase(null, "Artist 1", null)]
+        [TestCase(null, "Artist 1", "album-not-in-library")]
+        public void should_not_clean_while_a_list_item_is_matched_to_no_artist(string artistId, string artistName, string albumId)
+        {
+            _listItems.Add(new ImportListItemInfo { ImportListId = 1, ArtistMusicBrainzId = artistId, Artist = artistName, AlbumMusicBrainzId = albumId });
+            WithList(1);
+            WithCleanLevel(ListSyncLevelType.KeepAndUnmonitor);
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            VerifyNotCleaned();
+            Mocker.GetMock<IImportListStatusService>()
+                  .Verify(v => v.MarkListsAsCleaned(It.IsAny<List<int>>()), Times.Never());
+        }
+
+        [Test]
+        public void should_keep_the_artist_the_sync_mapped_a_list_item_to()
+        {
+            _listItems.Add(new ImportListItemInfo { ImportListId = 1, Artist = "Another Name", AlbumMusicBrainzId = "album-not-in-library", MappedArtistMusicBrainzId = "artist-1" });
+            WithList(1);
+            WithCleanLevel(ListSyncLevelType.KeepAndUnmonitor);
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            VerifyUnmonitored(2, 3);
+        }
+
+        [Test]
+        public void should_not_tag_with_a_tag_that_no_longer_exists()
+        {
+            WithList(1);
+            WithCleanLevel(ListSyncLevelType.KeepAndTag, 4);
+            Mocker.GetMock<ITagService>().Setup(v => v.All()).Returns(new List<Tag>());
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            VerifyNotCleaned();
+        }
+
+        [Test]
+        public void should_only_mark_the_lists_it_read_as_cleaned()
+        {
+            WithList(1);
+            WithList(2, pendingRemovals: false);
+            WithCleanLevel(ListSyncLevelType.KeepAndUnmonitor);
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            Mocker.GetMock<IImportListStatusService>()
+                  .Verify(v => v.MarkListsAsCleaned(It.Is<List<int>>(l => l.SequenceEqual(new[] { 1 }))), Times.Once());
+        }
+
+        [Test]
+        public void should_write_the_artist_as_read_again_just_before_the_clean_writes()
+        {
+            WithList(1);
+            WithCleanLevel(ListSyncLevelType.KeepAndUnmonitor);
+
+            var edited = new Artist { Id = 1, Monitored = true, Path = "edited while the lists were compared", Tags = new HashSet<int>() };
+            Mocker.GetMock<IArtistService>().Setup(v => v.GetArtist(1)).Returns(edited);
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            Mocker.GetMock<IArtistService>()
+                  .Verify(v => v.UpdateArtists(It.Is<List<Artist>>(l => l.Contains(edited) && !edited.Monitored), true), Times.Once());
         }
 
         [Test]

@@ -38,6 +38,10 @@ namespace NzbDrone.Core.Test.ImportListTests
 
             var mockImportList = new Mock<IImportList>();
             mockImportList.SetupGet(s => s.Definition).Returns(importListDefinition);
+
+            Mocker.GetMock<IImportListFactory>()
+                  .Setup(v => v.Find(id))
+                  .Returns(importListDefinition);
             mockImportList.SetupGet(s => s.MinRefreshInterval).Returns(TimeSpan.FromHours(12));
             mockImportList.Setup(s => s.Fetch())
                           .Callback(() =>

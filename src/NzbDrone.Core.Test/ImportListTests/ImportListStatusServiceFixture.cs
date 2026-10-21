@@ -100,14 +100,30 @@ namespace NzbDrone.Core.Test.ImportListTests
         [Test]
         public void should_clear_removed_items_flag_when_marked_as_cleaned()
         {
-            var status = new ImportListStatus { HasRemovedItemSinceLastClean = true };
+            var status = new ImportListStatus { ProviderId = 1, HasRemovedItemSinceLastClean = true };
             WithStatus(status);
 
-            Subject.MarkListsAsCleaned();
+            Subject.MarkListsAsCleaned(new List<int> { 1 });
 
             status.HasRemovedItemSinceLastClean.Should().BeFalse();
             Mocker.GetMock<IImportListStatusRepository>()
                   .Verify(v => v.SetFields(It.Is<IList<ImportListStatus>>(l => l.Count == 1), It.IsAny<System.Linq.Expressions.Expression<Func<ImportListStatus, object>>[]>()), Times.Once());
+        }
+
+        [Test]
+        public void should_only_clear_the_flags_of_the_lists_given()
+        {
+            var cleaned = new ImportListStatus { ProviderId = 1, HasRemovedItemSinceLastClean = true };
+            var pending = new ImportListStatus { ProviderId = 2, HasRemovedItemSinceLastClean = true };
+
+            Mocker.GetMock<IImportListStatusRepository>()
+                .Setup(v => v.All())
+                .Returns(new[] { cleaned, pending });
+
+            Subject.MarkListsAsCleaned(new List<int> { 1 });
+
+            cleaned.HasRemovedItemSinceLastClean.Should().BeFalse();
+            pending.HasRemovedItemSinceLastClean.Should().BeTrue();
         }
     }
 }

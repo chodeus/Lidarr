@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.ThingiProvider.Events;
@@ -11,7 +13,10 @@ namespace NzbDrone.Core.ImportLists.ImportListItems
         List<ImportListItemInfo> All();
         List<ImportListItemInfo> GetAllForLists(List<int> listIds);
         int SyncItemsForList(List<ImportListItemInfo> listItems, int listId);
+        void StoreMappedArtistIds(List<(ImportListItemKey Key, string ArtistMusicBrainzId)> mapped);
     }
+
+    public record ImportListItemKey(string Artist, string ArtistMusicBrainzId, string Album, string AlbumMusicBrainzId);
 
     public class ImportListItemService : IImportListItemService, IHandleAsync<ProviderDeletedEvent<IImportList>>
     {
@@ -25,20 +30,22 @@ namespace NzbDrone.Core.ImportLists.ImportListItems
         public int SyncItemsForList(List<ImportListItemInfo> listItems, int listId)
         {
             var existingListItems = GetAllForLists(new List<int> { listId });
-            var unmatched = existingListItems.GroupBy(Key).ToDictionary(g => g.Key, g => new Queue<ImportListItemInfo>(g));
+            var unmatched = existingListItems.GroupBy(KeyOf).ToDictionary(g => g.Key, g => new Queue<ImportListItemInfo>(g));
 
             var toAdd = new List<ImportListItemInfo>();
             var toUpdate = new List<ImportListItemInfo>();
 
             listItems.ForEach(item =>
             {
-                if (!unmatched.TryGetValue(Key(item), out var matches) || !matches.TryDequeue(out var existingItem))
+                item.ReleaseDate = AsUtc(item.ReleaseDate);
+
+                if (!unmatched.TryGetValue(KeyOf(item), out var matches) || !matches.TryDequeue(out var existingItem))
                 {
                     toAdd.Add(item);
                     return;
                 }
 
-                if (existingItem.ReleaseDate != item.ReleaseDate)
+                if (AsUtc(existingItem.ReleaseDate) != item.ReleaseDate)
                 {
                     existingItem.ReleaseDate = item.ReleaseDate;
                     toUpdate.Add(existingItem);
@@ -52,6 +59,22 @@ namespace NzbDrone.Core.ImportLists.ImportListItems
             _importListItemRepository.DeleteMany(toDelete);
 
             return toDelete.Count;
+        }
+
+        // Only a lookup by album id names the album's own artist; one found by a title or name search could be another artist's
+        public void StoreMappedArtistIds(List<(ImportListItemKey Key, string ArtistMusicBrainzId)> mapped)
+        {
+            var byKey = mapped.Where(m => m.Key.ArtistMusicBrainzId.IsNullOrWhiteSpace() && m.Key.AlbumMusicBrainzId.IsNotNullOrWhiteSpace() && m.ArtistMusicBrainzId.IsNotNullOrWhiteSpace())
+                              .GroupBy(m => m.Key)
+                              .ToDictionary(g => g.Key, g => g.First().ArtistMusicBrainzId);
+
+            var toUpdate = _importListItemRepository.All()
+                .Where(i => byKey.TryGetValue(KeyOf(i), out var artistId) && i.MappedArtistMusicBrainzId != artistId)
+                .ToList();
+
+            toUpdate.ForEach(i => i.MappedArtistMusicBrainzId = byKey[KeyOf(i)]);
+
+            _importListItemRepository.SetFields(toUpdate, i => i.MappedArtistMusicBrainzId);
         }
 
         public List<ImportListItemInfo> All()
@@ -70,10 +93,16 @@ namespace NzbDrone.Core.ImportLists.ImportListItems
             _importListItemRepository.DeleteMany(itemsOnList);
         }
 
-        // Same identity as the fetch's DistinctBy
-        private static (string Artist, string ArtistMusicBrainzId, string Album, string AlbumMusicBrainzId) Key(ImportListItemInfo item)
+        // The fetch's DistinctBy identity, ignoring case, so a provider changing a name's case isn't a removal
+        public static ImportListItemKey KeyOf(ImportListItemInfo item)
         {
-            return (item.Artist, item.ArtistMusicBrainzId, item.Album, item.AlbumMusicBrainzId);
+            return new ImportListItemKey(item.Artist?.ToLowerInvariant(), item.ArtistMusicBrainzId?.ToLowerInvariant(), item.Album?.ToLowerInvariant(), item.AlbumMusicBrainzId?.ToLowerInvariant());
+        }
+
+        // Lists give dates without a zone, which the database would store shifted by the host's offset
+        private static DateTime AsUtc(DateTime date)
+        {
+            return date.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(date, DateTimeKind.Utc) : date.ToUniversalTime();
         }
     }
 }

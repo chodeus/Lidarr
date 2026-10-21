@@ -282,7 +282,7 @@ namespace NzbDrone.Core.MediaFiles
             }
             else if (importResults.None(r => r.Result == ImportResultType.Imported))
             {
-                // Fake audio beside an unsafe file must still fail the download: the folder rejection goes first
+                // The folder rejection goes first, so an indexer that fails this file type fails the download even beside fake audio
                 var unsafeFiles = CheckForUnsafeFiles(_diskProvider.GetFiles(directoryInfo.FullName, true).ToList());
 
                 if (unsafeFiles != null)

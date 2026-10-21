@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -114,6 +115,20 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.TorrentClientBaseTests
             await Subject.Download(remoteAlbum, CreateIndexerWithFailDownloads(true, FailDownloads.Executables, FailDownloads.PotentiallyDangerous));
 
             VerifyBlocked(remoteAlbum, 0);
+        }
+
+        [Test]
+        public async Task should_add_the_torrent_with_a_warning_when_its_file_list_cannot_be_read()
+        {
+            var remoteAlbum = CreateRemoteAlbum();
+            Mocker.GetMock<ITorrentFileInfoReader>()
+                  .Setup(s => s.GetFileNamesFromTorrentFile(It.IsAny<byte[]>()))
+                  .Throws(new NotSupportedException("No file list reader"));
+
+            await Subject.Download(remoteAlbum, CreateIndexerWithFailDownloads(true, FailDownloads.Executables));
+
+            VerifyBlocked(remoteAlbum, 0);
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]

@@ -42,7 +42,7 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
 
             if (withIndexerFlags)
             {
-                data.Add("indexerFlags", "0");
+                data.Add("indexerFlags", (IndexerFlags.Freeleech | IndexerFlags.Internal).ToString());
             }
 
             Mocker.GetMock<IHistoryService>()
@@ -113,6 +113,7 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
             release.IndexerId.Should().Be(7);
             release.Indexer.Should().Be("Test Indexer");
             release.Title.Should().Be("Audio Artist - Audio Album [2018 - FLAC]");
+            release.IndexerFlags.Should().Be(withIndexerFlags ? IndexerFlags.Freeleech | IndexerFlags.Internal : 0);
         }
 
         [Test]

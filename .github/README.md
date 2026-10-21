@@ -17,7 +17,10 @@ Tests: `RejectedImportServiceFixture` (each option and reason, missing settings,
 ## Summary by CodeRabbit
 
 * **New Features**
-  * Configure supported indexers to fail downloads containing executable or potentially dangerous files.
-  * During completed-download import, risky files are identified. Depending on indexer settings, affected downloads are marked as failed and removable, or remain pending with a warning.
+  * Configure supported indexers to fail downloads containing executable, potentially dangerous, or user-rejected file extensions.
+  * Block configured unsafe torrent files before grabbing, with fallback handling for unavailable file lists.
+  * Set custom rejected file extensions in Media Management settings.
+  * Risky files are identified during import; affected downloads are failed and removable or remain pending with a warning based on indexer settings, and when tracks are rejected too the import ends as Import Failed with each track's reason.
 * **Bug Fixes**
-  * Import warnings now distinguish between executable files and potentially dangerous files, including shortcuts and scripts.
+  * Import warnings now distinguish executable, potentially dangerous, and user-rejected files.
+  * Failed imports are processed in the same pass as completed-download handling.

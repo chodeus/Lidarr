@@ -16,8 +16,8 @@ namespace NzbDrone.Core.Music
         Artist GetArtistByMetadataId(int artistMetadataId);
         List<Artist> GetArtists(IEnumerable<int> artistIds);
 
-        // Unlike GetArtists, the artists still stored, without throwing for an id that is gone or repeated; the default keeps other implementations compiling
-        List<Artist> GetStoredArtists(IEnumerable<int> artistIds) => GetAllArtists().Where(a => artistIds.Contains(a.Id)).ToList();
+        // Unlike GetArtists, the artists still stored, without throwing for an id that is gone or repeated; the default, for other implementations, throws like GetArtists
+        List<Artist> GetStoredArtists(IEnumerable<int> artistIds) => GetArtists(artistIds.Distinct());
 
         Artist AddArtist(Artist newArtist, bool doRefresh);
         List<Artist> AddArtists(List<Artist> newArtists, bool doRefresh);

@@ -17,8 +17,8 @@ namespace NzbDrone.Core.Music
         Artist GetArtistByMetadataId(int artistMetadataId);
         List<Artist> GetArtistByMetadataId(IEnumerable<int> artistMetadataId);
 
-        // Unlike Get(ids), the artists still stored, without throwing for an id that is gone or repeated; the default keeps other implementations compiling
-        List<Artist> FindStored(IEnumerable<int> artistIds) => All().Where(a => artistIds.Contains(a.Id)).ToList();
+        // Unlike Get(ids), the artists still stored, without throwing for an id that is gone or repeated; the default, for other implementations, throws like Get(ids)
+        List<Artist> FindStored(IEnumerable<int> artistIds) => Get(artistIds.Distinct()).ToList();
     }
 
     public class ArtistRepository : BasicRepository<Artist>, IArtistRepository

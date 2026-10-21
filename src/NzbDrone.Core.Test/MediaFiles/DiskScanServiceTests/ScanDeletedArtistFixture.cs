@@ -6,6 +6,7 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Cache;
 using NzbDrone.Common.Disk;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.MediaFiles.TrackImport;
@@ -113,6 +114,47 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
 
             ExceptionVerification.IgnoreWarns();
             scanned.Should().Equal(_kept.Id);
+        }
+
+        [Test]
+        public void should_not_create_the_folder_of_an_artist_deleted_while_the_folders_are_read()
+        {
+            var other = GivenArtist("/music/Other Artist");
+            Mocker.GetMock<IConfigService>().SetupGet(c => c.CreateEmptyArtistFolders).Returns(true);
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.FolderExists(_rootFolder)).Returns(true);
+            Mocker.GetMock<IDiskProvider>()
+                  .Setup(s => s.GetFileInfos(_rootFolder, true))
+                  .Callback(() => Mocker.Resolve<IArtistService>().DeleteArtist(other.Id, false))
+                  .Returns(new List<IFileInfo>());
+
+            Subject.Scan(new List<string> { _rootFolder }, FilterFilesType.Known, false, new List<int> { _kept.Id, other.Id });
+
+            ExceptionVerification.IgnoreWarns();
+            Mocker.GetMock<IDiskProvider>().Verify(s => s.CreateFolder(_kept.Path), Times.Once());
+            Mocker.GetMock<IDiskProvider>().Verify(s => s.CreateFolder(other.Path), Times.Never());
+        }
+
+        [Test]
+        public void should_report_an_artist_moved_while_the_folders_are_read_at_its_new_path()
+        {
+            var moved = "/music/Moved Artist".AsOsAgnostic();
+            var scanned = new List<string>();
+            Mocker.GetMock<IEventAggregator>().Setup(s => s.PublishEvent(It.IsAny<ArtistScannedEvent>())).Callback<ArtistScannedEvent>(e => scanned.Add(e.Artist.Path));
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.FolderExists(_rootFolder)).Returns(true);
+            Mocker.GetMock<IDiskProvider>()
+                  .Setup(s => s.GetFileInfos(_rootFolder, true))
+                  .Callback(() =>
+                  {
+                      var artist = Mocker.Resolve<IArtistService>().GetArtist(_kept.Id);
+                      artist.Path = moved;
+                      Mocker.Resolve<IArtistService>().UpdateArtist(artist);
+                  })
+                  .Returns(new List<IFileInfo>());
+
+            Subject.Scan(new List<string> { _rootFolder }, FilterFilesType.Known, false, new List<int> { _kept.Id });
+
+            ExceptionVerification.IgnoreWarns();
+            scanned.Should().Equal(moved);
         }
 
         [Test]

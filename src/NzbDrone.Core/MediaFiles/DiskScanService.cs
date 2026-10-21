@@ -146,7 +146,7 @@ namespace NzbDrone.Core.MediaFiles
             // Check for missing artist folders if specific artists are being scanned
             if (artistIds != null && artistIds.Any())
             {
-                foreach (var artist in artists)
+                foreach (var artist in StillStored(artists))
                 {
                     if (!_diskProvider.FolderExists(artist.Path))
                     {
@@ -239,15 +239,19 @@ namespace NzbDrone.Core.MediaFiles
 
             _logger.Debug($"Updated info for {updatedFiles.Count} known files");
 
-            // An artist deleted while the scan ran gets no completion event, whose handlers write into its folder
-            var stillStored = artists.Any() ? _artistService.GetStoredArtists(artists.Select(a => a.Id)).Select(a => a.Id).ToHashSet() : new HashSet<int>();
-            foreach (var artist in artists.Where(a => stillStored.Contains(a.Id)))
+            foreach (var artist in StillStored(artists))
             {
                 CompletedScanning(artist);
             }
 
             importStopwatch.Stop();
             _logger.Debug("Track import complete for:\n{0} [{1}]", folders.ConcatToString("\n"), importStopwatch.Elapsed);
+        }
+
+        // Read again before acting on an artist's folder: one deleted or moved while the scan ran must not get a folder or files at its old path
+        private List<Artist> StillStored(List<Artist> artists)
+        {
+            return artists.Any() ? _artistService.GetStoredArtists(artists.Select(a => a.Id)) : new List<Artist>();
         }
 
         private void CleanMediaFiles(string folder, List<string> mediaFileList)

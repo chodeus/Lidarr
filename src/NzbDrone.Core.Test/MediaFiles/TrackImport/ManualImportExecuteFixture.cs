@@ -8,11 +8,13 @@ using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnsureThat;
 using NzbDrone.Common.EnvironmentInfo;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.TrackImport;
 using NzbDrone.Core.MediaFiles.TrackImport.Manual;
+using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
@@ -108,14 +110,36 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport
             Subject.Execute(new ManualImportCommand { ImportMode = ImportMode.Auto, Files = new List<ManualImportFile>(files) });
         }
 
+        private static RemoteAlbum GivenRemoteAlbum(int trackCount)
+        {
+            var album = new Album { AlbumReleases = new List<AlbumRelease> { new AlbumRelease { Monitored = true, TrackCount = trackCount } } };
+
+            return new RemoteAlbum { Albums = new List<Album> { album } };
+        }
+
+        // The real hub acts on the events, as for a client that removes completed downloads with their data
+        private void GivenRealDownloadEventHub()
+        {
+            _downloadItem.CanBeRemoved = true;
+            _client.SetupGet(c => c.Definition).Returns(new DownloadClientDefinition { RemoveCompletedDownloads = true });
+            Mocker.GetMock<ITrackedDownloadService>().Setup(s => s.GetTrackedDownloads()).Returns(() => new List<TrackedDownload> { _trackedDownload });
+
+            var hub = new DownloadEventHub(Mocker.Resolve<IConfigService>(), Mocker.Resolve<IProvideDownloadClient>(), TestLogger);
+            Mocker.GetMock<IEventAggregator>().Setup(s => s.PublishEvent(It.IsAny<DownloadCompletedEvent>())).Callback((DownloadCompletedEvent e) => hub.Handle(e));
+            Mocker.GetMock<IEventAggregator>().Setup(s => s.PublishEvent(It.IsAny<DownloadCanBeRemovedEvent>())).Callback((DownloadCanBeRemovedEvent e) => hub.Handle(e));
+        }
+
         // Completed by its client, but never processed by completed-download handling, so it has no import item
         [Test]
         public void should_finish_a_completed_download_without_an_import_item()
         {
+            GivenRealDownloadEventHub();
+
             Execute(GivenFile("download-1", 1));
 
             Mocker.GetMock<IDiskProvider>().Verify(s => s.DeleteFolder(_outputPath, true), Times.Once());
             _trackedDownload.State.Should().Be(TrackedDownloadState.Imported);
+            _client.Verify(c => c.RemoveItem(_downloadItem, true), Times.Once());
         }
 
         [Test]
@@ -130,54 +154,25 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport
             _trackedDownload.ImportItem.Should().BeSameAs(importItem);
         }
 
-        // Partial files don't count as audio, so the cleanup rules alone would delete the folder
+        // Partial files don't count as audio, so the cleanup rules alone would delete the folder; usenet clients can remove a paused or queued job
         [TestCase(DownloadItemStatus.Downloading)]
         [TestCase(DownloadItemStatus.Queued)]
         [TestCase(DownloadItemStatus.Paused)]
         [TestCase(DownloadItemStatus.Warning)]
         public void should_leave_a_download_its_client_has_not_completed_alone(DownloadItemStatus status)
         {
+            GivenRealDownloadEventHub();
             _downloadItem.Status = status;
             _trackedDownload.State = TrackedDownloadState.Downloading;
+            _trackedDownload.RemoteAlbum = GivenRemoteAlbum(1);
             Mocker.GetMock<IDiskProvider>().Setup(s => s.GetFiles(_outputPath, true)).Returns(new[] { (_outputPath + "/02 - Track Two.flac.part").AsOsAgnostic() });
 
             Execute(GivenFile("download-1", 1));
+            Mocker.Resolve<DownloadProcessingService>().Execute(new ProcessMonitoredDownloadsCommand());
 
             Mocker.GetMock<IDiskProvider>().Verify(s => s.DeleteFolder(It.IsAny<string>(), It.IsAny<bool>()), Times.Never());
             _trackedDownload.State.Should().Be(TrackedDownloadState.Downloading);
-        }
-
-        private static RemoteAlbum GivenRemoteAlbum(int trackCount)
-        {
-            var album = new Album { AlbumReleases = new List<AlbumRelease> { new AlbumRelease { Monitored = true, TrackCount = trackCount } } };
-
-            return new RemoteAlbum { Albums = new List<Album> { album } };
-        }
-
-        // A torrent stalled on a non-audio file reports Warning with every track it was grabbed for already there
-        [Test]
-        public void should_mark_an_unfinished_download_imported_once_every_grabbed_track_is_in()
-        {
-            _downloadItem.Status = DownloadItemStatus.Warning;
-            _trackedDownload.State = TrackedDownloadState.ImportBlocked;
-            _trackedDownload.RemoteAlbum = GivenRemoteAlbum(1);
-
-            Execute(GivenFile("download-1", 1));
-
-            Mocker.GetMock<IDiskProvider>().Verify(s => s.DeleteFolder(It.IsAny<string>(), It.IsAny<bool>()), Times.Never());
-            _trackedDownload.State.Should().Be(TrackedDownloadState.Imported);
-        }
-
-        [Test]
-        public void should_keep_tracking_an_unfinished_download_while_grabbed_tracks_are_missing()
-        {
-            _downloadItem.Status = DownloadItemStatus.Downloading;
-            _trackedDownload.State = TrackedDownloadState.Downloading;
-            _trackedDownload.RemoteAlbum = GivenRemoteAlbum(2);
-
-            Execute(GivenFile("download-1", 1));
-
-            _trackedDownload.State.Should().Be(TrackedDownloadState.Downloading);
+            _client.Verify(c => c.RemoveItem(It.IsAny<DownloadClientItem>(), It.IsAny<bool>()), Times.Never());
         }
 
         // Usenet clients report a queued item with no output path

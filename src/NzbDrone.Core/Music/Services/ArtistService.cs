@@ -135,7 +135,7 @@ namespace NzbDrone.Core.Music
         {
             var artists = GetAllArtists();
 
-            var aliasMatch = FindByAlias(artists, title.CleanArtistName());
+            var aliasMatch = ArtistAliasMatcher.FindByAlias(artists, title);
 
             if (aliasMatch != null)
             {
@@ -153,19 +153,6 @@ namespace NzbDrone.Core.Music
             }
 
             return null;
-        }
-
-        private static Artist FindByAlias(List<Artist> artists, string cleanTitle)
-        {
-            // An artist's own name always wins over another artist's alias
-            if (cleanTitle.IsNullOrWhiteSpace() || artists.Any(a => a.CleanName == cleanTitle))
-            {
-                return null;
-            }
-
-            var matches = artists.Where(a => a.Metadata.Value.Aliases.Any(x => x.CleanArtistName() == cleanTitle)).ToList();
-
-            return matches.Count == 1 ? matches[0] : null;
         }
 
         public List<Artist> GetCandidates(string title)

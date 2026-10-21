@@ -6,12 +6,13 @@ The parser resolves an artist name with an exact name match first, then `FindByN
 
 This adds an exact alias check at the start of `FindByNameInexact`, before the fuzzy functions:
 - It matches the cleaned title against each artist's cleaned aliases.
-- An artist's own name always wins: if any artist's cleaned name equals the title, the alias check is skipped.
+- An artist's own name always wins: if any artist's cleaned name equals the title, with or without a leading "The" as the fuzzy matching allows, the alias check is skipped. Cleaning keeps a leading "The", so without that a title "Zeta Orchestra" went to another artist's alias instead of "The Zeta Orchestra".
+- The cleaned aliases are worked out once per artist list, which `GetAllArtists` caches, rather than on every lookup; RSS sync looks up most release titles this way.
 - An alias shared by more than one artist is ignored, and the fuzzy matching runs as before.
 
 The three parser call sites already fall through to `FindByNameInexact`, so they don't change. Nothing outside the parser calls it.
 
-Tests: an exact alias match (including case), name over alias, a shared alias, and alias over a fuzzy name match. Three mutations, all building, each fail a test.
+Tests: an exact alias match (including case), name over alias, a shared alias, and alias over a fuzzy name match. `FindByAliasDbFixture` and `AliasPrecedenceFixture` (re-audit, 2026-10) run the real artist and parsing services over the test database: an artist named without or with its leading "The" beats another artist's alias, also for a release title, aliases match whatever their case, accents or ampersand, an alias that cleans to nothing never matches, repeated aliases still match, and an alias added after the artist list was read is found once the artist is updated. Seven mutations, all building, each fail a test.
 
 ## Summary by CodeRabbit
 

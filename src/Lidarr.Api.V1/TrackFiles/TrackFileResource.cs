@@ -50,9 +50,18 @@ namespace Lidarr.Api.V1.TrackFiles
             return qualityWeight;
         }
 
+        // GetRelativePath cuts at the parent's raw length, so both are normalized first: a doubled separator or a "." would shift the cut
         private static string RelativePath(NzbDrone.Core.Music.Artist artist, string path)
         {
-            return artist?.Path != null && path != null && artist.Path.IsParentPath(path) ? artist.Path.GetRelativePath(path) : null;
+            if (artist?.Path == null || path == null)
+            {
+                return null;
+            }
+
+            var artistPath = global::System.IO.Path.GetFullPath(artist.Path);
+            var filePath = global::System.IO.Path.GetFullPath(path);
+
+            return artistPath.IsParentPath(filePath) ? artistPath.GetRelativePath(filePath) : null;
         }
 
         public static TrackFileResource ToResource(this TrackFile model)

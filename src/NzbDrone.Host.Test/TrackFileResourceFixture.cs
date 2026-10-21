@@ -26,10 +26,15 @@ namespace NzbDrone.App.Test
             return file.ToResource(artist, Mock.Of<IUpgradableSpecification>(), formats);
         }
 
-        [Test]
-        public void should_give_the_path_relative_to_the_artist_folder()
+        [TestCase("/music/Artist", "/music/Artist/Album/01 - Track.flac")]
+        [TestCase("/music/Artist/", "/music/Artist/Album/01 - Track.flac")]
+        [TestCase("/music/Artist//", "/music/Artist/Album/01 - Track.flac")]
+        [TestCase("/music///Artist", "/music/Artist/Album/01 - Track.flac")]
+        [TestCase("/music/./Artist", "/music/Artist/Album/01 - Track.flac")]
+        [TestCase("/music/Artist", "/music/Artist/./Album/01 - Track.flac")]
+        public void should_give_the_path_relative_to_the_artist_folder(string artistPath, string filePath)
         {
-            Map("/music/Artist".AsOsAgnostic(), "/music/Artist/Album/01 - Track.flac".AsOsAgnostic())
+            Map(artistPath.AsOsAgnostic(), filePath.AsOsAgnostic())
                 .RelativePath.Should().Be(Path.Combine("Album", "01 - Track.flac"));
         }
 

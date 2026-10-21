@@ -639,6 +639,56 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
             trackedDownload.RemoteAlbum.Should().BeSameAs(remoteAlbum);
             trackedDownload.Status.Should().Be(TrackedDownloadStatus.Warning);
             trackedDownload.StatusMessages.Should().ContainSingle(m => m.Messages.Contains("Unable to parse albums from title"));
+
+            var remapped = new RemoteAlbum { Artist = remoteAlbum.Artist, Albums = remoteAlbum.Albums };
+            trackedDownload.State = TrackedDownloadState.ImportPending;
+
+            Mocker.GetMock<IRemoteAlbumAggregationService>()
+                  .Setup(s => s.Augment(It.IsAny<RemoteAlbum>()))
+                  .Returns<RemoteAlbum>(r => r);
+            Mocker.GetMock<IParsingService>()
+                  .Setup(s => s.Map(It.IsAny<ParsedAlbumInfo>(), It.IsAny<int>(), It.IsAny<IEnumerable<int>>()))
+                  .Returns(remapped);
+
+            GivenTrackedTorrent();
+
+            trackedDownload.RemoteAlbum.Should().BeSameAs(remapped);
+        }
+
+        [Test]
+        public void should_retry_a_failed_remap_on_the_next_refresh_until_it_succeeds()
+        {
+            var remoteAlbum = GivenGrabHistoryMapping();
+            var trackedDownload = GivenTrackedTorrent();
+            trackedDownload.State = TrackedDownloadState.ImportPending;
+
+            var history = Mocker.Resolve<IHistoryService>().FindByDownloadId("35238");
+            var remapped = new RemoteAlbum { Artist = remoteAlbum.Artist, Albums = remoteAlbum.Albums };
+
+            Mocker.GetMock<IHistoryService>()
+                  .SetupSequence(s => s.FindByDownloadId("35238"))
+                  .Throws(new InvalidOperationException("Database is locked"))
+                  .Returns(history)
+                  .Returns(history);
+            Mocker.GetMock<IParsingService>()
+                  .Setup(s => s.Map(It.IsAny<ParsedAlbumInfo>(), It.IsAny<int>(), It.IsAny<IEnumerable<int>>()))
+                  .Returns(remapped);
+
+            Subject.Handle(new ArtistAddedEvent(remoteAlbum.Artist));
+
+            trackedDownload.RemoteAlbum.Should().BeSameAs(remoteAlbum);
+
+            GivenTrackedTorrent();
+
+            trackedDownload.RemoteAlbum.Should().BeSameAs(remapped);
+
+            Mocker.GetMock<IParsingService>()
+                  .Setup(s => s.Map(It.IsAny<ParsedAlbumInfo>(), It.IsAny<int>(), It.IsAny<IEnumerable<int>>()))
+                  .Returns(new RemoteAlbum());
+
+            GivenTrackedTorrent();
+
+            trackedDownload.RemoteAlbum.Should().BeSameAs(remapped);
         }
     }
 }

@@ -41,6 +41,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
         private readonly ICustomFormatCalculationService _formatCalculator;
         private readonly Logger _logger;
         private readonly ICached<TrackedDownload> _cache;
+        private readonly object _mappingLock = new object();
 
         public TrackedDownloadService(IParsingService parsingService,
                                       ICacheManager cacheManager,
@@ -66,14 +67,22 @@ namespace NzbDrone.Core.Download.TrackedDownloads
             return _cache.Find(downloadId);
         }
 
-        // A failed remap keeps the previous mapping and status
-        private void UpdateCachedItem(TrackedDownload trackedDownload)
+        // A failed remap is retried on the next refresh. Until then it keeps the previous mapping and status,
+        // unless a deletion caused it: every download a deletion remaps points at what was deleted
+        private void UpdateCachedItem(TrackedDownload trackedDownload, Deletion deletion)
         {
-            var mapping = MapRemoteAlbum(trackedDownload);
+            var mapping = MapRemoteAlbum(trackedDownload, deletion);
+
+            trackedDownload.RemapPending = mapping.Failure != null;
 
             if (mapping.Failure == null)
             {
                 mapping.ApplyTo(trackedDownload);
+            }
+            else if (deletion.Any)
+            {
+                trackedDownload.RemoteAlbum = null;
+                trackedDownload.Warn(new TrackedDownloadStatusMessage(trackedDownload.DownloadItem.Title, mapping.Failure));
             }
         }
 
@@ -99,7 +108,16 @@ namespace NzbDrone.Core.Download.TrackedDownloads
             _eventAggregator.PublishEvent(new TrackedDownloadsRemovedEvent(trackedDownloads));
         }
 
+        // Under the mapping lock, so a remap after a deletion can't be overwritten by a mapping read before it
         public TrackedDownload TrackDownload(DownloadClientDefinition downloadClient, DownloadClientItem downloadItem)
+        {
+            lock (_mappingLock)
+            {
+                return Track(downloadClient, downloadItem);
+            }
+        }
+
+        private TrackedDownload Track(DownloadClientDefinition downloadClient, DownloadClientItem downloadItem)
         {
             var existingItem = Find(downloadItem.DownloadId);
 
@@ -109,6 +127,11 @@ namespace NzbDrone.Core.Download.TrackedDownloads
 
                 existingItem.DownloadItem = downloadItem;
                 existingItem.IsTrackable = true;
+
+                if (existingItem.RemapPending)
+                {
+                    UpdateCachedItem(existingItem, Deletion.None);
+                }
 
                 return existingItem;
             }
@@ -121,8 +144,9 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                 IsTrackable = true
             };
 
-            var mapping = MapRemoteAlbum(trackedDownload);
+            var mapping = MapRemoteAlbum(trackedDownload, Deletion.None);
             mapping.ApplyTo(trackedDownload);
+            trackedDownload.RemapPending = mapping.Failure != null;
 
             if (mapping.Failure != null)
             {
@@ -164,7 +188,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
         }
 
         // Builds the mapping on its own objects and never throws; callers apply it, so a reader never sees half a remap
-        private DownloadMapping MapRemoteAlbum(TrackedDownload trackedDownload)
+        private DownloadMapping MapRemoteAlbum(TrackedDownload trackedDownload, Deletion deletion)
         {
             var downloadItem = trackedDownload.DownloadItem;
             var mapping = new DownloadMapping
@@ -214,7 +238,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
 
                         if (parsedAlbumInfo != null)
                         {
-                            mapping.RemoteAlbum = MapFromGrabHistory(parsedAlbumInfo, firstHistoryItem.ArtistId, historyItems) ?? mapping.RemoteAlbum;
+                            mapping.RemoteAlbum = MapFromGrabHistory(parsedAlbumInfo, firstHistoryItem.ArtistId, historyItems, deletion) ?? mapping.RemoteAlbum;
                         }
                     }
 
@@ -270,14 +294,15 @@ namespace NzbDrone.Core.Download.TrackedDownloads
         }
 
         // Null when the grab's artist or an album has been deleted since: the repository's Get throws for a missing row
-        private RemoteAlbum MapFromGrabHistory(ParsedAlbumInfo parsedAlbumInfo, int artistId, List<EntityHistory> historyItems)
+        private RemoteAlbum MapFromGrabHistory(ParsedAlbumInfo parsedAlbumInfo, int artistId, List<EntityHistory> historyItems, Deletion deletion)
         {
             try
             {
                 return _parsingService.Map(parsedAlbumInfo,
                     artistId,
                     historyItems.Where(v => v.EventType == EntityHistoryEventType.Grabbed)
-                        .Select(h => h.AlbumId).Distinct());
+                        .Select(h => h.AlbumId).Distinct()
+                        .Where(id => !deletion.AlbumIds.Contains(id)));
             }
             catch (ApplicationException e)
             {
@@ -339,75 +364,57 @@ namespace NzbDrone.Core.Download.TrackedDownloads
 
         public void Handle(AlbumInfoRefreshedEvent message)
         {
-            var needsToUpdate = false;
-
-            foreach (var album in message.Removed)
-            {
-                var cachedItems = _cache.Values.Where(t =>
-                                            t.RemoteAlbum?.Albums != null &&
-                                            t.RemoteAlbum.Albums.Any(e => e.Id == album.Id))
-                                        .ToList();
-
-                if (cachedItems.Any())
-                {
-                    needsToUpdate = true;
-                }
-
-                cachedItems.ForEach(UpdateCachedItem);
-            }
-
-            if (needsToUpdate)
-            {
-                _eventAggregator.PublishEvent(new TrackedDownloadRefreshedEvent(GetTrackedDownloads()));
-            }
+            Remap(t => t.RemoteAlbum?.Albums != null && t.RemoteAlbum.Albums.Any(a => message.Removed.Any(r => r.Id == a.Id)),
+                new Deletion(new List<Artist>(), message.Removed));
         }
 
         public void Handle(AlbumDeletedEvent message)
         {
-            var cachedItems = _cache.Values
-                .Where(t =>
-                    t.RemoteAlbum?.Albums != null &&
-                    t.RemoteAlbum.Albums.Any(a => a.Id == message.Album.Id || a.ForeignAlbumId == message.Album.ForeignAlbumId))
-                .ToList();
-
-            if (cachedItems.Any())
-            {
-                cachedItems.ForEach(UpdateCachedItem);
-
-                _eventAggregator.PublishEvent(new TrackedDownloadRefreshedEvent(GetTrackedDownloads()));
-            }
+            Remap(t => t.RemoteAlbum?.Albums != null && t.RemoteAlbum.Albums.Any(a => a.Id == message.Album.Id || a.ForeignAlbumId == message.Album.ForeignAlbumId),
+                new Deletion(new List<Artist>(), new List<Album> { message.Album }));
         }
 
         public void Handle(ArtistAddedEvent message)
         {
-            var cachedItems = _cache.Values
-                .Where(t =>
-                    t.RemoteAlbum?.Artist == null ||
-                    message.Artist?.ForeignArtistId == t.RemoteAlbum.Artist.ForeignArtistId)
-                .ToList();
-
-            if (cachedItems.Any())
-            {
-                cachedItems.ForEach(UpdateCachedItem);
-
-                _eventAggregator.PublishEvent(new TrackedDownloadRefreshedEvent(GetTrackedDownloads()));
-            }
+            Remap(t => t.RemoteAlbum?.Artist == null || message.Artist?.ForeignArtistId == t.RemoteAlbum.Artist.ForeignArtistId,
+                Deletion.None);
         }
 
         public void Handle(ArtistsDeletedEvent message)
         {
-            var cachedItems = _cache.Values
-                .Where(t =>
-                    t.RemoteAlbum?.Artist != null &&
-                    message.Artists.Any(a => a.Id == t.RemoteAlbum.Artist.Id || a.ForeignArtistId == t.RemoteAlbum.Artist.ForeignArtistId))
-                .ToList();
+            Remap(t => t.RemoteAlbum?.Artist != null && message.Artists.Any(a => a.Id == t.RemoteAlbum.Artist.Id || a.ForeignArtistId == t.RemoteAlbum.Artist.ForeignArtistId),
+                new Deletion(message.Artists, new List<Album>()));
+        }
+
+        private void Remap(Func<TrackedDownload, bool> affected, Deletion deletion)
+        {
+            List<TrackedDownload> cachedItems;
+
+            lock (_mappingLock)
+            {
+                cachedItems = _cache.Values.Where(affected).ToList();
+                cachedItems.ForEach(t => UpdateCachedItem(t, deletion));
+            }
 
             if (cachedItems.Any())
             {
-                cachedItems.ForEach(UpdateCachedItem);
-
                 _eventAggregator.PublishEvent(new TrackedDownloadRefreshedEvent(GetTrackedDownloads()));
             }
+        }
+
+        private class Deletion
+        {
+            public static readonly Deletion None = new Deletion(new List<Artist>(), new List<Album>());
+
+            public Deletion(IEnumerable<Artist> artists, IEnumerable<Album> albums)
+            {
+                ArtistIds = artists.Select(a => a.Id).ToHashSet();
+                AlbumIds = albums.Select(a => a.Id).ToHashSet();
+            }
+
+            public HashSet<int> ArtistIds { get; }
+            public HashSet<int> AlbumIds { get; }
+            public bool Any => ArtistIds.Any() || AlbumIds.Any();
         }
 
         private class DownloadMapping

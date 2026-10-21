@@ -1,6 +1,6 @@
 # Fixed: Fingerprint every release, and stop rejecting a file when AcoustID names a sibling recording of the same song
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. It is stacked on `feat/metadata-source-ids`, which only compares MusicBrainz ids, and merges after it. Reviewed in [#PR_NUMBER](https://github.com/chodeus/Lidarr/pull/PR_NUMBER).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. It is stacked on `feat/metadata-source-ids`, which only compares MusicBrainz ids, and merges after it. Reviewed in [#60](https://github.com/chodeus/Lidarr/pull/60).
 
 For a fingerprinted file, `DistanceCalculator.TrackDistance` adds the `recording_id` penalty unless AcoustID names the track's own MusicBrainz recording. Its weight of 10 is the heaviest in a track's distance. MusicBrainz often holds one song as several recordings, one per release, and AcoustID can file the fingerprint under a sibling from another release. A right file without a MusicBrainz recording tag then scores 37.5% against the 60% a new download needs, and the whole album is rejected as "Worst track match".
 

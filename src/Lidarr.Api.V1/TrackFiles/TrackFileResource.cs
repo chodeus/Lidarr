@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Lidarr.Api.V1.CustomFormats;
 using Lidarr.Http.REST;
+using NzbDrone.Common.Extensions;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.DecisionEngine.Specifications;
 using NzbDrone.Core.MediaFiles;
@@ -16,6 +17,9 @@ namespace Lidarr.Api.V1.TrackFiles
         public int ArtistId { get; set; }
         public int AlbumId { get; set; }
         public string Path { get; set; }
+
+        // Relative to the artist's folder, as Sonarr's and Radarr's file resources give it; null when the file is outside it
+        public string RelativePath { get; set; }
         public long Size { get; set; }
         public DateTime DateAdded { get; set; }
         public string SceneName { get; set; }
@@ -44,6 +48,11 @@ namespace Lidarr.Api.V1.TrackFiles
             qualityWeight += quality.Revision.Real * 10;
             qualityWeight += quality.Revision.Version;
             return qualityWeight;
+        }
+
+        private static string RelativePath(NzbDrone.Core.Music.Artist artist, string path)
+        {
+            return artist?.Path != null && path != null && artist.Path.IsParentPath(path) ? artist.Path.GetRelativePath(path) : null;
         }
 
         public static TrackFileResource ToResource(this TrackFile model)
@@ -86,6 +95,7 @@ namespace Lidarr.Api.V1.TrackFiles
                 ArtistId = artist.Id,
                 AlbumId = model.AlbumId,
                 Path = model.Path,
+                RelativePath = RelativePath(artist, model.Path),
                 Size = model.Size,
                 DateAdded = model.DateAdded,
                 SceneName = model.SceneName,

@@ -7,6 +7,7 @@ export interface TrackFile extends ModelBase {
   artistId: number;
   albumId: number;
   path: string;
+  relativePath?: string;
   size: number;
   dateAdded: string;
   sceneName: string;

@@ -61,9 +61,10 @@ namespace NzbDrone.Core.ImportLists.ImportListItems
             return toDelete.Count;
         }
 
+        // Only a lookup by album id names the album's own artist; one found by a title or name search could be another artist's
         public void StoreMappedArtistIds(List<(ImportListItemKey Key, string ArtistMusicBrainzId)> mapped)
         {
-            var byKey = mapped.Where(m => m.Key.ArtistMusicBrainzId.IsNullOrWhiteSpace() && m.ArtistMusicBrainzId.IsNotNullOrWhiteSpace())
+            var byKey = mapped.Where(m => m.Key.ArtistMusicBrainzId.IsNullOrWhiteSpace() && m.Key.AlbumMusicBrainzId.IsNotNullOrWhiteSpace() && m.ArtistMusicBrainzId.IsNotNullOrWhiteSpace())
                               .GroupBy(m => m.Key)
                               .ToDictionary(g => g.Key, g => g.First().ArtistMusicBrainzId);
 

@@ -113,7 +113,8 @@ namespace NzbDrone.Core.ImportLists.Spotify
             _mappingFailed = false;
             releases = MapSpotifyReleases(releases);
 
-            // Unmapped items would replace the stored ones by name only, which a library clean can't match
+            // The mapping service is down: its items would replace the stored ones by name only. One item that fails to map
+            // is only stored without its ids, which holds a library clean back, without putting the whole list in backoff
             if (_mappingFailed)
             {
                 _importListStatusService.RecordFailure(Definition.Id);
@@ -257,12 +258,10 @@ namespace NzbDrone.Core.ImportLists.Spotify
             catch (HttpException e)
             {
                 _logger.Warn(e, "Unable to communicate with LidarrAPI");
-                _mappingFailed = true;
             }
             catch (Exception e)
             {
                 _logger.Error(e);
-                _mappingFailed = true;
             }
         }
 
@@ -303,12 +302,10 @@ namespace NzbDrone.Core.ImportLists.Spotify
             catch (HttpException e)
             {
                 _logger.Warn(e, "Unable to communicate with LidarrAPI");
-                _mappingFailed = true;
             }
             catch (Exception e)
             {
                 _logger.Error(e);
-                _mappingFailed = true;
             }
         }
 

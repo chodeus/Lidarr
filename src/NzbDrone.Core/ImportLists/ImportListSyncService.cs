@@ -462,8 +462,11 @@ namespace NzbDrone.Core.ImportLists
             var artistsWithListedAlbums = listedAlbums.Select(a => a.ArtistMetadataId).ToHashSet();
             var listedAlbumIds = listedAlbums.SelectMany(a => a.OldForeignAlbumIds.Append(a.ForeignAlbumId)).ToHashSet();
 
-            // Fail closed: an item tied to no artist by id or by an album in the library would leave its artist matched by name alone
-            var unresolved = allListItems.Where(l => l.ArtistMusicBrainzId.IsNullOrWhiteSpace() &&
+            // Fail closed: an item tied to no artist by id or by an album in the library would leave its artist matched by name alone.
+            // Only lists that still sync count, since nothing refreshes the items of one whose automatic add is off
+            var syncedListIds = _importListFactory.AutomaticAddEnabled(false).Select(l => l.Definition.Id).ToHashSet();
+            var unresolved = allListItems.Where(l => syncedListIds.Contains(l.ImportListId) &&
+                                                     l.ArtistMusicBrainzId.IsNullOrWhiteSpace() &&
                                                      l.MappedArtistMusicBrainzId.IsNullOrWhiteSpace() &&
                                                      (l.AlbumMusicBrainzId.IsNullOrWhiteSpace() || !listedAlbumIds.Contains(l.AlbumMusicBrainzId)))
                                          .ToList();

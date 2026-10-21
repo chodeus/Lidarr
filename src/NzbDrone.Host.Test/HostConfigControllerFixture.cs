@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
 using DryIoc;
 using DryIoc.Microsoft.DependencyInjection;
@@ -13,6 +14,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Moq;
 using NUnit.Framework;
+using NzbDrone.Common.Cache;
 using NzbDrone.Common.Composition;
 using NzbDrone.Common.Composition.Extensions;
 using NzbDrone.Common.Disk;
@@ -21,8 +23,10 @@ using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Common.Options;
 using NzbDrone.Core.Authentication;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.Configuration.Events;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Datastore.Extensions;
+using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Validation;
 using NzbDrone.Core.Validation.Paths;
 using NzbDrone.SignalR;
@@ -113,6 +117,55 @@ namespace NzbDrone.App.Test
         public void should_take_a_new_secret_with_a_new_authority()
         {
             ValidateSecret("https://auth.example.com/new/", "new-client-secret", AuthenticationType.Oidc).Should().BeEmpty();
+        }
+
+        [Test]
+        public void should_keep_the_stored_oidc_settings_when_a_save_leaves_them_out()
+        {
+            var files = new Dictionary<string, string>();
+            var disk = new Mock<IDiskProvider>();
+            disk.Setup(d => d.FileExists(It.IsAny<string>())).Returns<string>(files.ContainsKey);
+            disk.Setup(d => d.ReadAllText(It.IsAny<string>())).Returns<string>(p => files[p]);
+            disk.Setup(d => d.WriteAllText(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((p, c) => files[p] = c);
+
+            var appFolder = new Mock<IAppFolderInfo>();
+            appFolder.SetupGet(a => a.AppDataFolder).Returns(Path.Combine(Path.GetTempPath(), "host-config"));
+
+            var events = new Mock<IEventAggregator>();
+            var configFileProvider = new ConfigFileProvider(appFolder.Object,
+                                                            new CacheManager(),
+                                                            events.Object,
+                                                            disk.Object,
+                                                            Options.Create(new PostgresOptions()),
+                                                            Options.Create(new AuthOptions()),
+                                                            Options.Create(new AppOptions()),
+                                                            Options.Create(new ServerOptions()),
+                                                            Options.Create(new UpdateOptions()),
+                                                            Options.Create(new LogOptions()));
+
+            var controller = new HostConfigController(configFileProvider,
+                                                      Mock.Of<IConfigService>(),
+                                                      Mock.Of<IUserService>(),
+                                                      new FileExistsValidator(Mock.Of<IDiskProvider>()));
+
+            var resource = controller.GetHostConfig();
+            resource.OidcClientId = "lidarr";
+            controller.SaveHostConfig(resource);
+            events.Invocations.Clear();
+
+            // A client built before the OIDC settings doesn't send them
+            resource = controller.GetHostConfig();
+            resource.LogLevel = "debug";
+            resource.OidcAuthority = null;
+            resource.OidcClientId = null;
+            resource.OidcClientSecret = null;
+            resource.OidcUserIdentifier = null;
+            resource.OidcScopes = null;
+            controller.SaveHostConfig(resource);
+
+            configFileProvider.LogLevel.Should().Be("debug");
+            configFileProvider.OidcClientId.Should().Be("lidarr");
+            events.Verify(e => e.PublishEvent(It.IsAny<ConfigFileSavedEvent>()), Times.Once());
         }
     }
 }

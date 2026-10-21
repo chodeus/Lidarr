@@ -115,6 +115,10 @@ namespace Lidarr.Http.Authentication
                     options.CorrelationCookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Lax;
                     options.NonceCookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Lax;
 
+                    // Secure only over https, as the login cookie: a browser drops a Secure cookie set over plain http, so sign-in never finishes
+                    options.CorrelationCookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.SameAsRequest;
+                    options.NonceCookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.SameAsRequest;
+
                     // The scheme is always registered, so it needs valid options even while unused
                     if (configFileProvider.AuthenticationMethod != AuthenticationType.Oidc ||
                         !configFileProvider.IsOidcConfigured())

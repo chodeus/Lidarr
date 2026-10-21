@@ -3,15 +3,19 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using FizzWare.NBuilder;
+using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Cache;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.Clients.Deluge;
+using NzbDrone.Core.Download.Clients.QBittorrent;
 using NzbDrone.Core.Download.Clients.Sabnzbd;
+using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Parser.Model;
@@ -220,6 +224,39 @@ namespace NzbDrone.Core.Test.Download
 
             Assert.That(_second.Invocations.Count(i => i.Method.Name == "Download"), Is.EqualTo(1));
             ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void unreachable_indexer_for_a_torrent_should_back_off_the_indexer()
+        {
+            WithRealDeluge((method, n) => Json("{\"result\":true,\"id\":1}"));
+
+            _remoteAlbum.Release = new TorrentInfo
+            {
+                Title = "Artist - Album",
+                DownloadProtocol = nameof(TorrentDownloadProtocol),
+                DownloadUrl = "http://indexer.example/torrent/1",
+                IndexerId = 5
+            };
+
+            Mocker.GetMock<IHttpClient>()
+                .Setup(s => s.GetAsync(It.IsAny<HttpRequest>()))
+                .ThrowsAsync(new HttpRequestException(HttpRequestError.ConnectionError, "Connection refused (indexer.example)"));
+
+            Assert.ThrowsAsync<ReleaseDownloadException>(async () => await Subject.DownloadReport(_remoteAlbum, null));
+
+            Mocker.GetMock<IIndexerStatusService>().Verify(v => v.RecordFailure(5, It.IsAny<TimeSpan>()), Times.Once());
+        }
+
+        [Test]
+        public void should_let_only_qbittorrent_and_sabnzbd_fall_back()
+        {
+            var clients = typeof(DownloadService).Assembly.GetTypes()
+                .Where(t => typeof(IDownloadClient).IsAssignableFrom(t) && !t.IsAbstract && !t.IsInterface)
+                .Where(t => ((IDownloadClient)RuntimeHelpers.GetUninitializedObject(t)).CanFallBackFrom)
+                .Select(t => t.Name);
+
+            clients.Should().BeEquivalentTo(nameof(QBittorrent), nameof(Sabnzbd));
         }
     }
 }

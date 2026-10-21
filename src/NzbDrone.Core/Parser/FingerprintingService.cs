@@ -454,7 +454,7 @@ namespace NzbDrone.Core.Parser
                     _logger.Trace("Found: {0}, {1}, {2}", result.Id, result.Score, string.Join(", ", result.Recordings.Select(x => x.Id)));
                 }
 
-                var recordings = fileResponse.Results.Where(x => x.Score > threshold && x.Recordings != null).SelectMany(y => y.Recordings).ToList();
+                var recordings = fileResponse.Results.Where(x => x.Score > threshold && x.Recordings != null).SelectMany(y => y.Recordings).ToList<AcoustIdRecording>();
                 var ids = recordings.Select(z => z.Id).Distinct().ToList();
                 _logger.Trace("All recordings: {0}", string.Join("\n", ids));
 
@@ -516,7 +516,12 @@ namespace NzbDrone.Core.Parser
         {
             public string Id { get; set; }
             public double Score { get; set; }
-            public List<AcoustIdRecording> Recordings { get; set; }
+            public List<RecordingResult> Recordings { get; set; }
+        }
+
+        // Develop's public type, kept for plugins; the recording's details come from AcoustIdRecording
+        public class RecordingResult : AcoustIdRecording
+        {
         }
     }
 }

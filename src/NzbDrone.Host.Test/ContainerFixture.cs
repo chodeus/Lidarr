@@ -60,15 +60,6 @@ namespace NzbDrone.App.Test
         }
 
         [Test]
-        public void should_build_the_album_refresh_with_the_metadata_profile_check()
-        {
-            var service = _container.GetRequiredService<IRefreshAlbumService>();
-
-            typeof(RefreshAlbumService).GetField("_metadataProfileService", BindingFlags.Instance | BindingFlags.NonPublic)
-                .GetValue(service).Should().NotBeNull();
-        }
-
-        [Test]
         public void should_be_able_to_resolve_indexers()
         {
             _container.GetRequiredService<IEnumerable<IIndexer>>().Should().NotBeEmpty();
@@ -124,6 +115,15 @@ namespace NzbDrone.App.Test
             var second = (DownloadMonitoringService)_container.GetRequiredService<IExecute<RefreshMonitoredDownloadsCommand>>();
 
             first.Should().BeSameAs(second);
+        }
+
+        [Test]
+        public void should_build_the_album_refresh_with_the_metadata_profile_check()
+        {
+            var service = _container.GetRequiredService<IRefreshAlbumService>();
+
+            typeof(RefreshAlbumService).GetField("_metadataProfileService", BindingFlags.Instance | BindingFlags.NonPublic)
+                .GetValue(service).Should().NotBeNull();
         }
     }
 }

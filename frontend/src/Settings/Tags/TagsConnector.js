@@ -2,7 +2,7 @@ import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
-import { fetchDelayProfiles, fetchDownloadClients, fetchImportLists, fetchIndexers, fetchMetadataSourceProfiles, fetchNotifications, fetchReleaseProfiles, fetchTaggingProfiles } from 'Store/Actions/settingsActions';
+import { fetchDelayProfiles, fetchDownloadClients, fetchImportLists, fetchIndexers, fetchMetadataSourceProfiles, fetchNotifications, fetchReleaseProfiles, fetchRootFolders, fetchTaggingProfiles } from 'Store/Actions/settingsActions';
 import { fetchTagDetails, fetchTags } from 'Store/Actions/tagActions';
 import createSortedSectionSelector from 'Store/Selectors/createSortedSectionSelector';
 import sortByProp from 'Utilities/Array/sortByProp';
@@ -36,7 +36,8 @@ const mapDispatchToProps = {
   dispatchFetchIndexers: fetchIndexers,
   dispatchFetchDownloadClients: fetchDownloadClients,
   dispatchFetchTaggingProfiles: fetchTaggingProfiles,
-  dispatchFetchMetadataSourceProfiles: fetchMetadataSourceProfiles
+  dispatchFetchMetadataSourceProfiles: fetchMetadataSourceProfiles,
+  dispatchFetchRootFolders: fetchRootFolders
 };
 
 class MetadatasConnector extends Component {
@@ -55,7 +56,8 @@ class MetadatasConnector extends Component {
       dispatchFetchIndexers,
       dispatchFetchDownloadClients,
       dispatchFetchTaggingProfiles,
-      dispatchFetchMetadataSourceProfiles
+      dispatchFetchMetadataSourceProfiles,
+      dispatchFetchRootFolders
     } = this.props;
 
     dispatchFetchTags();
@@ -68,6 +70,7 @@ class MetadatasConnector extends Component {
     dispatchFetchDownloadClients();
     dispatchFetchTaggingProfiles();
     dispatchFetchMetadataSourceProfiles();
+    dispatchFetchRootFolders();
   }
 
   //
@@ -92,7 +95,8 @@ MetadatasConnector.propTypes = {
   dispatchFetchIndexers: PropTypes.func.isRequired,
   dispatchFetchDownloadClients: PropTypes.func.isRequired,
   dispatchFetchTaggingProfiles: PropTypes.func.isRequired,
-  dispatchFetchMetadataSourceProfiles: PropTypes.func.isRequired
+  dispatchFetchMetadataSourceProfiles: PropTypes.func.isRequired,
+  dispatchFetchRootFolders: PropTypes.func.isRequired
 };
 
 export default connect(createMapStateToProps, mapDispatchToProps)(MetadatasConnector);

@@ -165,14 +165,14 @@ namespace NzbDrone.Core.MetadataSource.Sources
                 found.Add(result);
             }
 
+            // Refresh treats the album list as complete, so a merge missing a down primary would drop its albums, and so would a fallback's list
+            if (route.CombineAll && merge != null && outage != null)
+            {
+                ExceptionDispatchInfo.Capture(outage).Throw();
+            }
+
             if (found.Any())
             {
-                // Refresh treats the album list as complete, so a merge missing a down source would drop its albums
-                if (outage != null)
-                {
-                    ExceptionDispatchInfo.Capture(outage).Throw();
-                }
-
                 return found.Aggregate(merge);
             }
 
@@ -271,7 +271,7 @@ namespace NzbDrone.Core.MetadataSource.Sources
             }
             catch (Exception ex)
             {
-                _logger.Warn(ex, "Metadata source {0} failed", source.Definition?.Name);
+                _logger.Warn("Metadata source {0} failed: {1}", source.Definition?.Name, MetadataSourceErrors.Describe(ex));
                 outage ??= ex;
             }
 
@@ -283,7 +283,8 @@ namespace NzbDrone.Core.MetadataSource.Sources
         {
             var sources = EnabledSources().Values.ToList();
 
-            if (sources.Empty())
+            // MusicBrainz lookups fall back to Lidarr's server when no enabled source takes them, so its changes count too
+            if (!sources.Any(s => s is LidarrMetadataSource))
             {
                 sources.Add(_lastResort);
             }
@@ -300,7 +301,7 @@ namespace NzbDrone.Core.MetadataSource.Sources
                 }
                 catch (Exception ex)
                 {
-                    _logger.Info(ex, "{0} could not list changes", source.Definition?.Name);
+                    _logger.Info("{0} could not list changes: {1}", source.Definition?.Name, MetadataSourceErrors.Describe(ex));
                     return null;
                 }
 
@@ -321,7 +322,8 @@ namespace NzbDrone.Core.MetadataSource.Sources
             var albums = first.Albums.Value;
             var known = new HashSet<string>(albums.SelectMany(a => (a.OldForeignAlbumIds ?? new List<string>()).Append(a.ForeignAlbumId)));
 
-            albums.AddRange(other.Albums.Value.Where(a => !known.Contains(a.ForeignAlbumId)));
+            // A source that hasn't caught up with a merge may still list the album by an ID the other one keeps as old
+            albums.AddRange(other.Albums.Value.Where(a => !known.Contains(a.ForeignAlbumId) && !(a.OldForeignAlbumIds ?? new List<string>()).Any(known.Contains)));
 
             return first;
         }

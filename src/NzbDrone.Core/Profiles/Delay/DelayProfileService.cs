@@ -27,6 +27,9 @@ namespace NzbDrone.Core.Profiles.Delay
         private readonly ICached<DelayProfile> _bestForTagsCache;
         private readonly List<IDownloadProtocol> _downloadProtocols;
 
+        // Add, Update, Delete and Reorder each read orders, then write them back
+        private readonly object _syncRoot = new object();
+
         public DelayProfileService(IDelayProfileRepository repo,
                                    IEnumerable<IDownloadProtocol> downloadProtocols,
                                    ICacheManager cacheManager)
@@ -38,33 +41,57 @@ namespace NzbDrone.Core.Profiles.Delay
 
         public DelayProfile Add(DelayProfile profile)
         {
-            profile.Order = ProfileOrder.Next(_repo.All(), p => p.Order);
+            lock (_syncRoot)
+            {
+                var all = All();
 
-            var result = _repo.Insert(profile);
-            _bestForTagsCache.Clear();
+                if (ProfileOrder.MakeRoom(all, p => p.Order, (p, order) => p.Order = order))
+                {
+                    _repo.SetFields(all, p => p.Order);
+                }
 
-            return result;
+                profile.Order = ProfileOrder.Next(all, p => p.Order);
+
+                var result = _repo.Insert(profile);
+                _bestForTagsCache.Clear();
+
+                return result;
+            }
         }
 
         public DelayProfile Update(DelayProfile profile)
         {
-            // Order only changes through Reorder
-            profile.Order = profile.Id == ProfileOrder.DefaultProfileId ? int.MaxValue : _repo.Get(profile.Id).Order;
+            lock (_syncRoot)
+            {
+                // Order only changes through Reorder
+                profile.Order = profile.Id == ProfileOrder.DefaultProfileId ? int.MaxValue : _repo.Get(profile.Id).Order;
 
-            var result = _repo.Update(profile);
-            _bestForTagsCache.Clear();
-            return result;
+                var result = _repo.Update(profile);
+                _bestForTagsCache.Clear();
+                return result;
+            }
         }
 
         public void Delete(int id)
         {
-            _repo.Delete(id);
+            lock (_syncRoot)
+            {
+                try
+                {
+                    _repo.Delete(id);
 
-            var all = All();
-            ProfileOrder.Renumber(all, p => p.Order, (p, order) => p.Order = order);
+                    var all = All();
+                    ProfileOrder.Renumber(all, p => p.Order, (p, order) => p.Order = order);
 
-            _repo.UpdateMany(all);
-            _bestForTagsCache.Clear();
+                    // Only the order column, so a save of another profile isn't reverted
+                    _repo.SetFields(all, p => p.Order);
+                }
+                finally
+                {
+                    // The delete has committed even when the renumber fails
+                    _bestForTagsCache.Clear();
+                }
+            }
         }
 
         public List<DelayProfile> All()
@@ -115,15 +142,18 @@ namespace NzbDrone.Core.Profiles.Delay
 
         public List<DelayProfile> Reorder(int id, int? afterId)
         {
-            var all = All();
-
-            if (ProfileOrder.Reorder(all, id, afterId, p => p.Order, (p, order) => p.Order = order))
+            lock (_syncRoot)
             {
-                _repo.UpdateMany(all);
-                _bestForTagsCache.Clear();
-            }
+                var all = All();
 
-            return All();
+                if (ProfileOrder.Reorder(all, id, afterId, p => p.Order, (p, order) => p.Order = order))
+                {
+                    _repo.SetFields(all, p => p.Order);
+                    _bestForTagsCache.Clear();
+                }
+
+                return All();
+            }
         }
 
         private DelayProfile AddMissingItems(DelayProfile profile)

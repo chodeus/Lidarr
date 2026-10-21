@@ -43,6 +43,7 @@ namespace NzbDrone.Core.Test.Profiles.Releases
 
         [TestCase("live", "Album (Live)", true)]
         [TestCase("live", "Alive", false)]
+        [TestCase("live", "Livestream", false)]
         public void a_plain_term_still_needs_word_boundaries(string term, string title, bool matches)
         {
             Subject.IsWholeWordMatch(term, title).Should().Be(matches);

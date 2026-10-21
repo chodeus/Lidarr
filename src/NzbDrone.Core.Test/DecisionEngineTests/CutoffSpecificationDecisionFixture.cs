@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
@@ -52,6 +53,11 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
             Mocker.GetMock<ICustomFormatCalculationService>()
                   .Setup(x => x.ParseCustomFormat(It.IsAny<TrackFile>(), It.IsAny<Artist>()))
                   .Returns(new List<CustomFormat>());
+
+            // The album-level call reads each file's stubbed formats
+            Mocker.GetMock<ICustomFormatCalculationService>()
+                  .Setup(x => x.ParseCustomFormats(It.IsAny<List<TrackFile>>(), It.IsAny<Artist>()))
+                  .Returns<List<TrackFile>, Artist>((files, artist) => files.Select(f => Mocker.Resolve<ICustomFormatCalculationService>().ParseCustomFormat(f, artist)).ToList());
         }
 
         [Test]

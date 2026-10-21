@@ -81,7 +81,8 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
                 return UpgradeableRejectReason.BetterQuality;
             }
 
-            var qualityRevisionCompare = newQuality?.Revision.CompareTo(currentQuality.Revision);
+            // A revision counts only at the same quality, as develop's comparer had it: a proper at a lower quality is no reason to keep a file
+            var qualityRevisionCompare = qualityCompare == 0 ? newQuality?.Revision.CompareTo(currentQuality.Revision) : 0;
 
             // Accept unless the user doesn't want to prefer propers, optionally they can
             // use preferred words to prefer propers/repacks over non-propers/repacks.
@@ -136,7 +137,7 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
                 return UpgradeableRejectReason.CustomFormatCutoff;
             }
 
-            if (newFormatScore < currentFormatScore + qualityProfile.MinUpgradeFormatScore)
+            if ((long)newFormatScore - currentFormatScore < qualityProfile.MinUpgradeFormatScore)
             {
                 _logger.Debug("New item's custom formats [{0}] ({1}) do not meet minimum custom format score increment of {2} required for upgrade, skipping. Existing: [{3}] ({4}).",
                     newCustomFormats.ConcatToString(),

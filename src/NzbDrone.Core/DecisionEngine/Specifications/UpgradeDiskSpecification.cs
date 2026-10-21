@@ -55,7 +55,7 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
                 }
 
                 var currentQualities = trackFiles.Select(c => c.Quality).Distinct().ToList();
-                var currentFiles = trackFiles.Select(f => (f.Quality, CustomFormats: _formatService.ParseCustomFormat(f, subject.Artist)))
+                var currentFiles = trackFiles.Zip(_formatService.ParseCustomFormats(trackFiles, subject.Artist), (f, customFormats) => (f.Quality, CustomFormats: customFormats))
                                              .DistinctBy(f => (f.Quality, qualityProfile.CalculateCustomFormatScore(f.CustomFormats)))
                                              .ToList();
 

@@ -225,5 +225,67 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
                         new List<CustomFormat>())
                     .Should().BeFalse();
         }
+
+        [Test]
+        public void should_take_a_higher_quality_over_a_proper_file_at_a_lower_quality()
+        {
+            GivenAutoDownloadPropers(ProperDownloadTypes.PreferAndUpgrade);
+
+            Subject.GetUpgradeRejectReason(
+                        GivenProfile(Quality.MP3_320),
+                        new List<(QualityModel, List<CustomFormat>)>
+                        {
+                            (new QualityModel(Quality.MP3_320, new Revision(version: 2)), new List<CustomFormat>()),
+                            (new QualityModel(Quality.MP3_192, new Revision(version: 1)), new List<CustomFormat>())
+                        },
+                        new QualityModel(Quality.FLAC, new Revision(version: 1)),
+                        new List<CustomFormat>())
+                   .Should().Be(UpgradeableRejectReason.None);
+        }
+
+        [Test]
+        public void should_not_take_a_higher_quality_proper_once_the_quality_cutoff_is_met()
+        {
+            GivenAutoDownloadPropers(ProperDownloadTypes.PreferAndUpgrade);
+
+            Subject.GetUpgradeRejectReason(
+                        GivenProfile(Quality.MP3_320, cutoffFormatScore: 100),
+                        new List<QualityModel> { new QualityModel(Quality.MP3_320, new Revision(version: 1)) },
+                        new List<CustomFormat>(),
+                        new QualityModel(Quality.FLAC, new Revision(version: 2)),
+                        new List<CustomFormat>())
+                   .Should().Be(UpgradeableRejectReason.QualityCutoff);
+        }
+
+        [Test]
+        public void should_not_take_a_higher_quality_proper_with_upgrades_off()
+        {
+            GivenAutoDownloadPropers(ProperDownloadTypes.PreferAndUpgrade);
+
+            var profile = GivenProfile(Quality.FLAC);
+            profile.UpgradeAllowed = false;
+
+            Subject.GetUpgradeRejectReason(
+                        profile,
+                        new List<QualityModel> { new QualityModel(Quality.MP3_320, new Revision(version: 1)) },
+                        new List<CustomFormat>(),
+                        new QualityModel(Quality.FLAC, new Revision(version: 2)),
+                        new List<CustomFormat>())
+                   .Should().Be(UpgradeableRejectReason.UpgradesNotAllowed);
+        }
+
+        [Test]
+        public void should_not_let_a_huge_increment_overflow_into_an_upgrade()
+        {
+            GivenAutoDownloadPropers(ProperDownloadTypes.PreferAndUpgrade);
+
+            Subject.GetUpgradeRejectReason(
+                        GivenProfile(Quality.FLAC, cutoffFormatScore: 100, minUpgradeFormatScore: int.MaxValue),
+                        new List<QualityModel> { new QualityModel(Quality.MP3_320) },
+                        new List<CustomFormat> { _formatTen },
+                        new QualityModel(Quality.MP3_320),
+                        new List<CustomFormat> { _formatTwenty })
+                   .Should().Be(UpgradeableRejectReason.MinCustomFormatScore);
+        }
     }
 }

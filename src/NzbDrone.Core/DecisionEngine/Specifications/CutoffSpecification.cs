@@ -58,7 +58,7 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
 
                     _logger.Debug("Comparing file quality with report. Existing files contain {0}", currentQualities.ConcatToString());
 
-                    var cutoffNotMet = trackFiles.Select(f => (f.Quality, CustomFormats: _formatService.ParseCustomFormat(f, subject.Artist)))
+                    var cutoffNotMet = trackFiles.Zip(_formatService.ParseCustomFormats(trackFiles, subject.Artist), (f, customFormats) => (f.Quality, CustomFormats: customFormats))
                                                  .DistinctBy(f => (f.Quality, qualityProfile.CalculateCustomFormatScore(f.CustomFormats)))
                                                  .Any(f => _upgradableSpecification.CutoffNotMet(qualityProfile,
                                                                                                  new List<QualityModel> { f.Quality },

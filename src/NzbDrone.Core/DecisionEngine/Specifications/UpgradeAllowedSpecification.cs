@@ -56,7 +56,7 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
                     var currentQualities = trackFiles.Select(c => c.Quality).Distinct().ToList();
 
                     // TODO: Should union these?
-                    var fileCustomFormats = _formatService.ParseCustomFormat(trackFiles.First(), subject.Artist);
+                    var fileCustomFormats = _formatService.ParseCustomFormats(trackFiles, subject.Artist).First();
 
                     _logger.Debug("Comparing file quality with report. Existing files contain {0}", currentQualities.ConcatToString());
 

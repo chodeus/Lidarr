@@ -20,6 +20,12 @@ namespace NzbDrone.Core.CustomFormats
         List<CustomFormat> ParseCustomFormat(Blocklist blocklist, Artist artist);
         List<CustomFormat> ParseCustomFormat(EntityHistory history, Artist artist);
         List<CustomFormat> ParseCustomFormat(LocalTrack localTrack);
+
+        // Every file gets the album's size, as a release does, so a Size condition reads the same on both
+        List<List<CustomFormat>> ParseCustomFormats(List<TrackFile> albumFiles, Artist artist)
+        {
+            return albumFiles.Select(f => ParseCustomFormat(f, artist)).ToList();
+        }
     }
 
     public class CustomFormatCalculationService : ICustomFormatCalculationService
@@ -48,12 +54,20 @@ namespace NzbDrone.Core.CustomFormats
 
         public List<CustomFormat> ParseCustomFormat(TrackFile trackFile, Artist artist)
         {
-            return ParseCustomFormat(trackFile, artist, _formatService.All());
+            return ParseCustomFormat(trackFile, artist, _formatService.All(), trackFile.Size);
         }
 
         public List<CustomFormat> ParseCustomFormat(TrackFile trackFile)
         {
-            return ParseCustomFormat(trackFile, trackFile.Artist.Value, _formatService.All());
+            return ParseCustomFormat(trackFile, trackFile.Artist.Value, _formatService.All(), trackFile.Size);
+        }
+
+        public List<List<CustomFormat>> ParseCustomFormats(List<TrackFile> albumFiles, Artist artist)
+        {
+            var allCustomFormats = _formatService.All();
+            var albumSize = albumFiles.Sum(f => f.Size);
+
+            return albumFiles.Select(f => ParseCustomFormat(f, artist, allCustomFormats, albumSize)).ToList();
         }
 
         public List<CustomFormat> ParseCustomFormat(Blocklist blocklist, Artist artist)
@@ -155,7 +169,7 @@ namespace NzbDrone.Core.CustomFormats
             return matches.OrderBy(x => x.Name).ToList();
         }
 
-        private List<CustomFormat> ParseCustomFormat(TrackFile trackFile, Artist artist, List<CustomFormat> allCustomFormats)
+        private List<CustomFormat> ParseCustomFormat(TrackFile trackFile, Artist artist, List<CustomFormat> allCustomFormats, long size)
         {
             var releaseTitle = string.Empty;
 
@@ -187,7 +201,7 @@ namespace NzbDrone.Core.CustomFormats
             {
                 AlbumInfo = albumInfo,
                 Artist = artist,
-                Size = trackFile.Size,
+                Size = size,
                 IndexerFlags = trackFile.IndexerFlags,
                 Filename = Path.GetFileName(trackFile.Path)
             };

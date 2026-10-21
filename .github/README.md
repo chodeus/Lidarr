@@ -1,6 +1,6 @@
 # Fixed: A manual import tied to a download that never completed no longer fails after importing
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Reviewed in [#PR_NUMBER](https://github.com/chodeus/Lidarr/pull/PR_NUMBER).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Reviewed in [#59](https://github.com/chodeus/Lidarr/pull/59).
 
 After a manual import, `ManualImportService.Execute` cleans up each download's folder and marks the download imported. It read the folder from the tracked download's import item, which only completed-download handling sets. A manual import sent with the download id of an item that handling never processed (one its client still reports as downloading, or one whose import failed) imported its files, then threw a `NullReferenceException`. The command reported "failed", the folder stayed, and the download was never marked imported. An unknown download id threw the same way, partway through the files.
 

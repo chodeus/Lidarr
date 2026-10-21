@@ -461,7 +461,8 @@ namespace NzbDrone.Core.ImportLists
 
             var tagged = new List<Artist>();
 
-            foreach (var artist in _artistService.GetArtists(existingArtistTags.Keys))
+            // An artist deleted since its item was mapped, or the missing artist (id 0) of a listed album, has no row to tag
+            foreach (var artist in existingArtistTags.Keys.Select(FindArtist).Where(a => a != null))
             {
                 if (!existingArtistTags[artist.Id].IsSubsetOf(artist.Tags))
                 {

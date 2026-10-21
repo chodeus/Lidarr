@@ -564,8 +564,8 @@ namespace NzbDrone.Core.Test.ImportListTests
         private void WithLibraryArtist(int id, params int[] tags)
         {
             Mocker.GetMock<IArtistService>()
-                .Setup(v => v.GetArtists(It.IsAny<IEnumerable<int>>()))
-                .Returns<IEnumerable<int>>(ids => ids.Contains(id) ? new List<Artist> { new Artist { Id = id, Tags = new HashSet<int>(tags) } } : new List<Artist>());
+                .Setup(v => v.GetArtist(id))
+                .Returns(new Artist { Id = id, Tags = new HashSet<int>(tags) });
         }
 
         private void VerifyTagged(int artistId, params int[] tags)

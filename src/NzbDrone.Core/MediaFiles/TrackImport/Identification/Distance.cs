@@ -200,12 +200,13 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
         {
             var decomposed = LatinAccents.Replace((input ?? string.Empty).ToLowerInvariant().Normalize(NormalizationForm.FormD), string.Empty);
 
-            return new string(decomposed.Where(c => char.IsLetterOrDigit(c) || IsMark(c)).ToArray()).Normalize(NormalizationForm.FormC);
+            // By rune, so characters beyond the Basic Multilingual Plane, such as rarer CJK ideographs, count
+            return string.Concat(decomposed.EnumerateRunes().Where(r => Rune.IsLetterOrDigit(r) || IsMark(r))).Normalize(NormalizationForm.FormC);
         }
 
-        private static bool IsMark(char c)
+        private static bool IsMark(Rune rune)
         {
-            var category = CharUnicodeInfo.GetUnicodeCategory(c);
+            var category = Rune.GetUnicodeCategory(rune);
 
             return category == UnicodeCategory.NonSpacingMark || category == UnicodeCategory.SpacingCombiningMark || category == UnicodeCategory.EnclosingMark;
         }

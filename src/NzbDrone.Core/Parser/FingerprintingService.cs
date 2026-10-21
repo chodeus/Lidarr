@@ -340,8 +340,14 @@ namespace NzbDrone.Core.Parser
             foreach (var batch in files.Where(x => x.Item2 != null).Chunk(10))
             {
                 var toLookup = batch.ToList();
-                var response = GetResponse(GenerateRequest(toLookup));
+                var response = GetResponse(GenerateRequest(toLookup), 3, out var unanswered);
                 ParseResponse(response, toLookup, threshold);
+
+                // The remaining batches would only wait out the same timeout
+                if (unanswered)
+                {
+                    break;
+                }
             }
         }
 
@@ -369,7 +375,14 @@ namespace NzbDrone.Core.Parser
 
         public LookupResponse GetResponse(HttpRequest request, int retry = 3)
         {
+            return GetResponse(request, retry, out _);
+        }
+
+        // unanswered: the last attempt threw, such as a timeout or a refused connection, rather than getting an answer
+        private LookupResponse GetResponse(HttpRequest request, int retry, out bool unanswered)
+        {
             HttpResponse<LookupResponse> httpResponse;
+            unanswered = false;
 
             try
             {
@@ -378,16 +391,17 @@ namespace NzbDrone.Core.Parser
             catch (UnexpectedHtmlContentException e)
             {
                 _logger.Warn(e, "AcoustId API gave invalid response");
-                return retry > 0 ? GetResponse(request, retry - 1) : null;
+                return retry > 0 ? GetResponse(request, retry - 1, out unanswered) : null;
             }
             catch (WebException e) when (e.Status == WebExceptionStatus.Timeout && retry > 0)
             {
                 _logger.Debug(e, "AcoustId API lookup timed out, retrying once");
-                return GetResponse(request, 0);
+                return GetResponse(request, 0, out unanswered);
             }
             catch (Exception e)
             {
                 _logger.Warn(e, "AcoustId API lookup failed");
+                unanswered = true;
                 return null;
             }
 
@@ -401,7 +415,7 @@ namespace NzbDrone.Core.Parser
                     {
                         _logger.Trace($"Too many requests, retrying in 1s");
                         Thread.Sleep(TimeSpan.FromSeconds(1));
-                        return GetResponse(request, retry - 1);
+                        return GetResponse(request, retry - 1, out unanswered);
                     }
 
                     _logger.Debug($"Webservice error {response.Error.Code}: {response.Error.Message}");

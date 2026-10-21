@@ -304,20 +304,36 @@ FINGERPRINT=AQAHJlMURlEURcgP6cwRD43Y4Ptw9FowncWPWkf6GB9-JYdP9OgJHw8u4Apw4SsOHMdx
         }
 
         [Test]
-        public void should_keep_the_other_batches_results_when_one_batch_fails()
+        public void should_keep_the_earlier_batches_results_when_a_batch_times_out()
         {
             var timeout = new WebException("Http request timed out", WebExceptionStatus.Timeout);
             Mocker.GetMock<IHttpClient>()
                 .SetupSequence(o => o.Post<LookupResponse>(It.IsAny<HttpRequest>()))
+                .Returns(AnswerEachFingerprint(new HttpRequest("http://dummy") { ContentData = Encoding.UTF8.GetBytes(string.Join("&", Enumerable.Range(0, 10).Select(i => $"fingerprint.{i}=fp{i:D5}"))).Compress() }))
                 .Throws(timeout)
-                .Throws(timeout)
-                .Returns(AnswerEachFingerprint(new HttpRequest("http://dummy") { ContentData = Encoding.UTF8.GetBytes(string.Join("&", Enumerable.Range(0, 5).Select(i => $"fingerprint.{i}=fp{i + 10:D5}"))).Compress() }));
+                .Throws(timeout);
 
             var files = GivenFingerprints(15);
             Subject.Lookup(files, 0.5);
 
-            files.Take(10).Should().OnlyContain(x => x.Item1.AcoustIdResults == null);
-            files.Skip(10).ToList().ForEach(x => x.Item1.AcoustIdResults.Should().Equal(RecordingFor(x.Item2.Fingerprint)));
+            files.Take(10).ToList().ForEach(x => x.Item1.AcoustIdResults.Should().Equal(RecordingFor(x.Item2.Fingerprint)));
+            files.Skip(10).Should().OnlyContain(x => x.Item1.AcoustIdResults == null);
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_stop_looking_up_once_acoustid_does_not_answer()
+        {
+            Mocker.GetMock<IHttpClient>()
+                .Setup(o => o.Post<LookupResponse>(It.IsAny<HttpRequest>()))
+                .Throws(new WebException("Http request timed out", WebExceptionStatus.Timeout));
+
+            var files = GivenFingerprints(30);
+            Subject.Lookup(files, 0.5);
+
+            files.Should().OnlyContain(x => x.Item1.AcoustIdResults == null);
+            Mocker.GetMock<IHttpClient>().Verify(x => x.Post<LookupResponse>(It.IsAny<HttpRequest>()), Times.Exactly(2));
 
             ExceptionVerification.ExpectedWarns(1);
         }

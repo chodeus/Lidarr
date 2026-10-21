@@ -32,6 +32,7 @@ namespace NzbDrone.Common.Cache
         private readonly ConcurrentDictionary<string, CacheItem> _store;
         private readonly TimeSpan? _defaultLifeTime;
         private readonly bool _rollingExpiry;
+        private readonly object _publishLock = new object();
         private long _generation;
 
         public Cached(TimeSpan? defaultLifeTime = null, bool rollingExpiry = false)
@@ -99,19 +100,23 @@ namespace NzbDrone.Common.Cache
             {
                 var generation = Interlocked.Read(ref _generation);
                 var newCacheItem = new CacheItem(function(), lifeTime);
-                if (cacheItem != null && _store.TryUpdate(key, newCacheItem, cacheItem))
-                {
-                    cacheItem = newCacheItem;
-                }
-                else
-                {
-                    cacheItem = _store.GetOrAdd(key, newCacheItem);
-                }
 
-                // A value computed across a Clear may predate it, so it is returned but not kept
-                if (Interlocked.Read(ref _generation) != generation)
+                // Publishing and Clear share a lock, so a value computed across a Clear is returned but never published
+                lock (_publishLock)
                 {
-                    TryRemove(key, newCacheItem);
+                    if (_generation != generation)
+                    {
+                        return newCacheItem.Object;
+                    }
+
+                    if (cacheItem != null && _store.TryUpdate(key, newCacheItem, cacheItem))
+                    {
+                        cacheItem = newCacheItem;
+                    }
+                    else
+                    {
+                        cacheItem = _store.GetOrAdd(key, newCacheItem);
+                    }
                 }
             }
 
@@ -120,8 +125,11 @@ namespace NzbDrone.Common.Cache
 
         public void Clear()
         {
-            Interlocked.Increment(ref _generation);
-            _store.Clear();
+            lock (_publishLock)
+            {
+                Interlocked.Increment(ref _generation);
+                _store.Clear();
+            }
         }
 
         public void ClearExpired()

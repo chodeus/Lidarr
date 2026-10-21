@@ -42,6 +42,12 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
                 localTrack.FileTrackInfo.TrackNumbers[0] != totalTrackNumber;
         }
 
+        // The name ahead of its aliases, so an artist named as tagged wins over another artist that has the name as an alias
+        private static double NameOrAliasPenalty(string tag, List<string> names, List<string> aliases, Func<string, List<string>, double> penalty)
+        {
+            return aliases.Any() ? Math.Min(penalty(tag, names), penalty(tag, aliases) + Distance.AliasPenalty) : penalty(tag, names);
+        }
+
         // "&" against "and", or a missing leading "The", costs short names more than CreditedArtistPenalty
         private static double WholeCreditPenalty(string tag, List<string> names)
         {
@@ -127,13 +133,16 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
 
             var artist = localTracks.MostCommon(x => x.FileTrackInfo.ArtistTitle) ?? "";
             var metadata = release.Album.Value.ArtistMetadata.Value;
-            var names = new[] { metadata.Name }.Concat(metadata.Aliases ?? new List<string>()).ToList();
+            var names = new List<string> { metadata.Name };
+            var aliases = (metadata.Aliases ?? new List<string>()).Where(Distance.HasLettersOrDigits).ToList();
 
-            if (!VariousArtistIds.Contains(metadata.ForeignArtistId) && !IsWatermark(artist, names))
+            if (!VariousArtistIds.Contains(metadata.ForeignArtistId) && !IsWatermark(artist, names.Concat(aliases).ToList()))
             {
-                var penalty = CreditedArtists(artist).Select(a => Distance.ClosestPenalty(a, names) + CreditedArtistPenalty).Append(WholeCreditPenalty(artist, names)).Min();
+                var penalty = CreditedArtists(artist).Select(a => NameOrAliasPenalty(a, names, aliases, Distance.ClosestPenalty) + CreditedArtistPenalty)
+                                                     .Append(NameOrAliasPenalty(artist, names, aliases, WholeCreditPenalty))
+                                                     .Min();
                 dist.Add("artist", penalty);
-                Logger.Trace("artist: {0} vs {1}; {2}", artist, release.Album.Value.ArtistMetadata.Value.Name, dist.NormalizedDistance());
+                Logger.Trace("artist: {0} vs {1} or its {2} aliases; {3}", artist, metadata.Name, aliases.Count, dist.NormalizedDistance());
             }
 
             var title = localTracks.MostCommon(x => x.FileTrackInfo.AlbumTitle) ?? "";

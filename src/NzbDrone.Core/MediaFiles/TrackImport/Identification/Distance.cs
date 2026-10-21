@@ -128,10 +128,19 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
             Add(key, StringPenalty(value, target));
         }
 
-        // Penalty against the closest of several accepted spellings, such as an artist's name and aliases
+        // An alias match counts a little worse than the name, so the artist a name belongs to wins over another artist sharing it as an alias
+        public const double AliasPenalty = 0.05;
+
+        // Penalty against the closest of several accepted spellings, such as an artist's name
         public static double ClosestPenalty(string value, IEnumerable<string> targets)
         {
             return targets.Select(t => StringPenalty(value, t)).DefaultIfEmpty(StringPenalty(value, null)).Min();
+        }
+
+        // An alias that cleans to nothing would match an untagged file
+        public static bool HasLettersOrDigits(string value)
+        {
+            return Clean(value ?? string.Empty).Length > 0;
         }
 
         private static double StringPenalty(string value, string target)

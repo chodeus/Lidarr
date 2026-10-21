@@ -165,7 +165,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
                 .With(x => x.Aliases = new List<string> { "other alias", "artist" })
                 .Build();
 
-            DistanceCalculator.AlbumReleaseDistance(localTracks, release, mapping).NormalizedDistance().Should().Be(0.0);
+            DistanceCalculator.AlbumReleaseDistance(localTracks, release, mapping).Penalties["artist"].Should().Equal(Distance.AliasPenalty);
         }
 
         [Test]

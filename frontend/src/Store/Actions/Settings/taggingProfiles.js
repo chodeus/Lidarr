@@ -70,7 +70,11 @@ export default {
     [FETCH_TAGGING_PROFILE_SCHEMA]: createFetchSchemaHandler(section, '/taggingprofile/schema'),
 
     [SAVE_TAGGING_PROFILE]: createSaveProviderHandler(section, '/taggingprofile'),
-    [DELETE_TAGGING_PROFILE]: createRemoveItemHandler(section, '/taggingprofile'),
+    [DELETE_TAGGING_PROFILE]: (getState, payload, dispatch) => {
+      // The server renumbers the remaining profiles, so the stored orders are stale
+      return createRemoveItemHandler(section, '/taggingprofile')(getState, payload, dispatch)
+        .done(() => dispatch(fetchTaggingProfiles()));
+    },
 
     [REORDER_TAGGING_PROFILE]: (getState, payload, dispatch) => {
       const { id, moveIndex } = payload;

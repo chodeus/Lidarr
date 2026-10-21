@@ -78,6 +78,10 @@ namespace NzbDrone.Core.Test.ParserTests
         [TestCase("Track Title (feat. Guest Artist) [Dub Mix]", "Track Title [Dub Mix]")]
         [TestCase("Track Title (Ft. Guest Artist) (Remixer Name Remix)", "Track Title (Remixer Name Remix)")]
         [TestCase("Track Title feat. Guest Artist (Remix)", "Track Title")]
+        [TestCase("Track Title (feat. Guest Artist) (Original Mix)", "Track Title")]
+        [TestCase("Track Title [Original Mix]", "Track Title")]
+        [TestCase("Track Title (feat. Guest Artist (Other Name))", "Track Title")]
+        [TestCase("Track Title (feat. Guest Artist (Other Name)) (Remixer Name Remix)", "Track Title (Remixer Name Remix)")]
         public void should_remove_common_tags_from_track_title(string title, string correct)
         {
             var result = Parser.Parser.CleanTrackTitle(title);

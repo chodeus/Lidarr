@@ -79,8 +79,10 @@ namespace NzbDrone.Core.MetadataSource.Sources.SkyHookServer
             }
             catch (Exception ex)
             {
-                _logger.Warn(ex, "Unable to reach the metadata server");
-                return new ValidationResult(new[] { new ValidationFailure(nameof(SkyHookServerMetadataSourceSettings.Url), "Unable to reach the metadata server: " + ex.Message) });
+                var reason = MetadataSourceErrors.Describe(ex);
+
+                _logger.Warn("Unable to reach the metadata server: {0}", reason);
+                return new ValidationResult(new[] { new ValidationFailure(nameof(SkyHookServerMetadataSourceSettings.Url), "Unable to reach the metadata server: " + reason) });
             }
         }
 

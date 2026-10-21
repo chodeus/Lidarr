@@ -88,9 +88,12 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
                 var artist = localTracks.MostCommon(x => x.FileTrackInfo.ArtistTitle) ?? "";
                 var metadata = release.Album.Value.ArtistMetadata.Value;
 
-                // Files tagged with an artist's former or alternate name still match
-                dist.AddStringToClosest("artist", artist, new[] { metadata.Name }.Concat(metadata.Aliases ?? new List<string>()));
-                Logger.Trace("artist: {0} vs {1}; {2}", artist, release.Album.Value.ArtistMetadata.Value.Name, dist.NormalizedDistance());
+                // Files tagged with an artist's former or alternate name still match, and tags often leave out a leading "The", as artist lookups allow
+                var name = metadata.Name ?? "";
+                var names = new List<string> { name, name.StartsWith("The ", StringComparison.OrdinalIgnoreCase) ? name.Substring(4) : "The " + name };
+
+                dist.AddStringToClosest("artist", artist, names, metadata.Aliases ?? new List<string>());
+                Logger.Trace("artist: {0} vs {1} or its {2} aliases; {3}", artist, name, metadata.Aliases?.Count ?? 0, dist.NormalizedDistance());
             }
 
             var title = localTracks.MostCommon(x => x.FileTrackInfo.AlbumTitle) ?? "";

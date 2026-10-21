@@ -221,6 +221,22 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
         }
 
         [Test]
+        public void should_update_the_stored_credit_of_an_album_deleted_during_the_fetch()
+        {
+            var album = GivenAlbum("Song", 2020);
+            Subject.Insert(new AlbumArtistCredit { AlbumId = album.Id, Credit = "Primary", Guests = "", Artists = PrimaryOnly(), LastFetched = DateTime.UtcNow.AddDays(-100) });
+            GivenCredit(_ =>
+            {
+                _albums.DeleteMany(new List<Album> { album });
+                return PrimaryAndGuest();
+            });
+
+            _service.Execute(new RefreshAlbumArtistCreditsCommand());
+
+            Subject.All().Where(c => c.AlbumId == album.Id).Should().ContainSingle();
+        }
+
+        [Test]
         public void should_not_fetch_an_album_another_run_fetched_since_this_one_started()
         {
             var first = GivenAlbum("Song", 2021);

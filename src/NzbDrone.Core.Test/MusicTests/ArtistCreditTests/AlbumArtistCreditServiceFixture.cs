@@ -134,7 +134,7 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
             GivenCandidates(1);
             GivenCredits(Credit("Artist Name", "Guest One"));
             Mocker.GetMock<IAlbumArtistCreditRepository>()
-                  .Setup(r => r.FindByAlbumId(1))
+                  .Setup(r => r.FindStoredByAlbumId(1))
                   .Returns(new AlbumArtistCredit { Id = 7, AlbumId = 1, LastFetched = DateTime.UtcNow.AddDays(-100) });
 
             Subject.Execute(new RefreshAlbumArtistCreditsCommand());

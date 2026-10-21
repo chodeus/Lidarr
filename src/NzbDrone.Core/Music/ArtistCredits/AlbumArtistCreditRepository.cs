@@ -24,6 +24,7 @@ namespace NzbDrone.Core.Music.ArtistCredits
     public interface IAlbumArtistCreditRepository : IBasicRepository<AlbumArtistCredit>
     {
         AlbumArtistCredit FindByAlbumId(int albumId);
+        AlbumArtistCredit FindStoredByAlbumId(int albumId);
         List<AlbumArtistCredit> FindByAlbumIds(List<int> albumIds);
         List<AlbumArtistCreditCandidate> GetCandidates(DateTime staleBefore, int limit);
         List<AlbumArtistCreditCandidate> GetUncreditedCandidates(List<int> albumIds);
@@ -47,6 +48,12 @@ namespace NzbDrone.Core.Music.ArtistCredits
         public AlbumArtistCredit FindByAlbumId(int albumId)
         {
             return FindByAlbumIds(new List<int> { albumId }).SingleOrDefault();
+        }
+
+        // The row as stored, also when its album is gone, so a write updates it rather than inserting a second
+        public AlbumArtistCredit FindStoredByAlbumId(int albumId)
+        {
+            return Query(c => c.AlbumId == albumId).SingleOrDefault();
         }
 
         // Guests are worked out against the album's current artist, and a credit whose album is gone isn't returned

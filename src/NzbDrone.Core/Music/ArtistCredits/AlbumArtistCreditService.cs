@@ -136,7 +136,7 @@ namespace NzbDrone.Core.Music.ArtistCredits
                 // Read again just before writing: another run may have stored this album during the fetch
                 lock (_writeLock)
                 {
-                    current = _repository.FindByAlbumId(candidate.AlbumId);
+                    current = _repository.FindStoredByAlbumId(candidate.AlbumId);
                     credit.Id = current?.Id ?? 0;
                     _repository.Upsert(credit);
                 }

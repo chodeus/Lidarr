@@ -89,21 +89,6 @@ namespace NzbDrone.Core.Test.Profiles.MetadataSources
         }
 
         [Test]
-        public void knows_whether_any_profile_uses_a_supplementary_source()
-        {
-            Subject.HasSupplementarySources().Should().BeFalse();
-
-            Subject.Add(new MetadataSourceProfile
-            {
-                Name = "Supplemented",
-                Tags = new HashSet<int> { 5 },
-                Items = new List<MetadataSourceProfileItem> { new() { MetadataSourceId = 1, Role = MetadataSourceRole.Supplementary } }
-            });
-
-            Subject.HasSupplementarySources().Should().BeTrue();
-        }
-
-        [Test]
         public void reorder_moves_a_profile_down()
         {
             var a = GivenProfile("A", 1);

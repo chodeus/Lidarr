@@ -292,7 +292,6 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
         private Artist GivenSupplementaryAlbumOwnedBy(string ownerId)
         {
             var owner = new Artist { Id = 5, ArtistMetadataId = 50, Metadata = new ArtistMetadata { Id = 50, ForeignArtistId = ownerId, Name = "Artist Name" } };
-            Mocker.GetMock<IMetadataSourceProfileService>().Setup(s => s.HasSupplementarySources()).Returns(true);
             Mocker.GetMock<IAlbumService>().Setup(s => s.FindById("other:101")).Returns(new Album { ForeignAlbumId = "other:101", ArtistMetadataId = 50 });
             Mocker.GetMock<IArtistService>().Setup(s => s.GetArtistByMetadataId(50)).Returns(owner);
 

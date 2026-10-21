@@ -1,6 +1,6 @@
 # Fixed: Store the removed status of an artist the metadata source no longer has
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. It is stacked on `fix/refresh-keeps-concurrent-changes` and merges after it. Reviewed in [#PR_NUMBER](https://github.com/chodeus/Lidarr/pull/PR_NUMBER).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. It is stacked on `fix/refresh-keeps-concurrent-changes` and merges after it. Reviewed in [#57](https://github.com/chodeus/Lidarr/pull/57).
 
 When the metadata source reports an artist as not found, the refresh marks it Deleted. It only did so on the copy it was working on, which nothing saved, so the stored status stayed as it was. The removed-artist health check reads the stored status, so it never listed such an artist.
 

@@ -123,6 +123,14 @@ namespace NzbDrone.Core.MediaFiles
             {
                 var fileInfo = _diskProvider.GetFileInfo(path);
 
+                // A download that is a single unsafe file gets the folder's rejection, so its indexer's Fail Downloads applies
+                var unsafeFile = CheckForUnsafeFiles(new List<string> { fileInfo.FullName });
+
+                if (unsafeFile != null)
+                {
+                    return new List<ImportResult> { unsafeFile };
+                }
+
                 if (artist == null)
                 {
                     return ProcessFile(fileInfo, importMode, downloadClientItem);

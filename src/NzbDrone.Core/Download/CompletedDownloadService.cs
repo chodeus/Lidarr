@@ -156,27 +156,39 @@ namespace NzbDrone.Core.Download
             }
 
             var folderRejection = importResults.FirstOrDefault(r => r.Result == ImportResultType.Rejected && r.ImportDecision.Item == null);
+            var statusMessages = new List<TrackedDownloadStatusMessage>
+                                 {
+                                    new TrackedDownloadStatusMessage("One or more tracks expected in this release were not imported or missing from the release", new List<string>())
+                                 };
 
             if (folderRejection != null && importResults.None(r => r.Result == ImportResultType.Imported))
             {
                 var processed = _rejectedImportService?.Process(trackedDownload, folderRejection) ?? false;
 
-                if (!processed)
+                if (trackedDownload.State == TrackedDownloadState.DownloadFailedPending)
                 {
-                    trackedDownload.Warn(new TrackedDownloadStatusMessage(folderRejection.Errors.First(), new List<string>()));
-                }
-                else if (trackedDownload.State != TrackedDownloadState.DownloadFailedPending)
-                {
-                    SetStateToImportBlocked(trackedDownload);
+                    return;
                 }
 
-                return;
+                // An unsafe file the indexer doesn't fail downloads for only adds a caution: rejected tracks still fail the import, as before
+                if (importResults.Any(r => r.ImportDecision.Item != null))
+                {
+                    statusMessages.Add(new TrackedDownloadStatusMessage(folderRejection.Errors.First(), new List<string>()));
+                }
+                else
+                {
+                    if (!processed)
+                    {
+                        trackedDownload.Warn(new TrackedDownloadStatusMessage(folderRejection.Errors.First(), new List<string>()));
+                    }
+                    else
+                    {
+                        SetStateToImportBlocked(trackedDownload);
+                    }
+
+                    return;
+                }
             }
-
-            var statusMessages = new List<TrackedDownloadStatusMessage>
-                                 {
-                                    new TrackedDownloadStatusMessage("One or more tracks expected in this release were not imported or missing from the release", new List<string>())
-                                 };
 
             if (importResults.Any(c => c.Result != ImportResultType.Imported))
             {

@@ -64,6 +64,16 @@ namespace NzbDrone.Core.Music
         private readonly Logger _logger;
         private readonly ICached<List<Artist>> _cache;
 
+        // develop's signature, kept for code built against it; it can't store the metadata status
+        public ArtistService(IArtistRepository artistRepository,
+                             IEventAggregator eventAggregator,
+                             IBuildArtistPaths artistPathBuilder,
+                             ICacheManager cacheManager,
+                             Logger logger)
+            : this(artistRepository, null, eventAggregator, artistPathBuilder, cacheManager, logger)
+        {
+        }
+
         public ArtistService(IArtistRepository artistRepository,
                              IArtistMetadataRepository artistMetadataRepository,
                              IEventAggregator eventAggregator,
@@ -279,7 +289,7 @@ namespace NzbDrone.Core.Music
         // Clears the artist cache after the write, so a read in between can't keep the old status for the removed-artist health check
         public void UpdateMetadataStatus(Artist artist)
         {
-            _artistMetadataRepository.SetFields(artist.Metadata.Value, m => m.Status);
+            _artistMetadataRepository?.SetFields(artist.Metadata.Value, m => m.Status);
             _cache.Clear();
         }
 

@@ -281,6 +281,8 @@ FINGERPRINT=AQAHJlMURlEURcgP6cwRD43Y4Ptw9FowncWPWkf6GB9-JYdP9OgJHw8u4Apw4SsOHMdx
             localTrack.AcoustIdResults.Should().Equal("00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002");
             localTrack.AcoustIdRecordings.Select(x => x.Title).Should().Equal("Song", null);
             localTrack.AcoustIdRecordings.Select(x => x.Duration).Should().Equal(201.5, null);
+            localTrack.AcoustIdRecordings[0].Artists.Select(x => x.Id).Should().Equal("00000000-0000-0000-0000-00000000000b");
+            localTrack.AcoustIdRecordings[1].Artists.Should().BeNull();
         }
 
         [Test]

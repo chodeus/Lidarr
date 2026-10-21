@@ -13,6 +13,8 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
     [TestFixture]
     public class SiblingRecordingFixture : CoreTest<IdentificationService>
     {
+        private const string ArtistId = "00000000-0000-0000-0000-0000000000aa";
+
         private static string RecordingId(int n)
         {
             return $"00000000-0000-0000-0000-{n:D12}";
@@ -28,7 +30,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
                 AbsoluteTrackNumber = number,
                 MediumNumber = 1,
                 OldForeignRecordingIds = new List<string>(),
-                ArtistMetadata = new ArtistMetadata { Name = "artist" }
+                ArtistMetadata = new ArtistMetadata { Name = "artist", ForeignArtistId = ArtistId }
             };
         }
 
@@ -46,7 +48,10 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
                     Duration = TimeSpan.FromSeconds(seconds)
                 },
                 AcoustIdResults = new List<string> { recordingId },
-                AcoustIdRecordings = new List<AcoustIdRecording> { new AcoustIdRecording { Id = recordingId, Title = title, Duration = seconds } }
+                AcoustIdRecordings = new List<AcoustIdRecording>
+                {
+                    new AcoustIdRecording { Id = recordingId, Title = title, Duration = seconds, Artists = new List<AcoustIdArtist> { new AcoustIdArtist { Id = ArtistId } } }
+                }
             };
         }
 
@@ -88,7 +93,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         {
             var files = new List<LocalTrack> { GivenFile(RecordingId(1), "Song", 200, 1) };
             var named = GivenRelease("United States", new List<Track> { GivenTrack(RecordingId(1), "Song", 200, 1) });
-            var sibling = GivenRelease("United States", new List<Track> { GivenTrack(RecordingId(2), "Song", 205, 1) });
+            var sibling = GivenRelease("United States", new List<Track> { GivenTrack(RecordingId(2), "Song", 202, 1) });
 
             ReleaseDistance(files, named).Should().BeLessThan(ReleaseDistance(files, sibling));
         }
@@ -98,7 +103,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         {
             var files = Enumerable.Range(1, 5).Select(n => GivenFile(RecordingId(n), $"Song {n}", 200, n)).ToList();
             var named = GivenRelease("Japan", Enumerable.Range(1, 5).Select(n => GivenTrack(RecordingId(n), $"Song {n}", 200, n)).ToList());
-            var sibling = GivenRelease("United States", Enumerable.Range(1, 5).Select(n => GivenTrack(RecordingId(n + 10), $"Song {n}", 203, n)).ToList());
+            var sibling = GivenRelease("United States", Enumerable.Range(1, 5).Select(n => GivenTrack(RecordingId(n + 10), $"Song {n}", 202, n)).ToList());
 
             ReleaseDistance(files, named).Should().BeLessThan(ReleaseDistance(files, sibling));
         }

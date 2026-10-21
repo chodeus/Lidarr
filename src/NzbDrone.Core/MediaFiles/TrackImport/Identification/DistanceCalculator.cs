@@ -47,11 +47,18 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
             return NamesSameSong(localTrack.AcoustIdRecordings, mbTrack) ? 0.2 : 1.0;
         }
 
-        // AcoustID often names a sibling recording of the same song from another release; 10 s is track_length's grace
+        // AcoustID often names a sibling recording of the same song from another release; live cuts sharing the title rarely come within 3 s
         private static bool NamesSameSong(List<AcoustIdRecording> recordings, Track mbTrack)
         {
             return recordings != null && mbTrack.Duration > 0 &&
-                recordings.Any(r => r.Duration.HasValue && Math.Abs(r.Duration.Value - (mbTrack.Duration / 1000.0)) <= 10 && Distance.SameText(r.Title, mbTrack.Title));
+                recordings.Any(r => r.Duration.HasValue && Math.Abs(r.Duration.Value - (mbTrack.Duration / 1000.0)) <= 3 && Distance.SameText(r.Title, mbTrack.Title) && ByTrackArtist(r, mbTrack));
+        }
+
+        private static bool ByTrackArtist(AcoustIdRecording recording, Track mbTrack)
+        {
+            var artistId = mbTrack.ArtistMetadata?.Value?.ForeignArtistId;
+
+            return artistId != null && recording.Artists != null && recording.Artists.Any(a => a.Id == artistId);
         }
 
         public static Distance TrackDistance(LocalTrack localTrack, Track mbTrack, int totalTrackNumber, bool includeArtist = false)

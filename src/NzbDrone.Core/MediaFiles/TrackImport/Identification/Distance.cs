@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
 using NzbDrone.Common.Extensions;
 
 namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
@@ -30,6 +33,8 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
             { "track_length", 2.0 },
             { "recording_id", 10.0 },
         };
+
+        private static readonly Regex LatinAccents = new Regex(@"(?<=[\p{IsBasicLatin}\p{IsLatin-1Supplement}\p{IsLatinExtended-A}\p{IsLatinExtended-B}])\p{Mn}+", RegexOptions.Compiled);
 
         private Dictionary<string, List<double>> _penalties;
 
@@ -185,9 +190,17 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
 
         public static bool SameText(string value, string target)
         {
-            var cleanValue = Clean(value ?? string.Empty);
+            var cleanValue = CleanKeepingMarks(value);
 
-            return cleanValue.IsNotNullOrWhiteSpace() && cleanValue == Clean(target ?? string.Empty);
+            return cleanValue.IsNotNullOrWhiteSpace() && cleanValue == CleanKeepingMarks(target);
+        }
+
+        // Like Clean, but marks come off Latin letters only: in other scripts, such as Japanese voicing marks, they change the word
+        private static string CleanKeepingMarks(string input)
+        {
+            var decomposed = LatinAccents.Replace((input ?? string.Empty).ToLowerInvariant().Normalize(NormalizationForm.FormD), string.Empty);
+
+            return new string(decomposed.Where(c => char.IsLetterOrDigit(c) || CharUnicodeInfo.GetUnicodeCategory(c) == UnicodeCategory.NonSpacingMark).ToArray()).Normalize(NormalizationForm.FormC);
         }
     }
 }

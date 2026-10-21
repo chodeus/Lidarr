@@ -150,24 +150,30 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             return DistanceCalculator.TrackDistance(localTrack, track, 1).Penalties["recording_id"].Single();
         }
 
+        private const string ArtistId = "00000000-0000-0000-0000-0000000000aa";
+
         private Track GivenTimedTrack(string title, int milliseconds)
         {
             var track = GivenTrack(title);
             track.ForeignRecordingId = "11111111-1111-1111-1111-111111111111";
             track.Duration = milliseconds;
+            track.ArtistMetadata.Value.ForeignArtistId = ArtistId;
 
             return track;
         }
 
-        private static List<AcoustIdRecording> Named(string title, double? seconds)
+        private static List<AcoustIdRecording> Named(string title, double? seconds, params string[] artistIds)
         {
-            return new List<AcoustIdRecording> { new AcoustIdRecording { Id = "sibling", Title = title, Duration = seconds } };
+            var artists = (artistIds.Any() ? artistIds : new[] { ArtistId }).Select(x => new AcoustIdArtist { Id = x }).ToList();
+
+            return new List<AcoustIdRecording> { new AcoustIdRecording { Id = "sibling", Title = title, Duration = seconds, Artists = artists } };
         }
 
         [TestCase("one", 200)]
         [TestCase("One!", 200)]
-        [TestCase("one", 210)]
-        [TestCase("one", 190)]
+        [TestCase("Oné", 200)]
+        [TestCase("one", 203)]
+        [TestCase("one", 197)]
         public void should_give_a_named_recording_with_the_tracks_title_and_length_the_sibling_penalty(string title, double seconds)
         {
             var track = GivenTimedTrack("one", 200000);
@@ -178,14 +184,51 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         [TestCase("two", 200)]
         [TestCase("one (instrumental)", 200)]
         [TestCase("", 200)]
-        [TestCase("one", 210.5)]
-        [TestCase("one", 189.5)]
+        [TestCase("one", 203.5)]
+        [TestCase("one", 196.5)]
+        [TestCase("one", 210)]
         [TestCase("one", null)]
         public void should_penalise_a_named_recording_with_another_title_or_length(string title, double? seconds)
         {
             var track = GivenTimedTrack("one", 200000);
 
             FingerprintPenalty(track, Named(title, seconds)).Should().Be(1.0);
+        }
+
+        [Test]
+        public void should_give_a_recording_credited_to_the_track_artist_among_others_the_sibling_penalty()
+        {
+            var track = GivenTimedTrack("one", 200000);
+
+            FingerprintPenalty(track, Named("one", 200, "00000000-0000-0000-0000-0000000000bb", ArtistId)).Should().Be(0.2);
+        }
+
+        [Test]
+        public void should_penalise_another_artists_recording_with_the_tracks_title_and_length()
+        {
+            var track = GivenTimedTrack("one", 200000);
+
+            FingerprintPenalty(track, Named("one", 200, "00000000-0000-0000-0000-0000000000bb")).Should().Be(1.0);
+        }
+
+        [Test]
+        public void should_penalise_a_named_recording_without_artists()
+        {
+            var track = GivenTimedTrack("one", 200000);
+            var recordings = Named("one", 200);
+            recordings[0].Artists = null;
+
+            FingerprintPenalty(track, recordings).Should().Be(1.0);
+        }
+
+        [TestCase("バラ", "バラ", 0.2)]
+        [TestCase("バラ", "ハラ", 1.0)]
+        [TestCase("ปี", "ปิ", 1.0)]
+        public void should_keep_marks_outside_latin_letters_when_comparing_titles(string trackTitle, string recordingTitle, double penalty)
+        {
+            var track = GivenTimedTrack(trackTitle, 200000);
+
+            FingerprintPenalty(track, Named(recordingTitle, 200)).Should().Be(penalty);
         }
 
         [Test]
@@ -199,7 +242,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         [Test]
         public void should_penalise_a_named_recording_without_a_length_against_a_short_track()
         {
-            var track = GivenTimedTrack("one", 5000);
+            var track = GivenTimedTrack("one", 2000);
 
             FingerprintPenalty(track, Named("one", null)).Should().Be(1.0);
         }

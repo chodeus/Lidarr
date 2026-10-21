@@ -51,9 +51,9 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
         }
 
         [Test]
-        public void keeps_only_the_first_of_two_editions_it_adds()
+        public void adds_both_editions_one_source_lists_since_only_the_library_is_matched()
         {
-            Missing(new List<Album>(), Album("Lost Album (Deluxe Edition)", 2011), Album("Lost Album (Remastered)", 2016)).Should().Equal("Lost Album (Deluxe Edition) 2011");
+            Missing(new List<Album>(), Album("Lost Album (Deluxe Edition)", 2011), Album("Lost Album (Remastered)", 2016)).Should().Equal("Lost Album (Deluxe Edition) 2011", "Lost Album (Remastered) 2016");
         }
 
         private static Album WithIds(Album album, string id, string oldId)

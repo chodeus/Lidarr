@@ -36,22 +36,17 @@ namespace NzbDrone.Core.MetadataSource.Sources
         {
             var knownAlbums = known.ToList();
             var keys = knownAlbums.Select(Key).ToList();
-            var missing = new List<Album>();
 
-            foreach (var album in ById(knownAlbums, candidates))
-            {
-                var key = Key(album);
+            // Only against the known albums: one source's own same-title albums are different albums
+            return ById(knownAlbums, candidates).Where(album => !keys.Any(k => SameAlbum(k, Key(album)))).ToList();
+        }
 
-                if (keys.Any(k => SameAlbum(k, key)))
-                {
-                    continue;
-                }
+        // The known album that is this one by the title rule, if any
+        public static Album SameAlbumAs(IEnumerable<Album> known, Album album)
+        {
+            var key = Key(album);
 
-                keys.Add(key);
-                missing.Add(album);
-            }
-
-            return missing;
+            return known.FirstOrDefault(k => SameAlbum(Key(k), key));
         }
 
         private static IEnumerable<string> IdsOf(Album album)
@@ -59,12 +54,12 @@ namespace NzbDrone.Core.MetadataSource.Sources
             return (album.OldForeignAlbumIds ?? new List<string>()).Append(album.ForeignAlbumId);
         }
 
-        // The same title within a year, or an edition of the same title from any year
+        // The same title within a year (both known), or an edition of the same title from any year
         private static bool SameAlbum(AlbumKey a, AlbumKey b)
         {
             if (a.Title == b.Title)
             {
-                return a.Year == null || b.Year == null || Math.Abs(a.Year.Value - b.Year.Value) <= 1;
+                return a.Year != null && b.Year != null && Math.Abs(a.Year.Value - b.Year.Value) <= 1;
             }
 
             return (a.IsEdition || b.IsEdition) && a.BaseTitle == b.BaseTitle;
@@ -75,7 +70,15 @@ namespace NzbDrone.Core.MetadataSource.Sources
             var title = album.Title ?? string.Empty;
             var baseTitle = EditionSuffix.Replace(title, string.Empty);
 
-            return new AlbumKey(Parser.Parser.CleanArtistName(title), Parser.Parser.CleanArtistName(baseTitle), album.ReleaseDate?.Year, baseTitle.Length != title.Length);
+            return new AlbumKey(Clean(title), Clean(baseTitle), album.ReleaseDate?.Year, baseTitle.Length != title.Length);
+        }
+
+        // A title of symbols only cleans to nothing, so it is compared as written
+        private static string Clean(string title)
+        {
+            var clean = Parser.Parser.CleanArtistName(title);
+
+            return string.IsNullOrWhiteSpace(clean) ? title.Trim().ToLowerInvariant() : clean;
         }
 
         private record AlbumKey(string Title, string BaseTitle, int? Year, bool IsEdition);

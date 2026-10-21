@@ -21,6 +21,7 @@ namespace NzbDrone.Core.Music.ArtistCredits
     public class AlbumArtistCreditService : IAlbumArtistCreditService,
         IExecute<RefreshAlbumArtistCreditsCommand>,
         IHandle<AlbumAddedEvent>,
+        IHandle<AlbumInfoRefreshedEvent>,
         IHandle<AlbumDeletedEvent>,
         IHandle<ApplicationStartedEvent>,
         IHandle<ApplicationShutdownRequested>
@@ -40,6 +41,7 @@ namespace NzbDrone.Core.Music.ArtistCredits
         private readonly IManageCommandQueue _commandQueueManager;
         private readonly Logger _logger;
         private readonly ConcurrentDictionary<int, DateTime> _retryAfter = new ConcurrentDictionary<int, DateTime>();
+        private readonly object _writeLock = new object();
 
         private volatile bool _stopping;
 
@@ -70,16 +72,17 @@ namespace NzbDrone.Core.Music.ArtistCredits
 
         public void Execute(RefreshAlbumArtistCreditsCommand message)
         {
-            var now = DateTime.UtcNow;
-            foreach (var expired in _retryAfter.Where(r => r.Value <= now).ToList())
+            var started = DateTime.UtcNow;
+            foreach (var expired in _retryAfter.Where(r => r.Value <= started).ToList())
             {
                 _retryAfter.TryRemove(expired.Key, out _);
             }
 
-            var candidates = (message.AlbumIds?.Any() == true
-                    ? _repository.GetUncreditedCandidates(message.AlbumIds)
-                    : _repository.GetCandidates(now - RefreshAfter, BatchSize + _retryAfter.Count))
-                .Where(c => !_retryAfter.ContainsKey(c.AlbumId))
+            // Only the scheduled run backs off: a run for just-added albums is there to beat their downloads
+            var scheduled = message.AlbumIds?.Any() != true;
+            var candidates = (scheduled
+                    ? _repository.GetCandidates(started - RefreshAfter, BatchSize + _retryAfter.Count).Where(c => !_retryAfter.ContainsKey(c.AlbumId))
+                    : _repository.GetUncreditedCandidates(message.AlbumIds))
                 .Take(BatchSize)
                 .ToList();
 
@@ -88,7 +91,6 @@ namespace NzbDrone.Core.Music.ArtistCredits
                 return;
             }
 
-            var existing = _repository.FindByAlbumIds(candidates.Select(c => c.AlbumId).ToList()).ToDictionary(c => c.AlbumId);
             var naming = _namingConfigService.GetConfig();
             var namesUseGuests = new[] { naming.StandardTrackFormat, naming.MultiDiscTrackFormat }.Any(f => f?.IndexOf("Album Guests", StringComparison.OrdinalIgnoreCase) >= 0);
             var stored = 0;
@@ -101,12 +103,21 @@ namespace NzbDrone.Core.Music.ArtistCredits
                     break;
                 }
 
+                // Another run, scheduled or for just-added albums, may have fetched it since this one started
+                if (_repository.FindByAlbumId(candidate.AlbumId)?.LastFetched >= started)
+                {
+                    continue;
+                }
+
                 var names = _proxy.GetCredit(candidate.ForeignAlbumId);
 
                 // A failed read is retried on a later run, never stored as an empty credit.
                 if (names == null)
                 {
-                    _retryAfter[candidate.AlbumId] = DateTime.UtcNow + RetryFailedAfter;
+                    if (scheduled)
+                    {
+                        _retryAfter[candidate.AlbumId] = DateTime.UtcNow + RetryFailedAfter;
+                    }
 
                     if (++failures >= MaxConsecutiveFailures)
                     {
@@ -120,10 +131,16 @@ namespace NzbDrone.Core.Music.ArtistCredits
                 failures = 0;
 
                 var credit = AlbumArtistCredit.For(candidate.AlbumId, names, candidate.ForeignArtistId, DateTime.UtcNow);
-                existing.TryGetValue(candidate.AlbumId, out var current);
-                credit.Id = current?.Id ?? 0;
+                AlbumArtistCredit current;
 
-                _repository.Upsert(credit);
+                // Read again just before writing: another run may have stored this album during the fetch
+                lock (_writeLock)
+                {
+                    current = _repository.FindByAlbumId(candidate.AlbumId);
+                    credit.Id = current?.Id ?? 0;
+                    _repository.Upsert(credit);
+                }
+
                 stored++;
 
                 // Files keep their names and tags until renamed or retagged, as after a naming change
@@ -141,10 +158,21 @@ namespace NzbDrone.Core.Music.ArtistCredits
         // Folders of same-titled albums collide without their guests, so their credits are fetched before a download can finish
         public void Handle(AlbumAddedEvent message)
         {
-            var siblings = _repository.GetSiblingAlbumIds(message.Album.Id);
-            if (siblings.Any())
+            FetchSoon(new List<int> { message.Album.Id });
+        }
+
+        // An artist added or refreshed stores its new albums together, without an AlbumAddedEvent for each
+        public void Handle(AlbumInfoRefreshedEvent message)
+        {
+            FetchSoon(message.Added.Select(a => a.Id).ToList());
+        }
+
+        private void FetchSoon(List<int> albumIds)
+        {
+            var albums = albumIds.Any() ? _repository.GetAlbumsWithSiblings(albumIds) : new List<int>();
+            if (albums.Any())
             {
-                _commandQueueManager.Push(new RefreshAlbumArtistCreditsCommand { AlbumIds = siblings.Prepend(message.Album.Id).ToList() });
+                _commandQueueManager.Push(new RefreshAlbumArtistCreditsCommand { AlbumIds = albums });
             }
         }
 

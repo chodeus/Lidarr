@@ -15,13 +15,19 @@ namespace NzbDrone.Core.Music.ArtistCredits
         public bool HasFiles { get; set; }
     }
 
+    public class AlbumSibling
+    {
+        public int AlbumId { get; set; }
+        public int SiblingId { get; set; }
+    }
+
     public interface IAlbumArtistCreditRepository : IBasicRepository<AlbumArtistCredit>
     {
         AlbumArtistCredit FindByAlbumId(int albumId);
         List<AlbumArtistCredit> FindByAlbumIds(List<int> albumIds);
         List<AlbumArtistCreditCandidate> GetCandidates(DateTime staleBefore, int limit);
         List<AlbumArtistCreditCandidate> GetUncreditedCandidates(List<int> albumIds);
-        List<int> GetSiblingAlbumIds(int albumId);
+        List<int> GetAlbumsWithSiblings(List<int> albumIds);
         void DeleteByAlbumId(int albumId);
     }
 
@@ -92,16 +98,17 @@ namespace NzbDrone.Core.Music.ArtistCredits
             }
         }
 
-        public List<int> GetSiblingAlbumIds(int albumId)
+        // The given albums that share a title with another album by their artist, and those other albums
+        public List<int> GetAlbumsWithSiblings(List<int> albumIds)
         {
-            const string sql = @"SELECT ""Siblings"".""Id"" FROM ""Albums""
+            var sql = $@"SELECT ""Albums"".""Id"" AS ""AlbumId"", ""Siblings"".""Id"" AS ""SiblingId"" FROM ""Albums""
                 JOIN ""Albums"" AS ""Siblings"" ON ""Siblings"".""ArtistMetadataId"" = ""Albums"".""ArtistMetadataId""
                     AND ""Siblings"".""CleanTitle"" = ""Albums"".""CleanTitle"" AND ""Siblings"".""Id"" <> ""Albums"".""Id""
-                WHERE ""Albums"".""Id"" = @AlbumId";
+                WHERE ""Albums"".""Id"" IN ({string.Join(", ", albumIds)})";
 
             using (var conn = _database.OpenConnection())
             {
-                return conn.Query<int>(sql, new { AlbumId = albumId }).ToList();
+                return conn.Query<AlbumSibling>(sql).SelectMany(p => new[] { p.AlbumId, p.SiblingId }).Distinct().ToList();
             }
         }
 

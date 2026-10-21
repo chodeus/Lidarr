@@ -176,6 +176,84 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
         }
 
         [Test]
+        public void should_fetch_right_away_for_same_titled_albums_an_artist_refresh_added()
+        {
+            var first = GivenAlbum("Song", 2020);
+            var second = GivenAlbum("Song", 2021);
+            var unrelated = GivenAlbum("Other Song", 2021);
+
+            RefreshAlbumArtistCreditsCommand pushed = null;
+            Mocker.GetMock<IManageCommandQueue>()
+                  .Setup(q => q.Push(It.IsAny<RefreshAlbumArtistCreditsCommand>(), It.IsAny<CommandPriority>(), It.IsAny<CommandTrigger>()))
+                  .Callback<RefreshAlbumArtistCreditsCommand, CommandPriority, CommandTrigger>((c, _, _) => pushed = c);
+
+            _service.Handle(new AlbumInfoRefreshedEvent(new Artist(), new List<Album> { first, second, unrelated }, new List<Album>(), new List<Album>()));
+
+            pushed.AlbumIds.Should().BeEquivalentTo(new[] { first.Id, second.Id });
+            Mocker.GetMock<IManageCommandQueue>()
+                  .Verify(q => q.Push(It.IsAny<RefreshAlbumArtistCreditsCommand>(), It.IsAny<CommandPriority>(), It.IsAny<CommandTrigger>()), Times.Once());
+        }
+
+        [Test]
+        public void should_not_fetch_right_away_when_an_artist_refresh_added_no_same_titled_albums()
+        {
+            var album = GivenAlbum("Song", 2020);
+
+            _service.Handle(new AlbumInfoRefreshedEvent(new Artist(), new List<Album> { album }, new List<Album>(), new List<Album>()));
+
+            Mocker.GetMock<IManageCommandQueue>()
+                  .Verify(q => q.Push(It.IsAny<RefreshAlbumArtistCreditsCommand>(), It.IsAny<CommandPriority>(), It.IsAny<CommandTrigger>()), Times.Never());
+        }
+
+        [Test]
+        public void should_update_a_credit_another_run_stored_while_this_one_fetched_it()
+        {
+            var album = GivenAlbum("Song", 2020);
+            GivenCredit(_ =>
+            {
+                Subject.Insert(new AlbumArtistCredit { AlbumId = album.Id, Credit = "Primary", Guests = "", Artists = PrimaryOnly(), LastFetched = DateTime.UtcNow.AddDays(-100) });
+                return PrimaryAndGuest();
+            });
+
+            _service.Execute(new RefreshAlbumArtistCreditsCommand());
+
+            Subject.All().Where(c => c.AlbumId == album.Id).Should().ContainSingle().Which.Credit.Should().Be("Primary & Guest");
+        }
+
+        [Test]
+        public void should_not_fetch_an_album_another_run_fetched_since_this_one_started()
+        {
+            var first = GivenAlbum("Song", 2021);
+            var second = GivenAlbum("Other Song", 2020);
+            GivenCredit(id =>
+            {
+                if (id == first.ForeignAlbumId)
+                {
+                    Subject.Insert(new AlbumArtistCredit { AlbumId = second.Id, Credit = "Primary", Guests = "", Artists = PrimaryOnly(), LastFetched = DateTime.UtcNow });
+                }
+
+                return PrimaryAndGuest();
+            });
+
+            _service.Execute(new RefreshAlbumArtistCreditsCommand());
+
+            Mocker.GetMock<IMusicBrainzArtistCreditProxy>().Verify(p => p.GetCredit(second.ForeignAlbumId), Times.Never());
+        }
+
+        [Test]
+        public void should_not_back_off_albums_that_failed_in_a_run_for_just_added_albums()
+        {
+            var album = GivenAlbum("Song", 2020);
+            GivenCredit(_ => null);
+            _service.Execute(new RefreshAlbumArtistCreditsCommand { AlbumIds = new List<int> { album.Id } });
+
+            GivenCredit(_ => PrimaryAndGuest());
+            _service.Execute(new RefreshAlbumArtistCreditsCommand());
+
+            Subject.FindByAlbumId(album.Id).Should().NotBeNull();
+        }
+
+        [Test]
         public void should_not_fetch_right_away_for_an_album_without_a_same_titled_sibling()
         {
             var album = GivenAlbum("Song", 2020);

@@ -83,7 +83,8 @@ namespace NzbDrone.Core.MetadataSource.Sources
                 return found;
             }
 
-            var artist = Lookup(RouteFor(profile, lidarrId), Ask, () => new ArtistNotFoundException(lidarrId), MergeAlbums);
+            // Filtered before the supplements too, so a left-out edition can't make a supplement skip the album it is an edition of
+            var artist = WithoutIgnoredAlbums(Lookup(RouteFor(profile, lidarrId), Ask, () => new ArtistNotFoundException(lidarrId), MergeAlbums), metadataProfileId);
 
             AddSupplements(profile, artist, lidarrId, metadataProfileId, answered);
 
@@ -382,10 +383,11 @@ namespace NzbDrone.Core.MetadataSource.Sources
             return artist == null ? _profileService.GetDefaultProfile() : _profileService.BestForTags(artist.Tags);
         }
 
-        // Only read when it can matter: a tagged profile picks the sources, or a supplementary album keeps its owner
+        // Only read when it can matter: a tagged profile picks the sources, or an album with another kind of ID than the default
+        // primaries came from a supplement or a fallback and keeps its owner, whatever role that source has now
         private Artist OwnerOfAlbum(string foreignAlbumId)
         {
-            if (!_profileService.HasTaggedProfiles() && !_profileService.HasSupplementarySources())
+            if (!_profileService.HasTaggedProfiles() && FamilyOf(foreignAlbumId) == PrimaryFamilyOf(_profileService.GetDefaultProfile()))
             {
                 return null;
             }
@@ -399,30 +401,51 @@ namespace NzbDrone.Core.MetadataSource.Sources
         private void AddSupplements(MetadataSourceProfile profile, Artist artist, string foreignArtistId, int metadataProfileId, IMetadataSource answered)
         {
             var albums = artist.Albums.Value;
+            var primary = albums.ToList();
 
             // A supplement that answered for the artist when nothing else could would only repeat itself
             foreach (var source in SourcesOf(profile).Where(x => x.Role == MetadataSourceRole.Supplementary && x.Source != answered).Select(x => x.Source))
             {
                 var sameKind = source.CanHandleId(foreignArtistId);
+
+                if (!sameKind)
+                {
+                    AdoptAlbumsAddedBy(source, foreignArtistId, primary);
+                }
+
                 var id = sameKind
                     ? foreignArtistId
                     : artist.Metadata.Value.Links?.Select(l => source.IdFromLink(l.Url)).FirstOrDefault(i => i != null);
 
                 if (id == null)
                 {
-                    _logger.Debug("{0} has no link to {1}, so it adds nothing", artist.Name, source.Definition?.Name);
+                    _logger.Debug("{0} has no link to {1}, keeping the albums it added before", artist.Name, source.Definition?.Name);
+                    albums.AddRange(AlbumsAddedBy(source, foreignArtistId, albums));
                     continue;
                 }
 
                 try
                 {
-                    // With shared IDs, the same title under another ID is another album
                     var listed = source.GetArtistInfo(id, metadataProfileId).Albums.Value;
+
+                    // An empty list is no proof the albums it added went away
+                    if (!sameKind && listed.Empty())
+                    {
+                        albums.AddRange(AlbumsAddedBy(source, foreignArtistId, albums));
+                        continue;
+                    }
+
+                    // With shared IDs, the same title under another ID is another album
                     albums.AddRange(sameKind ? MissingAlbums.ById(albums, listed) : MissingAlbums.ByIdOrTitle(albums, listed));
                 }
                 catch (ArtistNotFoundException)
                 {
-                    _logger.Debug("{0} does not have {1}", source.Definition?.Name, id);
+                    _logger.Debug("{0} does not have {1}, keeping the albums it added before", source.Definition?.Name, id);
+
+                    if (!sameKind)
+                    {
+                        albums.AddRange(AlbumsAddedBy(source, foreignArtistId, albums));
+                    }
                 }
 
                 // Albums with the artist's own kind of IDs can't be told apart by source, so that outage fails the lookup like an And merge
@@ -436,16 +459,42 @@ namespace NzbDrone.Core.MetadataSource.Sources
 
         private IEnumerable<Album> AlbumsAddedBy(IMetadataSource source, string foreignArtistId, List<Album> listed)
         {
+            var listedIds = listed.SelectMany(a => (a.OldForeignAlbumIds ?? new List<string>()).Append(a.ForeignAlbumId)).ToHashSet();
+
+            return StoredAlbumsOf(source, foreignArtistId).Where(a => !listedIds.Contains(a.ForeignAlbumId)).ToList();
+        }
+
+        // The primary now lists an album the supplement added: its ID becomes an old ID of the primary's album, so refresh merges the two
+        private void AdoptAlbumsAddedBy(IMetadataSource source, string foreignArtistId, List<Album> primary)
+        {
+            foreach (var stored in StoredAlbumsOf(source, foreignArtistId))
+            {
+                var match = MissingAlbums.SameAlbumAs(primary, stored);
+
+                if (match == null)
+                {
+                    continue;
+                }
+
+                match.OldForeignAlbumIds ??= new List<string>();
+
+                if (!match.OldForeignAlbumIds.Contains(stored.ForeignAlbumId))
+                {
+                    match.OldForeignAlbumIds.Add(stored.ForeignAlbumId);
+                }
+            }
+        }
+
+        private List<Album> StoredAlbumsOf(IMetadataSource source, string foreignArtistId)
+        {
             var local = _artistService.FindById(foreignArtistId);
 
-            if (local == null)
-            {
-                return Enumerable.Empty<Album>();
-            }
+            return local == null ? new List<Album>() : _albumService.GetAlbumsByArtist(local.Id).Where(a => source.CanHandleId(a.ForeignAlbumId)).ToList();
+        }
 
-            var listedIds = listed.Select(a => a.ForeignAlbumId).ToHashSet();
-
-            return _albumService.GetAlbumsByArtist(local.Id).Where(a => source.CanHandleId(a.ForeignAlbumId) && !listedIds.Contains(a.ForeignAlbumId)).ToList();
+        private string PrimaryFamilyOf(MetadataSourceProfile profile)
+        {
+            return SourcesOf(profile).Where(x => x.Role == MetadataSourceRole.Primary).Select(x => x.Source.IdFamily).FirstOrDefault() ?? _lastResort.IdFamily;
         }
 
         // A supplementary album belongs to the artist it was added to, not to the supplement's copy of that artist

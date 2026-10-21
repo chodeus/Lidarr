@@ -20,7 +20,6 @@ namespace NzbDrone.Core.Profiles.MetadataSources
         MetadataSourceProfile GetDefaultProfile();
         MetadataSourceProfile BestForTags(HashSet<int> tagIds);
         bool HasTaggedProfiles();
-        bool HasSupplementarySources();
         List<MetadataSourceProfile> Reorder(int id, int? afterId);
     }
 
@@ -100,11 +99,6 @@ namespace NzbDrone.Core.Profiles.MetadataSources
         public bool HasTaggedProfiles()
         {
             return _flagCache.Get("tagged", () => All().Any(p => p.Tags.Any()), TimeSpan.FromSeconds(30));
-        }
-
-        public bool HasSupplementarySources()
-        {
-            return _flagCache.Get("supplementary", () => All().Any(p => p.Items.Any(i => i.Role == MetadataSourceRole.Supplementary)), TimeSpan.FromSeconds(30));
         }
 
         private MetadataSourceProfile FetchBestForTags(HashSet<int> tagIds)

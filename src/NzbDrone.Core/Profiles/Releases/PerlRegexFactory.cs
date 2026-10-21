@@ -22,6 +22,9 @@ namespace NzbDrone.Core.Profiles.Releases
             return true;
         }
 
+        // A term runs against every album title on every refresh, so a pattern that backtracks badly times out instead of hanging it
+        public static readonly TimeSpan TermMatchTimeout = TimeSpan.FromMilliseconds(100);
+
         // Anchored, unlike TryCreateRegex, so a plain term such as "Live // Unplugged" stays plain
         public static bool TryCreateTermRegex(string term, out Regex regex)
         {
@@ -33,7 +36,7 @@ namespace NzbDrone.Core.Profiles.Releases
                 return false;
             }
 
-            regex = CreateRegex(match.Groups["pattern"].Value, match.Groups["modifiers"].Value);
+            regex = new Regex(match.Groups["pattern"].Value, GetOptions(match.Groups["modifiers"].Value) | RegexOptions.Compiled, TermMatchTimeout);
             return true;
         }
 

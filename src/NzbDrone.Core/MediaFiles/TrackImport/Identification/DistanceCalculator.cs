@@ -19,6 +19,9 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
         // Keeps the credit as written ahead of its looser reading when both are candidates
         private const double LooseReadingPenalty = 0.01;
 
+        // Keeps the credit as written ahead of the same credit with its featured guests left out
+        private const double WithoutGuestsPenalty = 0.01;
+
         private static readonly Logger Logger = NzbDroneLogger.GetLogger(typeof(DistanceCalculator));
 
         public static readonly List<string> VariousArtistIds = new List<string> { "89ad4ac3-39f7-470e-963a-56509c546377" };
@@ -70,10 +73,16 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
             return WebAddress.IsMatch((name ?? "").Trim());
         }
 
+        private static string WithoutGuests(string tag)
+        {
+            return FeaturedArtists.Replace(tag, "");
+        }
+
+        // A piece that cleans to nothing would match an artist whose name does too
         private static List<string> CreditedArtists(string tag)
         {
-            var main = FeaturedArtists.Replace(tag, "");
-            var artists = ArtistSeparators.Split(main).Where(x => x.IsNotNullOrWhiteSpace()).ToList();
+            var main = WithoutGuests(tag);
+            var artists = ArtistSeparators.Split(main).Where(Distance.HasLettersOrDigits).ToList();
 
             return main != tag || artists.Count > 1 ? artists : new List<string>();
         }
@@ -136,10 +145,14 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
             var names = new List<string> { metadata.Name };
             var aliases = (metadata.Aliases ?? new List<string>()).Where(Distance.HasLettersOrDigits).ToList();
 
-            if (!VariousArtistIds.Contains(metadata.ForeignArtistId) && !IsWatermark(artist, names.Concat(aliases).ToList()))
+            // Only the name decides whether the tag is a watermark: another artist's release would skip it, so a web-like alias would lose
+            if (!VariousArtistIds.Contains(metadata.ForeignArtistId) && !IsWatermark(artist, names))
             {
+                // The credit without its guests is scored whole too, so a name such as "Earth, Wind & Fire" isn't only scored piece by piece
+                var main = WithoutGuests(artist);
                 var penalty = CreditedArtists(artist).Select(a => NameOrAliasPenalty(a, names, aliases, Distance.ClosestPenalty) + CreditedArtistPenalty)
                                                      .Append(NameOrAliasPenalty(artist, names, aliases, WholeCreditPenalty))
+                                                     .Append(main != artist ? NameOrAliasPenalty(main, names, aliases, WholeCreditPenalty) + WithoutGuestsPenalty : 1.0)
                                                      .Min();
                 dist.Add("artist", penalty);
                 Logger.Trace("artist: {0} vs {1} or its {2} aliases; {3}", artist, metadata.Name, aliases.Count, dist.NormalizedDistance());

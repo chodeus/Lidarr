@@ -9,6 +9,7 @@ using NzbDrone.Core.Lifecycle;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Music.ArtistCredits;
 using NzbDrone.Core.Music.Events;
+using NzbDrone.Core.Organizer;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Test.Common;
 
@@ -18,6 +19,14 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistCreditTests
     public class AlbumArtistCreditServiceFixture : CoreTest<AlbumArtistCreditService>
     {
         private List<AlbumArtistCreditCandidate> _candidates;
+
+        [SetUp]
+        public void Setup()
+        {
+            Mocker.GetMock<INamingConfigService>()
+                  .Setup(c => c.GetConfig())
+                  .Returns(NamingConfig.Default);
+        }
 
         private static List<AlbumArtistCreditName> Credit(params string[] names)
         {

@@ -7,16 +7,20 @@ Lidarr keeps one artist per album and per track, and the metadata server returns
 **What it adds**
 - `AlbumArtistCredits` table (migration 902, custom-build range): album id, joined credit, guests, the credit's artists (name, MBID, join phrase), last fetched.
 - `RefreshAlbumArtistCreditsCommand`, a scheduled task every 15 minutes, up to 700 albums per run. It reads `ws/2/release-group/{id}?inc=artist-credits` at one request per 1.1 s.
-  - Order: albums with no credit that share a title with a sibling, then other albums with no credit (newest first), then credits older than 90 days.
-  - A 404 stores an empty credit. Any other failure stores nothing and is retried. Five failures in a row end the run.
-- `{Album Guests}` naming token: the credit without the album's artist, e.g. `{Album Title}{ (Album Guests)}`.
-- "Write Full Artist Credits" option (Media Management, off by default). It writes the credit to the album artist tag, and to the artist tag of tracks by the album's own artist; tracks by other artists keep their artist.
+  - Order: albums with no credit, those with files first, then those sharing a title with a sibling, then the newest; then credits older than 90 days.
+  - A 404 stores an empty credit. Any other failure stores nothing, and the album waits 6 hours before it is tried again, so albums that always fail can't hold the front of the queue. Five failures in a row end the run.
+- When an album is added with the same title as another album by its artist, the credits of both are fetched straight away, before a download can finish, so their folders don't collide.
+- Guests are worked out against the album's current artist when they are read, so an album that moves to another artist names the right guests. A credit whose album is gone is never returned, and a housekeeper deletes it.
+- Files aren't renamed or retagged when a credit arrives or changes, as after a change to the naming format. Instead a warning names the album when the stored credit changes its guests and the track format uses `{Album Guests}`, or changes its credit while "Write Full Artist Credits" is on, and the album has files: rename or retag it to apply the credit.
+- `{Album Guests}` naming token: the credit without the album's artist, e.g. `{Album Title}{ (Album Guests)}`. It is empty when the credit doesn't name the album's artist at all, such as a duo credited as its members.
+- "Write Full Artist Credits" option (Media Management, off by default). It writes the credit to the album artist tag, and to the artist tag of tracks by the album's own artist, when audio tags are written; tracks by other artists keep their artist. Files tagged before their credit arrives keep their tags until retagged.
 - `GET /api/v1/album/artistcredit?albumIds=…`
 
 **Compatibility with the rest of the build.** `AudioTagService` and `FileNameBuilder` read credits through `AlbumArtistCreditLookup`, a static lookup set at startup. Their constructors and fields are untouched: `tagging-profiles` replaces `AudioTagService`'s constructor, and plugins are built against develop's. The UI setting sits in Media Management because `tagging-profiles` removes the Metadata page's provider section. The en.json keys sort where no other branch edits.
 
 **Verified**
 - 29 new tests. Eight mutations each fail a test (checked that each one built).
+- Re-audit (2026-10): `AlbumArtistCreditRefreshFixture` runs the service on the real repository over the test database, with only MusicBrainz mocked. It covers albums that always fail without starving the queue, an album deleted mid-fetch (neither returned nor kept after housekeeping), guests following the album's current artist, fetching a new same-titled album's credit straight away (only the new one; the folders then differ), no fetch without a sibling, and the warning (with files and guests, but not when the naming leaves guests out, nor without files or guests). Eleven mutations each fail a test. Full Core suite on the branch: 3281 passed.
 - Branch alone: full Core suite 3252 passed, 1 failed (`no_update_when_version_higher`, which also fails on develop).
 - The six `pr_branches` plus this one merge cleanly in image order onto develop `da7b4df`. On that merge, the full Core suite passes 3338 with 1 failure; without this branch it passes 3309 with the same single failure (+29 tests, no new failures). Migrations are unique: 082, 900, 901, 902.
 - Smoke boot on a fresh DB:

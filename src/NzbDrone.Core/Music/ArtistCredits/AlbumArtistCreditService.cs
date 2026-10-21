@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using NLog;
@@ -7,6 +8,7 @@ using NzbDrone.Core.Lifecycle;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Music.Events;
+using NzbDrone.Core.Organizer;
 
 namespace NzbDrone.Core.Music.ArtistCredits
 {
@@ -18,6 +20,7 @@ namespace NzbDrone.Core.Music.ArtistCredits
 
     public class AlbumArtistCreditService : IAlbumArtistCreditService,
         IExecute<RefreshAlbumArtistCreditsCommand>,
+        IHandle<AlbumAddedEvent>,
         IHandle<AlbumDeletedEvent>,
         IHandle<ApplicationStartedEvent>,
         IHandle<ApplicationShutdownRequested>
@@ -27,21 +30,31 @@ namespace NzbDrone.Core.Music.ArtistCredits
         public const int MaxConsecutiveFailures = 5;
         public static readonly TimeSpan RefreshAfter = TimeSpan.FromDays(90);
 
+        // A failed album waits this long, so albums that always fail can't hold the front of the queue
+        public static readonly TimeSpan RetryFailedAfter = TimeSpan.FromHours(6);
+
         private readonly IAlbumArtistCreditRepository _repository;
         private readonly IMusicBrainzArtistCreditProxy _proxy;
         private readonly IConfigService _configService;
+        private readonly INamingConfigService _namingConfigService;
+        private readonly IManageCommandQueue _commandQueueManager;
         private readonly Logger _logger;
+        private readonly ConcurrentDictionary<int, DateTime> _retryAfter = new ConcurrentDictionary<int, DateTime>();
 
         private volatile bool _stopping;
 
         public AlbumArtistCreditService(IAlbumArtistCreditRepository repository,
                                         IMusicBrainzArtistCreditProxy proxy,
                                         IConfigService configService,
+                                        INamingConfigService namingConfigService,
+                                        IManageCommandQueue commandQueueManager,
                                         Logger logger)
         {
             _repository = repository;
             _proxy = proxy;
             _configService = configService;
+            _namingConfigService = namingConfigService;
+            _commandQueueManager = commandQueueManager;
             _logger = logger;
         }
 
@@ -57,13 +70,27 @@ namespace NzbDrone.Core.Music.ArtistCredits
 
         public void Execute(RefreshAlbumArtistCreditsCommand message)
         {
-            var candidates = _repository.GetCandidates(DateTime.UtcNow - RefreshAfter, BatchSize);
+            var now = DateTime.UtcNow;
+            foreach (var expired in _retryAfter.Where(r => r.Value <= now).ToList())
+            {
+                _retryAfter.TryRemove(expired.Key, out _);
+            }
+
+            var candidates = (message.AlbumIds?.Any() == true
+                    ? _repository.GetUncreditedCandidates(message.AlbumIds)
+                    : _repository.GetCandidates(now - RefreshAfter, BatchSize + _retryAfter.Count))
+                .Where(c => !_retryAfter.ContainsKey(c.AlbumId))
+                .Take(BatchSize)
+                .ToList();
+
             if (candidates.Count == 0)
             {
                 return;
             }
 
             var existing = _repository.FindByAlbumIds(candidates.Select(c => c.AlbumId).ToList()).ToDictionary(c => c.AlbumId);
+            var naming = _namingConfigService.GetConfig();
+            var namesUseGuests = new[] { naming.StandardTrackFormat, naming.MultiDiscTrackFormat }.Any(f => f?.IndexOf("Album Guests", StringComparison.OrdinalIgnoreCase) >= 0);
             var stored = 0;
             var failures = 0;
 
@@ -79,6 +106,8 @@ namespace NzbDrone.Core.Music.ArtistCredits
                 // A failed read is retried on a later run, never stored as an empty credit.
                 if (names == null)
                 {
+                    _retryAfter[candidate.AlbumId] = DateTime.UtcNow + RetryFailedAfter;
+
                     if (++failures >= MaxConsecutiveFailures)
                     {
                         _logger.Warn("MusicBrainz is not answering; stopping the artist credit refresh after {0} of {1} albums", stored, candidates.Count);
@@ -91,16 +120,32 @@ namespace NzbDrone.Core.Music.ArtistCredits
                 failures = 0;
 
                 var credit = AlbumArtistCredit.For(candidate.AlbumId, names, candidate.ForeignArtistId, DateTime.UtcNow);
-                if (existing.TryGetValue(candidate.AlbumId, out var current))
-                {
-                    credit.Id = current.Id;
-                }
+                existing.TryGetValue(candidate.AlbumId, out var current);
+                credit.Id = current?.Id ?? 0;
 
                 _repository.Upsert(credit);
                 stored++;
+
+                // Files keep their names and tags until renamed or retagged, as after a naming change
+                var guestsChanged = namesUseGuests && (current?.Guests ?? string.Empty) != credit.Guests;
+                var creditChanged = _configService.WriteAlbumArtistCredits && current != null && current.Credit != credit.Credit;
+                if (candidate.HasFiles && (guestsChanged || creditChanged))
+                {
+                    _logger.Warn("The artist credit of album {0} is now '{1}' (guests '{2}'); rename or retag its files to use it", candidate.AlbumId, credit.Credit, credit.Guests);
+                }
             }
 
             _logger.Info("Refreshed the artist credit of {0} of {1} albums", stored, candidates.Count);
+        }
+
+        // Folders of same-titled albums collide without their guests, so their credits are fetched before a download can finish
+        public void Handle(AlbumAddedEvent message)
+        {
+            var siblings = _repository.GetSiblingAlbumIds(message.Album.Id);
+            if (siblings.Any())
+            {
+                _commandQueueManager.Push(new RefreshAlbumArtistCreditsCommand { AlbumIds = siblings.Prepend(message.Album.Id).ToList() });
+            }
         }
 
         public void Handle(AlbumDeletedEvent message)

@@ -22,6 +22,7 @@ Tests: the generator (both links, several albums, selection, no artist, no artis
 * **New Features**
   * Telegram and Pushcut notifications can include configurable MusicBrainz artist and album links for relevant events.
   * Gotify notifications can include configured metadata links, with clicks opening the selected preferred link.
+  * Gotify sends links as Markdown and escapes names; Pushcut presents links as notification actions.
   * Telegram test notifications include a link to Lidarr’s website, and Gotify’s do when links are selected.
 
 * **Bug Fixes**

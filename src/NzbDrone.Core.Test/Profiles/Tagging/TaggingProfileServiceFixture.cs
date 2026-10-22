@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
@@ -188,6 +190,36 @@ namespace NzbDrone.Core.Test.Profiles.Tagging
             Subject.Update(profile);
 
             profile.Order.Should().Be(2);
+        }
+
+        [Test]
+        public void reorder_after_default_should_keep_profile_ahead_of_default()
+        {
+            Subject.Reorder(_taggedProfile.Id, _defaultProfile.Id);
+
+            _untaggedProfile.Order.Should().Be(1);
+            _taggedProfile.Order.Should().Be(2);
+            _defaultProfile.Order.Should().Be(int.MaxValue);
+        }
+
+        [Test]
+        public void reorder_should_not_move_seeded_default_profile()
+        {
+            Subject.Reorder(_defaultProfile.Id, null);
+
+            Mocker.GetMock<ITaggingProfileRepository>()
+                  .Verify(v => v.SetFields(It.IsAny<IList<TaggingProfile>>(), It.IsAny<Expression<Func<TaggingProfile, object>>[]>()), Times.Never());
+            Mocker.GetMock<ITaggingProfileRepository>()
+                  .Verify(v => v.UpdateMany(It.IsAny<IList<TaggingProfile>>()), Times.Never());
+        }
+
+        [Test]
+        public void delete_should_not_delete_seeded_default_profile()
+        {
+            Subject.Delete(_defaultProfile.Id);
+
+            Mocker.GetMock<ITaggingProfileRepository>()
+                  .Verify(v => v.Delete(_defaultProfile.Id), Times.Never());
         }
     }
 }

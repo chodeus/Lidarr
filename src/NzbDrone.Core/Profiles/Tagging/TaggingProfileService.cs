@@ -76,6 +76,11 @@ namespace NzbDrone.Core.Profiles.Tagging
 
         public void Delete(int id)
         {
+            if (id == ProfileOrder.DefaultProfileId)
+            {
+                return;
+            }
+
             lock (_syncRoot)
             {
                 try

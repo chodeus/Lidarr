@@ -68,6 +68,12 @@ namespace NzbDrone.Core.ImportLists.ImportListItems
                               .GroupBy(m => m.Key)
                               .ToDictionary(g => g.Key, g => g.First().ArtistMusicBrainzId);
 
+            if (byKey.Count == 0)
+            {
+                return;
+            }
+
+            // Every list's rows, since the sync de-duplicates items across lists before mapping them
             var toUpdate = _importListItemRepository.All()
                 .Where(i => byKey.TryGetValue(KeyOf(i), out var artistId) && i.MappedArtistMusicBrainzId != artistId)
                 .ToList();

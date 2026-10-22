@@ -77,9 +77,9 @@ namespace NzbDrone.Core.ImportLists
         }
 
         // The lists with a pending clean, or none unless every list synced and none is failing
-        private List<int> ListsWithAPendingClean()
+        // Null when a list failed or never synced, since its stored items can't be trusted
+        private List<int> ListsWithAPendingClean(List<IImportList> lists)
         {
-            var lists = _importListFactory.AutomaticAddEnabled(false);
             var pending = new List<int>();
 
             foreach (var list in lists)
@@ -89,13 +89,19 @@ namespace NzbDrone.Core.ImportLists
                 if (status.DisabledTill.HasValue)
                 {
                     // list failed the last time it was synced.
-                    return new List<int>();
+                    return null;
                 }
 
                 if (!status.LastInfoSync.HasValue)
                 {
                     // list has never been synced.
-                    return new List<int>();
+                    return null;
+                }
+
+                if (status.MostRecentFailure > status.LastInfoSync)
+                {
+                    // list failed since its last sync but isn't disabled, as during the startup grace period
+                    return null;
                 }
 
                 if (status.HasRemovedItemSinceLastClean)
@@ -485,22 +491,24 @@ namespace NzbDrone.Core.ImportLists
             _eventAggregator.PublishEvent(new ImportListSyncCompleteEvent(processed));
         }
 
-        private void TryCleanLibrary()
+        private void TryCleanLibrary(int? deletedListId = null)
         {
             if (_configService.ListSyncLevel == ListSyncLevelType.Disabled)
             {
                 return;
             }
 
-            var pending = ListsWithAPendingClean();
+            var lists = _importListFactory.AutomaticAddEnabled(false);
+            var pending = ListsWithAPendingClean(lists);
 
-            if (pending.Any())
+            // A deleted list is a removal too, but with no list left every artist would look unlisted
+            if (pending != null && (pending.Any() || (deletedListId.HasValue && lists.Any())))
             {
-                CleanLibrary(pending);
+                CleanLibrary(pending, deletedListId);
             }
         }
 
-        private void CleanLibrary(List<int> pendingListIds)
+        private void CleanLibrary(List<int> pendingListIds, int? deletedListId)
         {
             if (_configService.ListSyncLevel == ListSyncLevelType.Disabled)
             {
@@ -514,7 +522,9 @@ namespace NzbDrone.Core.ImportLists
             }
 
             var artistsToUpdate = new List<Artist>();
-            var allListItems = _importListItemService.All();
+
+            // The deleted list's items may not be removed yet when its deletion triggers this clean
+            var allListItems = _importListItemService.All().Where(i => i.ImportListId != deletedListId).ToList();
 
             var listArtistIds = allListItems.SelectMany(l => new[] { l.ArtistMusicBrainzId, l.MappedArtistMusicBrainzId }).Where(x => x.IsNotNullOrWhiteSpace()).ToHashSet();
             var listArtistNames = allListItems.Where(l => l.Artist.IsNotNullOrWhiteSpace()).Select(l => l.Artist.CleanArtistName()).ToHashSet();
@@ -613,7 +623,7 @@ namespace NzbDrone.Core.ImportLists
 
         public void HandleAsync(ProviderDeletedEvent<IImportList> message)
         {
-            TryCleanLibrary();
+            TryCleanLibrary(message.ProviderId);
         }
     }
 }

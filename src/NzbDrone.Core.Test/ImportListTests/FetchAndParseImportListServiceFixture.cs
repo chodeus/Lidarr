@@ -96,7 +96,7 @@ namespace NzbDrone.Core.Test.ImportListTests
             Mocker.GetMock<IImportListItemService>()
                 .Verify(v => v.SyncItemsForList(It.IsAny<List<ImportListItemInfo>>(), 2), Times.Never());
             Mocker.GetMock<IImportListStatusService>()
-                .Verify(v => v.UpdateListSyncStatus(2, false), Times.Once());
+                .Verify(v => v.UpdateListSyncStatus(2, It.IsAny<bool>()), Times.Never());
         }
 
         [Test]

@@ -20,6 +20,7 @@ using NzbDrone.Core.MetadataSource.SkyHook.Resource;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 using SpotifyAPI.Web;
 using SpotifyAPI.Web.Models;
 
@@ -114,8 +115,8 @@ namespace NzbDrone.Core.Test.ImportListTests
         // Last.fm sends "mbid": "" for artists it has no MusicBrainz id for
         private static List<ImportListItemInfo> ParseLastFmTopAlbums()
         {
-            var json = "{\"topalbums\":{\"album\":[{\"name\":\"OK Computer\",\"mbid\":\"\",\"artist\":{\"name\":\"Radiohead\",\"mbid\":\"\"}}]}}";
-            var request = new ImportListRequest("http://ws.audioscrobbler.com/2.0/", HttpAccept.Json);
+            var json = "{\"topalbums\":{\"album\":[{\"name\":\"Album Title\",\"mbid\":\"\",\"artist\":{\"name\":\"Artist Name\",\"mbid\":\"\"}}]}}";
+            var request = new ImportListRequest("http://lastfm.example.invalid/2.0/", HttpAccept.Json);
             var response = new HttpResponse(request.HttpRequest, new HttpHeader(), json);
 
             return new LastFmParser().ParseResponse(new ImportListResponse(request, response)).ToList();
@@ -125,14 +126,14 @@ namespace NzbDrone.Core.Test.ImportListTests
         [Test]
         public void should_not_clean_while_an_item_is_placed_only_by_a_title_search()
         {
-            GivenLibraryArtist("Radiohead", "mb-radiohead");
+            GivenLibraryArtist("Artist Name", "mb-artist");
             var unlisted = GivenLibraryArtist("Not Listed", "mb-unlisted");
 
             Mocker.GetMock<ISearchForNewAlbum>()
-                  .Setup(v => v.SearchForNewAlbum("OK Computer", "Radiohead"))
+                  .Setup(v => v.SearchForNewAlbum("Album Title", "Artist Name"))
                   .Returns(new List<Album>
                   {
-                      new Album { ForeignAlbumId = "rg-ok-computer", Title = "OK Computer", ArtistMetadata = new ArtistMetadata { ForeignArtistId = "mb-radiohead", Name = "Radiohead" } }
+                      new Album { ForeignAlbumId = "rg-album", Title = "Album Title", ArtistMetadata = new ArtistMetadata { ForeignArtistId = "mb-artist", Name = "Artist Name" } }
                   });
 
             var dropped = new ImportListItemInfo { Artist = "Dropped", ArtistMusicBrainzId = "mb-dropped" };
@@ -144,7 +145,9 @@ namespace NzbDrone.Core.Test.ImportListTests
             Sync();
 
             Reload(unlisted).Monitored.Should().BeTrue();
-            Mocker.Resolve<IImportListItemService>().All().Should().Contain(i => i.Album == "OK Computer" && i.MappedArtistMusicBrainzId == null);
+            Mocker.Resolve<IImportListItemService>().All().Should().Contain(i => i.Album == "Album Title" && i.MappedArtistMusicBrainzId == null);
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -206,23 +209,25 @@ namespace NzbDrone.Core.Test.ImportListTests
             Sync();
 
             Mocker.Resolve<IImportListStatusService>().GetBlockedProviders().Should().BeEmpty();
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
         public void should_not_trust_an_artist_found_by_a_title_search()
         {
-            GivenLibraryArtist("Radiohead", "mb-radiohead");
+            GivenLibraryArtist("Artist Name", "mb-artist");
             var unlisted = GivenLibraryArtist("Not Listed", "mb-unlisted");
 
             Mocker.GetMock<ISearchForNewAlbum>()
-                  .Setup(v => v.SearchForNewAlbum("OK Computer", "Radiohead"))
+                  .Setup(v => v.SearchForNewAlbum("Album Title", "Artist Name"))
                   .Returns(new List<Album>
                   {
-                      new Album { ForeignAlbumId = "rg-ok-computer", Title = "OK Computer", ArtistMetadata = new ArtistMetadata { ForeignArtistId = "mb-radiohead", Name = "Radiohead" } }
+                      new Album { ForeignAlbumId = "rg-album", Title = "Album Title", ArtistMetadata = new ArtistMetadata { ForeignArtistId = "mb-artist", Name = "Artist Name" } }
                   });
 
             var dropped = new ImportListItemInfo { Artist = "Dropped", ArtistMusicBrainzId = "mb-dropped" };
-            _items.Add(new ImportListItemInfo { Artist = "Radiohead", Album = "OK Computer" });
+            _items.Add(new ImportListItemInfo { Artist = "Artist Name", Album = "Album Title" });
             _items.Add(dropped);
 
             Sync();
@@ -230,6 +235,8 @@ namespace NzbDrone.Core.Test.ImportListTests
             Sync();
 
             Reload(unlisted).Monitored.Should().BeTrue();
+
+            ExceptionVerification.ExpectedWarns(1);
         }
     }
 }

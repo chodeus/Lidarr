@@ -152,12 +152,13 @@ namespace NzbDrone.Core.ImportLists
                 return;
             }
 
-            var removed = 0;
-
-            if (!FetchFailed(importList.Definition.Id, failureBefore))
+            // As in Sonarr, a failed fetch leaves the last sync alone, so the clean can't trust the list's old items
+            if (FetchFailed(importList.Definition.Id, failureBefore))
             {
-                removed = _importListItemService.SyncItemsForList(importListReports.ToList(), importList.Definition.Id);
+                return;
             }
+
+            var removed = _importListItemService.SyncItemsForList(importListReports.ToList(), importList.Definition.Id);
 
             _importListStatusService.UpdateListSyncStatus(importList.Definition.Id, removed > 0);
         }

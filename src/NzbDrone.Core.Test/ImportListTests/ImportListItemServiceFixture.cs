@@ -90,5 +90,29 @@ namespace NzbDrone.Core.Test.ImportListTests
             Mocker.GetMock<IImportListItemRepository>()
                 .Verify(v => v.DeleteMany(existing), Times.Once());
         }
+
+        [Test]
+        public void store_mapped_artist_ids_should_update_every_list_that_stored_the_item()
+        {
+            var first = new ImportListItemInfo { ImportListId = 1, Artist = "Artist Name", AlbumMusicBrainzId = "album-1" };
+            var duplicate = new ImportListItemInfo { ImportListId = 2, Artist = "Artist Name", AlbumMusicBrainzId = "album-1" };
+
+            Mocker.GetMock<IImportListItemRepository>()
+                .Setup(v => v.All())
+                .Returns(new List<ImportListItemInfo> { first, duplicate });
+
+            Subject.StoreMappedArtistIds(new List<(ImportListItemKey, string)> { (ImportListItemService.KeyOf(first), "artist-1") });
+
+            first.MappedArtistMusicBrainzId.Should().Be("artist-1");
+            duplicate.MappedArtistMusicBrainzId.Should().Be("artist-1");
+        }
+
+        [Test]
+        public void store_mapped_artist_ids_should_read_nothing_when_nothing_was_mapped()
+        {
+            Subject.StoreMappedArtistIds(new List<(ImportListItemKey, string)>());
+
+            Mocker.GetMock<IImportListItemRepository>().Verify(v => v.All(), Times.Never());
+        }
     }
 }

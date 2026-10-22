@@ -124,6 +124,8 @@ namespace NzbDrone.Core.Test.MusicTests
 
             ScannedFolders().Should().Equal(normal.Path);
             _rescans.Single().ArtistIds.Should().Equal(normal.Id);
+
+            ExceptionVerification.ExpectedWarns(2);
         }
 
         [Test]
@@ -154,6 +156,8 @@ namespace NzbDrone.Core.Test.MusicTests
             Subject.Execute(new RefreshArtistCommand(new List<int> { artist.Id }) { Trigger = CommandTrigger.Manual });
 
             ScannedFolders().Should().Equal(artist.Path);
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]

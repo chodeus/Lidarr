@@ -134,6 +134,16 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             Score(local, right).NormalizedDistance().Should().Be(Score(local, wrong).NormalizedDistance());
         }
 
+        [Test]
+        public void should_not_score_the_path_of_a_web_address_in_a_credit_as_an_artist()
+        {
+            var right = Release(Artist("Artist Name"), "Greatest Hits");
+            var wrong = Release(Artist("Album"), "Greatest Hits");
+            var local = LocalTracks(right, "https://example.com/album;Artist Name");
+
+            Score(local, right).Penalties["artist"].Single().Should().BeLessThan(Score(local, wrong).Penalties["artist"].Single());
+        }
+
         // Each pattern backtracks on one of these: a long run of spaces, or of "?" after "www."
         [TestCase("Artist Name", ' ')]
         [TestCase("www.example", '?')]

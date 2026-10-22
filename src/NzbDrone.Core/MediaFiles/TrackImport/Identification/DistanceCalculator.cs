@@ -32,7 +32,8 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
         private static readonly Regex FeaturedArtists = new Regex(@"\s*[(\[]\s*(?:feat|ft|featuring)\b(?:\.\s*|\s+)(?=\w)[^)\]]*[)\]]?|(?:\s+|\s*[;/,&]\s*)(?:feat|ft|featuring)\b(?:\.\s*|\s+)(?=\w).*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex Ampersand = new Regex(@"\s*&\s*", RegexOptions.Compiled);
         private static readonly Regex LeadingThe = new Regex(@"^\s*the\s+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex ArtistSeparators = new Regex(@"\s*[;/,&]\s*", RegexOptions.Compiled);
+        private static readonly Regex ArtistSeparators = new Regex(@"\s*[;,&]\s*", RegexOptions.Compiled);
+        private static readonly Regex SlashSeparator = new Regex(@"\s*/\s*", RegexOptions.Compiled);
         private static readonly Regex WebAddress = new Regex(@"^(?:[a-z][a-z0-9+.-]*://[^\s;,&]+|www\.[^\s;,&]+|[^\s/;,&]+\.(?:com|net|org|info|biz|ru|io)(?:/[^\s;,&]*)?)(?:\?[^\s;,]*)?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly List<IsoCountry> PreferredCountries = new List<string>
         {
@@ -85,9 +86,13 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
         private static List<string> CreditedArtists(string tag)
         {
             var main = WithoutGuests(tag);
-            var artists = ArtistSeparators.Split(main).Where(Distance.HasLettersOrDigits).ToList();
 
-            return main != tag || artists.Count > 1 ? artists : new List<string>();
+            // A web address in the credit is a watermark, so its path isn't split into artists
+            var pieces = ArtistSeparators.Split(main).ToList();
+            var addresses = pieces.RemoveAll(IsWebAddress);
+            var artists = pieces.SelectMany(p => SlashSeparator.Split(p)).Where(Distance.HasLettersOrDigits).ToList();
+
+            return main != tag || artists.Count > 1 || addresses > 0 ? artists : new List<string>();
         }
 
         public static int GetTotalTrackNumber(Track track, List<Track> allTracks)

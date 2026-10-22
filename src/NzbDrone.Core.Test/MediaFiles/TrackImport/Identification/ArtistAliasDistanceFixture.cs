@@ -97,15 +97,15 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             Score(local, release).Penalties["artist"].Single().Should().Be(1.0);
         }
 
-        // Files tagged "Beatles", without the "The"; a tribute act has the bare name as an alias
+        // Files tagged "Artist Name", without the "The"; a tribute act has the bare name as an alias
         [Test]
         public void should_not_let_an_alias_another_artist_shares_beat_the_real_artist()
         {
-            var real = Release(Artist("The Beatles"), "Abbey Road");
-            var tribute = Release(Artist("The Bootleg Beatles", "Beatles"), "Abbey Road");
+            var real = Release(Artist("The Artist Name"), "Album Title");
+            var tribute = Release(Artist("The Tribute Band", "Artist Name"), "Album Title");
 
-            var realScore = Score(LocalTracks(real, "Beatles"), real).NormalizedDistance();
-            var tributeScore = Score(LocalTracks(real, "Beatles"), tribute).NormalizedDistance();
+            var realScore = Score(LocalTracks(real, "Artist Name"), real).NormalizedDistance();
+            var tributeScore = Score(LocalTracks(real, "Artist Name"), tribute).NormalizedDistance();
 
             tributeScore.Should().BeGreaterThan(realScore);
         }
@@ -136,34 +136,42 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         [Test]
         public void should_match_case_and_accent_variants()
         {
-            var release = Release(Artist("JAY-Z", "Jay Z"), "album");
-            Score(LocalTracks(release, "JAŸ-Z"), release).Penalties["artist"].Single().Should().Be(0.0);
-            Score(LocalTracks(release, "jay z"), release).Penalties["artist"].Single().Should().Be(0.0);
+            var release = Release(Artist("ART-IST", "Art Ist"), "album");
+            Score(LocalTracks(release, "ÀRT-IST"), release).Penalties["artist"].Single().Should().Be(0.0);
+            Score(LocalTracks(release, "art ist"), release).Penalties["artist"].Single().Should().Be(0.0);
         }
 
         [Test]
         public void should_match_files_tagged_without_the_artists_leading_the()
         {
-            var release = Release(Artist("The Beatles"), "Abbey Road");
+            var release = Release(Artist("The Artist Name"), "Album Title");
 
-            Score(LocalTracks(release, "Beatles"), release).Penalties["artist"].Single().Should().BeLessThan(Distance.AliasPenalty);
+            Score(LocalTracks(release, "Artist Name"), release).Penalties["artist"].Single().Should().BeLessThan(Distance.AliasPenalty);
+        }
+
+        [Test]
+        public void should_not_match_a_the_tag_to_a_release_artist_without_a_name()
+        {
+            var release = Release(Artist(""), "album");
+
+            Score(LocalTracks(release, "The"), release).Penalties["artist"].Single().Should().BeGreaterThan(0.0);
         }
 
         [Test]
         public void should_score_an_alias_match_a_little_worse_than_the_name()
         {
-            var release = Release(Artist("Ye", "Kanye West"), "album");
+            var release = Release(Artist("Artist Name", "Former Name"), "album");
 
-            Score(LocalTracks(release, "Kanye West"), release).Penalties["artist"].Single().Should().BeGreaterThan(0.0).And.BeLessThan(0.1);
+            Score(LocalTracks(release, "Former Name"), release).Penalties["artist"].Single().Should().BeGreaterThan(0.0).And.BeLessThan(0.1);
         }
 
         // One artist of several, matched through an alias: the credited-artist penalty plus the alias penalty
         [Test]
         public void should_match_a_credited_artist_by_alias()
         {
-            var release = Release(Artist("Ye", "Kanye West"), "album");
+            var release = Release(Artist("Artist Name", "Former Name"), "album");
 
-            Score(LocalTracks(release, "Kanye West & Jay-Z"), release).Penalties["artist"].Single().Should().BeApproximately(0.2 + Distance.AliasPenalty, 0.001);
+            Score(LocalTracks(release, "Former Name & Other Artist"), release).Penalties["artist"].Single().Should().BeApproximately(0.2 + Distance.AliasPenalty, 0.001);
         }
     }
 }

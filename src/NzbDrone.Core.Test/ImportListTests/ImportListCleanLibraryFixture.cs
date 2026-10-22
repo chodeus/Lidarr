@@ -103,7 +103,7 @@ namespace NzbDrone.Core.Test.ImportListTests
             }
         }
 
-        private void WithList(int id, bool pendingRemovals = true, DateTime? disabledTill = null, bool neverSynced = false)
+        private void WithList(int id, bool pendingRemovals = true, DateTime? disabledTill = null, bool neverSynced = false, DateTime? mostRecentFailure = null)
         {
             var importListDefinition = new ImportListDefinition { Id = id, EnableAutomaticAdd = true };
 
@@ -120,7 +120,8 @@ namespace NzbDrone.Core.Test.ImportListTests
                   {
                       LastInfoSync = neverSynced ? null : DateTime.UtcNow,
                       HasRemovedItemSinceLastClean = pendingRemovals,
-                      DisabledTill = disabledTill
+                      DisabledTill = disabledTill,
+                      MostRecentFailure = mostRecentFailure
                   });
 
             _importLists.Add(mockImportList.Object);
@@ -162,6 +163,17 @@ namespace NzbDrone.Core.Test.ImportListTests
             Subject.Execute(new ImportListSyncCommand());
 
             VerifyUnmonitored(1, 2, 3);
+        }
+
+        [Test]
+        public void should_not_clean_library_if_a_list_failed_since_its_last_sync()
+        {
+            WithList(1, mostRecentFailure: DateTime.UtcNow.AddMinutes(1));
+            WithCleanLevel(ListSyncLevelType.KeepAndUnmonitor);
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            VerifyNotCleaned();
         }
 
         [Test]
@@ -350,6 +362,38 @@ namespace NzbDrone.Core.Test.ImportListTests
             Subject.HandleAsync(new ProviderDeletedEvent<IImportList>(2));
 
             VerifyUnmonitored(1, 2, 3);
+        }
+
+        [Test]
+        public void should_clean_when_a_list_is_deleted_without_a_pending_removal()
+        {
+            WithList(1, pendingRemovals: false);
+            WithCleanLevel(ListSyncLevelType.KeepAndUnmonitor);
+
+            Subject.HandleAsync(new ProviderDeletedEvent<IImportList>(2));
+
+            VerifyUnmonitored(1, 2, 3);
+        }
+
+        [Test]
+        public void should_not_clean_when_the_last_list_is_deleted()
+        {
+            WithCleanLevel(ListSyncLevelType.KeepAndUnmonitor);
+
+            Subject.HandleAsync(new ProviderDeletedEvent<IImportList>(2));
+
+            VerifyNotCleaned();
+        }
+
+        [Test]
+        public void should_not_clean_after_a_deletion_while_a_list_has_failed()
+        {
+            WithList(1, pendingRemovals: false, disabledTill: DateTime.UtcNow.AddHours(1));
+            WithCleanLevel(ListSyncLevelType.KeepAndUnmonitor);
+
+            Subject.HandleAsync(new ProviderDeletedEvent<IImportList>(2));
+
+            VerifyNotCleaned();
         }
 
         [Test]

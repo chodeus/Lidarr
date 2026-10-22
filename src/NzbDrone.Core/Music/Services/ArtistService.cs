@@ -135,12 +135,12 @@ namespace NzbDrone.Core.Music
         {
             var artists = GetAllArtists();
 
-            var aliasMatch = ArtistAliasMatcher.FindByAlias(artists, title);
+            var nameOrAliasMatch = ArtistAliasMatcher.FindByNameOrAlias(artists, title);
 
-            if (aliasMatch != null)
+            if (nameOrAliasMatch != null)
             {
-                _logger.Debug("Matched {0} to {1} by alias", title, aliasMatch);
-                return aliasMatch;
+                _logger.Debug("Matched {0} to {1} by name or alias", title, nameOrAliasMatch);
+                return nameOrAliasMatch;
             }
 
             foreach (var func in ArtistScoringFunctions(title, title.CleanArtistName()))

@@ -12,11 +12,11 @@ namespace NzbDrone.Core.Music
         // GetAllArtists hands out one list until its cache is cleared or expires, so each list's aliases are cleaned once
         private static readonly ConditionalWeakTable<List<Artist>, ILookup<string, Artist>> ArtistsByCleanAlias = new ConditionalWeakTable<List<Artist>, ILookup<string, Artist>>();
 
-        public static Artist FindByAlias(List<Artist> artists, string title)
+        public static Artist FindByNameOrAlias(List<Artist> artists, string title)
         {
             var cleanTitle = title.CleanArtistName();
 
-            // An artist's own name always wins over another artist's alias, with or without a leading "The" as the fuzzy matching allows
+            // An artist's own name, with or without a leading "The", wins over another artist's alias; fuzzy matching can miss it for a short name
             var ownNames = new List<string> { cleanTitle, "the" + cleanTitle };
 
             if (title.StartsWith("The ", StringComparison.CurrentCultureIgnoreCase))
@@ -24,9 +24,16 @@ namespace NzbDrone.Core.Music
                 ownNames.Add(title.Substring(4).CleanArtistName());
             }
 
-            if (cleanTitle.IsNullOrWhiteSpace() || artists.Any(a => ownNames.Contains(a.CleanName)))
+            if (cleanTitle.IsNullOrWhiteSpace())
             {
                 return null;
+            }
+
+            var named = artists.Where(a => ownNames.Contains(a.CleanName)).ToList();
+
+            if (named.Any())
+            {
+                return named.Count == 1 ? named[0] : null;
             }
 
             var matches = ArtistsByCleanAlias.GetValue(artists, CleanAliases)[cleanTitle].Distinct().ToList();

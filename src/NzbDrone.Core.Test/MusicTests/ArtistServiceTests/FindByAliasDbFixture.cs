@@ -7,7 +7,6 @@ using NzbDrone.Core.Test.Framework;
 
 namespace NzbDrone.Core.Test.MusicTests.ArtistServiceTests
 {
-    // The real ArtistService and repositories over the test database
     [TestFixture]
     public class FindByAliasDbFixture : DbTest<ArtistService, Artist>
     {
@@ -50,6 +49,28 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistServiceTests
         }
 
         [Test]
+        public void should_match_a_short_artist_named_without_its_leading_the_before_another_artists_alias()
+        {
+            AddArtist("The AB", new List<string>());
+            AddArtist("Other Artist", new List<string> { "AB" });
+
+            Subject.FindByNameInexact("AB").Name.Should().Be("The AB");
+        }
+
+        [Test]
+        public void should_leave_two_artists_named_like_the_title_to_the_fuzzy_matching()
+        {
+            var artists = new List<Artist>
+            {
+                AddArtist("The AB", new List<string>()),
+                AddArtist("AB", new List<string>()),
+                AddArtist("Other Artist", new List<string> { "AB" })
+            };
+
+            ArtistAliasMatcher.FindByNameOrAlias(artists, "AB").Should().BeNull();
+        }
+
+        [Test]
         public void should_match_an_artist_named_without_its_leading_the_without_aliases()
         {
             AddArtist("The Zeta Orchestra", new List<string>());
@@ -66,7 +87,7 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistServiceTests
         public void should_match_an_alias_whatever_its_case_accents_or_ampersand(string title, string alias)
         {
             AddArtist("Will I Am Group", new List<string> { alias });
-            AddArtist("The Black Keys", new List<string>());
+            AddArtist("Other Artist", new List<string>());
 
             Subject.FindByNameInexact(title).Name.Should().Be("Will I Am Group");
         }
@@ -76,7 +97,7 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistServiceTests
         public void should_not_match_an_alias_that_cleans_to_nothing(string title)
         {
             AddArtist("Will I Am Group", new List<string> { "!!!", "" });
-            AddArtist("The Black Keys", new List<string>());
+            AddArtist("Other Artist", new List<string>());
 
             Subject.FindByNameInexact(title).Should().BeNull();
         }
@@ -85,7 +106,7 @@ namespace NzbDrone.Core.Test.MusicTests.ArtistServiceTests
         public void should_match_an_artist_whose_aliases_repeat()
         {
             AddArtist("Will I Am Group", new List<string> { "Peas Collective", "peas collective", "Peas-Collective" });
-            AddArtist("The Black Keys", new List<string>());
+            AddArtist("Other Artist", new List<string>());
 
             Subject.FindByNameInexact("Peas Collective").Name.Should().Be("Will I Am Group");
         }

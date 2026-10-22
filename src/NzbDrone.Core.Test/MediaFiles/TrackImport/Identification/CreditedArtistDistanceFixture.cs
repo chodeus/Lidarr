@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
@@ -131,6 +132,20 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
 
             Score(local, right).Penalties.Should().NotContainKey("artist");
             Score(local, right).NormalizedDistance().Should().Be(Score(local, wrong).NormalizedDistance());
+        }
+
+        // Each pattern backtracks on one of these: a long run of spaces, or of "?" after "www."
+        [TestCase("Artist Name", ' ')]
+        [TestCase("www.example", '?')]
+        public void should_score_an_oversized_artist_tag_quickly(string prefix, char filler)
+        {
+            var release = Release(Artist("Artist Name"), "Greatest Hits");
+            var tag = prefix + new string(filler, 100000) + " x";
+
+            var watch = Stopwatch.StartNew();
+            Score(LocalTracks(release, tag), release);
+
+            watch.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(2));
         }
 
         [Test]

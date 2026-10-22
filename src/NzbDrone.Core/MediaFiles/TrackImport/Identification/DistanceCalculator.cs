@@ -19,6 +19,9 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
         // Keeps the credit as written ahead of its looser reading when both are candidates
         private const double LooseReadingPenalty = 0.01;
 
+        // Far longer than any real credit; the credit patterns backtrack quadratically on long input from a file's tag
+        private const int MaxArtistTagLength = 1000;
+
         // Keeps the credit as written ahead of the same credit with its featured guests left out
         private const double WithoutGuestsPenalty = 0.01;
 
@@ -141,6 +144,12 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
             var dist = new Distance();
 
             var artist = localTracks.MostCommon(x => x.FileTrackInfo.ArtistTitle) ?? "";
+
+            if (artist.Length > MaxArtistTagLength)
+            {
+                artist = artist.Substring(0, MaxArtistTagLength);
+            }
+
             var metadata = release.Album.Value.ArtistMetadata.Value;
             var names = new List<string> { metadata.Name };
             var aliases = (metadata.Aliases ?? new List<string>()).Where(Distance.HasLettersOrDigits).ToList();

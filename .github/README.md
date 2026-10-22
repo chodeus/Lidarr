@@ -13,5 +13,5 @@ Tests: files tagged with an alias score only the alias penalty, and an artist wh
 ## Summary by CodeRabbit
 
 * **Bug Fixes**
-  * Album release matching now checks artist aliases as well as the primary artist name, helping identify releases when a local track uses an alternate artist name.
-  * Matching handles cases where artist names are missing, reducing incorrect distance scores in album comparisons.
+  * Album release matching now checks artist aliases and artist names with or without a leading “The,” rather than relying only on the primary artist name.
+  * Alias matches receive a small distance penalty compared with primary-name matches. Missing or unusable aliases retain the full penalty, and missing artist names are handled consistently when comparing local tags with album releases.

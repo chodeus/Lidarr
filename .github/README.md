@@ -2,7 +2,7 @@
 
 Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Reviewed in [#20](https://github.com/chodeus/Lidarr/pull/20).
 
-Import identification scores the files' artist tag against the release artist's current MusicBrainz name only. Artist carries the heaviest weight in the album distance, so files tagged with a former or alternate name take the full penalty. Live: Qobuz tags *Heard 'Em Say* and *Touch the Sky* as "Kanye West", MusicBrainz credits "Ye", and both failed to import at 23–25% distance against the 20% limit. Lidarr's own metadata already lists "Kanye West" among Ye's aliases, and "JAY Z" and "Jay-Z" among JAŸ-Z's.
+Before this change, import identification scored the files' artist tag against the release artist's current MusicBrainz name only. Artist carries the heaviest weight in the album distance, so files tagged with a former or alternate name took the full penalty. Live: Qobuz tags *Heard 'Em Say* and *Touch the Sky* as "Kanye West", MusicBrainz credits "Ye", and both failed to import at 23–25% distance against the 20% limit. Lidarr's own metadata already lists "Kanye West" among Ye's aliases, and "JAY Z" and "Jay-Z" among JAŸ-Z's.
 
 - `Distance.AddStringToClosest` adds the penalty against the closest of several spellings. It shares the existing string penalty, which moves into `StringPenalty`, so `AddString` is unchanged. A separate name avoids an ambiguous call where existing callers pass `null`.
 - `DistanceCalculator.AlbumReleaseDistance` passes the artist's name, with and without a leading "The" as artist lookups allow, and its aliases. Various Artists releases still skip the artist check, as before.

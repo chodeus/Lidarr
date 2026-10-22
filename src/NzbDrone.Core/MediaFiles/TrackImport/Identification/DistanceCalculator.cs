@@ -90,7 +90,12 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
 
                 // Files tagged with an artist's former or alternate name still match, and tags often leave out a leading "The", as artist lookups allow
                 var name = metadata.Name ?? "";
-                var names = new List<string> { name, name.StartsWith("The ", StringComparison.OrdinalIgnoreCase) ? name.Substring(4) : "The " + name };
+                var names = new List<string> { name };
+
+                if (name.IsNotNullOrWhiteSpace())
+                {
+                    names.Add(name.StartsWith("The ", StringComparison.OrdinalIgnoreCase) ? name.Substring(4) : "The " + name);
+                }
 
                 dist.AddStringToClosest("artist", artist, names, metadata.Aliases ?? new List<string>());
                 Logger.Trace("artist: {0} vs {1} or its {2} aliases; {3}", artist, name, metadata.Aliases?.Count ?? 0, dist.NormalizedDistance());

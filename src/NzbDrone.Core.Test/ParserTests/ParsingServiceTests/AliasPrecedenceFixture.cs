@@ -8,7 +8,6 @@ using NzbDrone.Core.Test.Framework;
 
 namespace NzbDrone.Core.Test.ParserTests.ParsingServiceTests
 {
-    // The real parsing and artist services over the test database
     [TestFixture]
     public class AliasPrecedenceFixture : DbTest<ParsingService, Artist>
     {

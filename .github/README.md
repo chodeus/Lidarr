@@ -25,8 +25,9 @@ Tests: `ImportListCleanLibraryDbFixture` (re-audit, 2026-10) runs the real fetch
 ## Summary by CodeRabbit
 
 * **New Features**
-  * Added import-list cleanup settings to disable cleanup, log affected artists, unmonitor them, or apply a tag.
-  * Configure tag selection for the keep-and-tag option.
+  * Added import-list cleanup settings to disable cleanup, log affected artists, unmonitor them, or apply a tag. Configure a tag when using the keep-and-tag option.
 * **Improvements**
-  * When enabled, cleanup handles artists no longer represented in import lists while preserving artists still present on another list.
-  * Import-list items now synchronize after successful fetches, and cleanup can run after items are removed or a list is deleted.
+  * Cleanup considers artists across import lists and preserves artists still represented through matching artist or album information.
+  * Import-list items update after successful fetches. Cleanup can run after items are removed or a list is deleted, once eligible lists have synced successfully.
+  * Cleanup pauses when items cannot be reliably matched or a list has failed, helping prevent unintended library changes.
+  * Cleanup settings are validated and can be saved from the import-list settings page.

@@ -18,5 +18,6 @@ Tests: a remap keeps the grab history mapping; a failing grab history read or ti
 
 * **Bug Fixes**
   * Downloads without mapped albums are no longer marked as imported, including when album information is missing or a track is rejected.
-  * Existing album mappings are retained during remaps when title lookup or history reads fail; mappings are cleared when the artist is deleted or grab history is gone and the title cannot be parsed.
+  * Existing album mappings are preserved when a remap fails, except after a deletion, where the download is unmapped. Failed remaps are retried during later updates, and failed mappings can display a warning.
+  * Deleted artists and albums are no longer retained in download mappings.
   * Incomplete imports can display status messages, while missing or malformed status data no longer interrupts download tracking.

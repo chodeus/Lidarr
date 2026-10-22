@@ -42,9 +42,10 @@ Tests: `delete_should_not_delete_seeded_default_profile` fails without the guard
 ## Summary by CodeRabbit
 
 * **Bug Fixes**
-  * Delay and tagging profiles now maintain consistent ordering when profiles are added, updated, deleted, or reordered. The default profile remains last, and unchanged reorder requests no longer alter the list.
-  * Profiles with missing tag data now load with no tags.
-  * Drag-and-drop reordering now follows the displayed profile positions.
-  * Tags used by tagging profiles or added by default through root folders are retained.
+  * Delay and tagging profiles now keep consistent ordering when added, edited, deleted, or reordered, with the default profile remaining last.
+  * Profile lists refresh after deletion, and drag-and-drop moves profiles according to their displayed positions.
+  * Missing tag data is treated as an empty tag list, except that the tagging profile API rejects a profile sent without tags.
+  * Tags used by profiles or root-folder defaults are retained during cleanup.
+  * Pending releases now use the appropriate tag-based delay profile.
 * **New Features**
-  * Tag details now show associated root folders and their names or paths.
+  * Tag details show associated root folders by name, or by path when a name is unavailable.

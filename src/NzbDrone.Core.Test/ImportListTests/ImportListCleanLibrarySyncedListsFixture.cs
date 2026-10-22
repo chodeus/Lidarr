@@ -20,6 +20,7 @@ using NzbDrone.Core.MetadataSource.SkyHook.Resource;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 using SpotifyAPI.Web;
 using SpotifyAPI.Web.Models;
 
@@ -145,6 +146,8 @@ namespace NzbDrone.Core.Test.ImportListTests
 
             Reload(unlisted).Monitored.Should().BeTrue();
             Mocker.Resolve<IImportListItemService>().All().Should().Contain(i => i.Album == "OK Computer" && i.MappedArtistMusicBrainzId == null);
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -206,6 +209,8 @@ namespace NzbDrone.Core.Test.ImportListTests
             Sync();
 
             Mocker.Resolve<IImportListStatusService>().GetBlockedProviders().Should().BeEmpty();
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -230,6 +235,8 @@ namespace NzbDrone.Core.Test.ImportListTests
             Sync();
 
             Reload(unlisted).Monitored.Should().BeTrue();
+
+            ExceptionVerification.ExpectedWarns(1);
         }
     }
 }

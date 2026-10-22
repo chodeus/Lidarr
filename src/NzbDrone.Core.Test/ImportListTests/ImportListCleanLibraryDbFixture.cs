@@ -20,6 +20,7 @@ using NzbDrone.Core.Music;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Core.ThingiProvider.Events;
+using NzbDrone.Test.Common;
 using SpotifyAPI.Web;
 using SpotifyAPI.Web.Models;
 
@@ -94,11 +95,11 @@ namespace NzbDrone.Core.Test.ImportListTests
                   {
                       Artists = new CursorPaging<FullArtist>
                       {
-                          Items = new List<FullArtist> { new FullArtist { Name = "Joe Hisaishi", Id = "sp-hisaishi" } }
+                          Items = new List<FullArtist> { new FullArtist { Name = "Artist Name", Id = "sp-artist" } }
                       }
                   });
 
-            // api.lidarr.audio's spotify mapping: up or down
+            // The metadata server's Spotify mapping: up or down
             Mocker.GetMock<IHttpClient>()
                   .Setup(x => x.Post<List<SpotifyMap>>(It.IsAny<HttpRequest>()))
                   .Returns<HttpRequest>(r =>
@@ -108,13 +109,13 @@ namespace NzbDrone.Core.Test.ImportListTests
                           throw new HttpException(r, new HttpResponse(r, new HttpHeader(), Array.Empty<byte>(), System.Net.HttpStatusCode.ServiceUnavailable));
                       }
 
-                      var map = new List<SpotifyMap> { new SpotifyMap { SpotifyId = "sp-hisaishi", MusicbrainzId = "mb-hisaishi" } };
+                      var map = new List<SpotifyMap> { new SpotifyMap { SpotifyId = "sp-artist", MusicbrainzId = "mb-artist" } };
                       return new HttpResponse<List<SpotifyMap>>(new HttpResponse(r, new HttpHeader(), map.ToJson()));
                   });
 
             Mocker.GetMock<IHttpClient>()
                   .Setup(x => x.Get<ArtistResource>(It.IsAny<HttpRequest>()))
-                  .Throws(new Exception("api.lidarr.audio is down"));
+                  .Throws(new Exception("The metadata server is down"));
         }
 
         // MusicBrainz names Japanese artists in their own script; Spotify uses the romanised name
@@ -153,28 +154,30 @@ namespace NzbDrone.Core.Test.ImportListTests
         [Test]
         public void should_not_unmonitor_a_followed_artist_while_the_spotify_mapping_is_down()
         {
-            var artist = GivenLibraryArtist("久石譲", "mb-hisaishi");
+            var artist = GivenLibraryArtist("アーティスト名", "mb-artist");
 
             Sync();
-            Mocker.Resolve<IImportListItemService>().All().Should().ContainSingle(i => i.ArtistMusicBrainzId == "mb-hisaishi");
+            Mocker.Resolve<IImportListItemService>().All().Should().ContainSingle(i => i.ArtistMusicBrainzId == "mb-artist");
 
             // Spotify still returns the same followed artist; only the MusicBrainz mapping is down
             _mappingApiDown = true;
             Sync();
 
             Reload(artist).Monitored.Should().BeTrue();
-            Mocker.Resolve<IImportListItemService>().All().Should().ContainSingle(i => i.ArtistMusicBrainzId == "mb-hisaishi");
+            Mocker.Resolve<IImportListItemService>().All().Should().ContainSingle(i => i.ArtistMusicBrainzId == "mb-artist");
+
+            ExceptionVerification.ExpectedErrors(2);
         }
 
         // Spotify's bulk map sets only the album id, and a soundtrack the metadata profile filters out isn't in the library
         [Test]
         public void should_keep_the_artist_of_a_listed_album_that_is_not_in_the_library()
         {
-            var artist = GivenLibraryArtist("久石譲", "mb-hisaishi");
+            var artist = GivenLibraryArtist("アーティスト名", "mb-artist");
 
             var stored = new List<ImportListItemInfo>
             {
-                new ImportListItemInfo { ImportListId = ListId, Artist = "Joe Hisaishi", Album = "Spirited Away", AlbumMusicBrainzId = "rg-spirited-away" }
+                new ImportListItemInfo { ImportListId = ListId, Artist = "Artist Name", Album = "Album Title", AlbumMusicBrainzId = "rg-album" }
             };
             Mocker.Resolve<IImportListItemService>().SyncItemsForList(stored, ListId);
             Mocker.Resolve<IImportListStatusService>().UpdateListSyncStatus(ListId, true);
@@ -182,6 +185,8 @@ namespace NzbDrone.Core.Test.ImportListTests
             Mocker.Resolve<ImportListSyncService>().HandleAsync(new ProviderDeletedEvent<IImportList>(99));
 
             Reload(artist).Monitored.Should().BeTrue();
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -200,7 +205,7 @@ namespace NzbDrone.Core.Test.ImportListTests
                       {
                           Artists = new CursorPaging<FullArtist>
                           {
-                              Items = new List<FullArtist> { new FullArtist { Name = "Joe Hisaishi", Id = "sp-hisaishi" } }
+                              Items = new List<FullArtist> { new FullArtist { Name = "Artist Name", Id = "sp-artist" } }
                           }
                       };
                   });
@@ -246,10 +251,10 @@ namespace NzbDrone.Core.Test.ImportListTests
         [Test]
         public void should_clean_with_the_artist_the_sync_mapped_an_album_item_to()
         {
-            var listed = GivenLibraryArtist("久石譲", "mb-hisaishi");
+            var listed = GivenLibraryArtist("アーティスト名", "mb-artist");
             var unlisted = GivenLibraryArtist("Not Listed", "mb-unlisted");
 
-            var albumItem = new ImportListItemInfo { ImportListId = ListId, Artist = "Joe Hisaishi", Album = "Spirited Away", AlbumMusicBrainzId = "rg-spirited-away" };
+            var albumItem = new ImportListItemInfo { ImportListId = ListId, Artist = "Artist Name", Album = "Album Title", AlbumMusicBrainzId = "rg-album" };
             var droppedItem = new ImportListItemInfo { ImportListId = ListId, Artist = "Dropped", ArtistMusicBrainzId = "mb-dropped" };
             var items = new List<ImportListItemInfo> { albumItem, droppedItem };
 
@@ -259,19 +264,19 @@ namespace NzbDrone.Core.Test.ImportListTests
             Mocker.GetMock<IImportListFactory>().Setup(v => v.GetInstance(_definition)).Returns(list.Object);
 
             Mocker.GetMock<ISearchForNewAlbum>()
-                  .Setup(v => v.SearchForNewAlbum("lidarr:rg-spirited-away", "Joe Hisaishi"))
+                  .Setup(v => v.SearchForNewAlbum("lidarr:rg-album", "Artist Name"))
                   .Returns(new List<Album>
                   {
                       new Album
                       {
-                          ForeignAlbumId = "rg-spirited-away",
-                          Title = "Spirited Away",
-                          ArtistMetadata = new ArtistMetadata { ForeignArtistId = "mb-hisaishi", Name = "久石譲" }
+                          ForeignAlbumId = "rg-album",
+                          Title = "Album Title",
+                          ArtistMetadata = new ArtistMetadata { ForeignArtistId = "mb-artist", Name = "アーティスト名" }
                       }
                   });
 
             Sync();
-            Mocker.Resolve<IImportListItemService>().All().Should().ContainSingle(i => i.MappedArtistMusicBrainzId == "mb-hisaishi");
+            Mocker.Resolve<IImportListItemService>().All().Should().ContainSingle(i => i.MappedArtistMusicBrainzId == "mb-artist");
 
             items.Remove(droppedItem);
             Sync();
@@ -284,7 +289,7 @@ namespace NzbDrone.Core.Test.ImportListTests
         public void should_clean_again_once_the_spotify_mapping_is_back()
         {
             var unfollowedLater = GivenLibraryArtist("Unfollowed Later", "mb-later");
-            var followed = new List<FullArtist> { new FullArtist { Name = "Joe Hisaishi", Id = "sp-hisaishi" }, new FullArtist { Name = "Unfollowed Later", Id = "sp-later" } };
+            var followed = new List<FullArtist> { new FullArtist { Name = "Artist Name", Id = "sp-artist" }, new FullArtist { Name = "Unfollowed Later", Id = "sp-later" } };
 
             Mocker.GetMock<ISpotifyProxy>()
                   .Setup(x => x.GetFollowedArtists(It.IsAny<SpotifyFollowedArtists>(), It.IsAny<SpotifyWebAPI>()))
@@ -298,7 +303,7 @@ namespace NzbDrone.Core.Test.ImportListTests
                           throw new HttpException(r, new HttpResponse(r, new HttpHeader(), Array.Empty<byte>(), System.Net.HttpStatusCode.ServiceUnavailable));
                       }
 
-                      var map = new List<SpotifyMap> { new SpotifyMap { SpotifyId = "sp-hisaishi", MusicbrainzId = "mb-hisaishi" }, new SpotifyMap { SpotifyId = "sp-later", MusicbrainzId = "mb-later" } };
+                      var map = new List<SpotifyMap> { new SpotifyMap { SpotifyId = "sp-artist", MusicbrainzId = "mb-artist" }, new SpotifyMap { SpotifyId = "sp-later", MusicbrainzId = "mb-later" } };
                       return new HttpResponse<List<SpotifyMap>>(new HttpResponse(r, new HttpHeader(), map.ToJson()));
                   });
 
@@ -312,6 +317,9 @@ namespace NzbDrone.Core.Test.ImportListTests
             Sync();
 
             Reload(unfollowedLater).Monitored.Should().BeFalse();
+
+            // The outage logs its errors; how many depends on what earlier tests left cached
+            ExceptionVerification.IgnoreErrors();
         }
     }
 }

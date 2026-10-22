@@ -13,6 +13,7 @@ using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Tags;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Core.ThingiProvider.Events;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.ImportListTests
 {
@@ -271,6 +272,8 @@ namespace NzbDrone.Core.Test.ImportListTests
             VerifyNotCleaned();
             Mocker.GetMock<IImportListStatusService>()
                   .Verify(v => v.MarkListsAsCleaned(It.IsAny<List<int>>()), Times.Never());
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -295,6 +298,8 @@ namespace NzbDrone.Core.Test.ImportListTests
             Subject.Execute(new ImportListSyncCommand());
 
             VerifyNotCleaned();
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -341,6 +346,18 @@ namespace NzbDrone.Core.Test.ImportListTests
         {
             WithList(1);
             WithCleanLevel(ListSyncLevelType.KeepAndUnmonitor);
+
+            Subject.HandleAsync(new ProviderDeletedEvent<IImportList>(2));
+
+            VerifyUnmonitored(1, 2, 3);
+        }
+
+        [Test]
+        public void should_not_keep_an_artist_named_only_by_the_deleted_list_before_its_items_are_removed()
+        {
+            WithList(1);
+            WithCleanLevel(ListSyncLevelType.KeepAndUnmonitor);
+            _listItems.Add(new ImportListItemInfo { ImportListId = 2, ArtistMusicBrainzId = "artist-1" });
 
             Subject.HandleAsync(new ProviderDeletedEvent<IImportList>(2));
 

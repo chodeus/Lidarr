@@ -12,7 +12,6 @@ using NzbDrone.Core.Test.Framework;
 
 namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
 {
-    // The real DistanceCalculator and Distance over built releases, with no mocks
     [TestFixture]
     public class ArtistAliasDistanceFixture : CoreTest
     {
@@ -139,6 +138,15 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             var release = Release(Artist("ART-IST", "Art Ist"), "album");
             Score(LocalTracks(release, "ÀRT-IST"), release).Penalties["artist"].Single().Should().Be(0.0);
             Score(LocalTracks(release, "art ist"), release).Penalties["artist"].Single().Should().Be(0.0);
+        }
+
+        [Test]
+        public void should_match_case_and_accent_variants_of_an_alias()
+        {
+            var release = Release(Artist("Primary Name", "Ålias Náme"), "album");
+
+            Score(LocalTracks(release, "alias name"), release).Penalties["artist"].Single().Should().BeApproximately(Distance.AliasPenalty, 0.001);
+            Score(LocalTracks(release, "ÁLIAS NAME"), release).Penalties["artist"].Single().Should().BeApproximately(Distance.AliasPenalty, 0.001);
         }
 
         [Test]

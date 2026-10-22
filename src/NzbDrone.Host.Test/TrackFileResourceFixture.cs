@@ -44,5 +44,16 @@ namespace NzbDrone.App.Test
             Map("/music/Artist".AsOsAgnostic(), "/music/Artist Two/01 - Track.flac".AsOsAgnostic())
                 .RelativePath.Should().BeNull();
         }
+
+        [Test]
+        public void should_give_no_relative_path_for_a_file_without_an_artist()
+        {
+            var file = new TrackFile { Path = "/music/Artist/Album/01 - Track.flac".AsOsAgnostic(), Quality = new QualityModel(Quality.FLAC) };
+
+            var resource = file.ToResource();
+
+            resource.Path.Should().Be(file.Path);
+            resource.RelativePath.Should().BeNull();
+        }
     }
 }

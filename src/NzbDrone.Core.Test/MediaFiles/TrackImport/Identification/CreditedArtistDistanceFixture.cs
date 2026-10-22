@@ -102,20 +102,20 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         }
 
         // A featured guest on an artist whose own name contains a separator
-        [TestCase("Earth, Wind & Fire feat. The Emotions", "Earth, Wind & Fire", "Earth")]
-        [TestCase("Simon & Garfunkel (feat. Paul Desmond)", "Simon & Garfunkel", "Simon")]
-        [TestCase("Mumford & Sons feat. Baaba Maal", "Mumford & Sons", "Sons")]
-        [TestCase("AC/DC ft. Guest", "AC/DC", "AC")]
+        [TestCase("Alpha, Beta & Gamma feat. The Guests", "Alpha, Beta & Gamma", "Alpha")]
+        [TestCase("Delta & Epsilon (feat. Guest Name)", "Delta & Epsilon", "Delta")]
+        [TestCase("Zeta & Sons feat. Guest Name", "Zeta & Sons", "Sons")]
+        [TestCase("AB/CD ft. Guest", "AB/CD", "AB")]
         public void should_score_a_name_with_a_separator_whole_when_a_guest_is_featured(string tag, string right, string wrong)
         {
             RightShouldBeatWrong(tag, Artist(right), Artist(wrong));
         }
 
-        [TestCase("Earth, Wind & Fire", "Earth, Wind & Fire", "Earth")]
-        [TestCase("Simon & Garfunkel", "Simon & Garfunkel", "Simon")]
-        [TestCase("Crosby, Stills, Nash & Young", "Crosby, Stills, Nash & Young", "Young")]
-        [TestCase("Earth Wind and Fire", "Earth, Wind & Fire", "Earth")]
-        [TestCase("Beyoncé & JAY-Z", "The Carters", "Beyoncé", "Beyoncé & JAY-Z")]
+        [TestCase("Alpha, Beta & Gamma", "Alpha, Beta & Gamma", "Alpha")]
+        [TestCase("Delta & Epsilon", "Delta & Epsilon", "Delta")]
+        [TestCase("Eta, Theta, Iota & Kappa", "Eta, Theta, Iota & Kappa", "Kappa")]
+        [TestCase("Alpha Beta and Gamma", "Alpha, Beta & Gamma", "Alpha")]
+        [TestCase("Lambdé & MU-NU", "The Duo", "Lambdé", "Lambdé & MU-NU")]
         public void should_rank_the_whole_credit_ahead_of_one_of_its_pieces(string tag, string right, string wrong, string rightAlias = null)
         {
             RightShouldBeatWrong(tag, rightAlias == null ? Artist(right) : Artist(right, rightAlias), Artist(wrong));
@@ -125,9 +125,9 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         [Test]
         public void should_not_score_a_watermark_against_an_artist_with_a_web_like_alias()
         {
-            var right = Release(Artist("Right Artist", "rightartist.com"), "Greatest Hits");
+            var right = Release(Artist("Right Artist", "rightartist.example.com"), "Greatest Hits");
             var wrong = Release(Artist("Wrong Artist"), "Greatest Hits");
-            var local = LocalTracks(right, "www.music-downloads.ru");
+            var local = LocalTracks(right, "www.downloads.example.com");
 
             Score(local, right).Penalties.Should().NotContainKey("artist");
             Score(local, right).NormalizedDistance().Should().Be(Score(local, wrong).NormalizedDistance());

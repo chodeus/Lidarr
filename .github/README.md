@@ -17,6 +17,6 @@ Tests: an exact alias match (including case), name over alias, a shared alias, a
 ## Summary by CodeRabbit
 
 * **Bug Fixes**
-  * Improved artist searches to recognize exact alias matches, including case-insensitive matches.
-  * Artist names take precedence over another artist’s alias, and ambiguous alias matches no longer return an artist.
-  * Exact alias matches are preferred over fuzzy artist-name matches.
+  * Artist searches now recognize exact alias matches despite differences in capitalization, accents, or ampersand spelling.
+  * When a title matches an artist’s name and another artist’s alias, the artist-name match takes precedence. An alias shared by several artists picks none of them.
+  * Exact alias matches are preferred over fuzzy artist-name matches. Release titles that omit an artist’s leading “The” can still be matched to that artist.

@@ -38,6 +38,12 @@ namespace Lidarr.Api.V1.Profiles.Release
                 }
             });
 
+            SharedValidator.RuleFor(r => r.IndexerIds)
+                .Must(ids => ids == null || ids.All(i => i >= 0))
+                .WithMessage("Indexer IDs can't be negative");
+
+            SharedValidator.RuleFor(r => r.IndexerId).GreaterThanOrEqualTo(0);
+
             SharedValidator.RuleFor(r => r.ExcludedTags)
                 .Cascade(CascadeMode.Stop)
                 .NotNull()
@@ -65,7 +71,20 @@ namespace Lidarr.Api.V1.Profiles.Release
         [RestPutById]
         public ActionResult<ReleaseProfileResource> Update([FromBody] ReleaseProfileResource resource)
         {
-            _releaseProfileService.Update(resource.ToModel());
+            var model = resource.ToModel();
+
+            // A client that only knows indexerId sends back the first indexer; that keeps the stored list rather than cutting it to one
+            if (resource.IndexerIds == null && resource.IndexerId > 0)
+            {
+                var stored = _releaseProfileService.Get(resource.Id);
+
+                if (stored.IndexerIds.FirstOrDefault() == resource.IndexerId)
+                {
+                    model.IndexerIds = stored.IndexerIds;
+                }
+            }
+
+            _releaseProfileService.Update(model);
             return Accepted(resource.Id);
         }
 

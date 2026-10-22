@@ -1,0 +1,74 @@
+using System.Collections.Generic;
+using System.Linq;
+using Dapper;
+using FluentAssertions;
+using NUnit.Framework;
+using NzbDrone.Core.Datastore;
+using NzbDrone.Core.Indexers;
+using NzbDrone.Core.Profiles.Releases;
+using NzbDrone.Core.Test.Framework;
+using NzbDrone.Core.ThingiProvider.Events;
+
+namespace NzbDrone.Core.Test.Profiles.Releases
+{
+    // The real service and repository over the test database
+    [TestFixture]
+    public class ReleaseProfileStorageFixture : DbTest<ReleaseProfileService, ReleaseProfile>
+    {
+        [SetUp]
+        public void Setup()
+        {
+            Mocker.SetConstant<IRestrictionRepository>(Mocker.Resolve<ReleaseProfileRepository>());
+        }
+
+        private ReleaseProfile Add(params int[] indexerIds)
+        {
+            return Subject.Add(new ReleaseProfile { Enabled = true, Required = new List<string> { "flac" }, IndexerIds = indexerIds.ToList() });
+        }
+
+        private void Execute(string sql)
+        {
+            using var connection = Mocker.Resolve<IDatabase>().OpenConnection();
+            connection.Execute(sql);
+        }
+
+        [Test]
+        public void should_keep_the_indexer_of_a_profile_an_older_build_added()
+        {
+            Execute("INSERT INTO \"ReleaseProfiles\" (\"Enabled\", \"Required\", \"Ignored\", \"IndexerId\", \"Tags\") VALUES (1, '[\"flac\"]', '[]', 5, '[]')");
+
+            Subject.All().Single().IndexerIds.Should().Equal(5);
+        }
+
+        [Test]
+        public void should_take_the_indexer_an_older_build_changed()
+        {
+            var profile = Add(5, 7);
+            Execute($"UPDATE \"ReleaseProfiles\" SET \"IndexerId\" = 9 WHERE \"Id\" = {profile.Id}");
+
+            Subject.Get(profile.Id).IndexerIds.Should().Equal(9);
+        }
+
+        [Test]
+        public void should_keep_every_indexer_this_build_saved()
+        {
+            var profile = Add(5, 7);
+
+            Subject.Get(profile.Id).IndexerIds.Should().Equal(5, 7);
+        }
+
+        [Test]
+        public void should_take_a_deleted_indexer_out_of_every_profile_and_disable_one_left_with_none()
+        {
+            var onlyFive = Add(5);
+            var fiveAndSeven = Add(5, 7);
+            var every = Add();
+
+            Subject.Handle(new ProviderDeletedEvent<IIndexer>(5));
+
+            Subject.Get(onlyFive.Id).Should().Match<ReleaseProfile>(p => p.IndexerIds.Count == 0 && !p.Enabled);
+            Subject.Get(fiveAndSeven.Id).Should().Match<ReleaseProfile>(p => p.IndexerIds.SequenceEqual(new[] { 7 }) && p.Enabled);
+            Subject.Get(every.Id).Should().Match<ReleaseProfile>(p => p.IndexerIds.Count == 0 && p.Enabled);
+        }
+    }
+}

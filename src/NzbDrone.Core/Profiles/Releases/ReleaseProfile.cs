@@ -13,12 +13,27 @@ namespace NzbDrone.Core.Profiles.Releases
         public HashSet<int> Tags { get; set; }
         public HashSet<int> ExcludedTags { get; set; }
 
+        private int _storedIndexerId;
+
         // Develop's single indexer, kept for plugins and stored for older builds to read
         // Rows set it before the later IndexerIds column, so a read keeps the full list
         public int IndexerId
         {
             get => IndexerIds.FirstOrDefault();
-            set => IndexerIds = value > 0 ? new List<int> { value } : new List<int>();
+            set
+            {
+                _storedIndexerId = value;
+                IndexerIds = value > 0 ? new List<int> { value } : new List<int>();
+            }
+        }
+
+        // After a read: an older build saves only IndexerId, so a list that is empty or starts with another indexer is older than it
+        public void TakeIndexerSavedByAnOlderBuild()
+        {
+            if (_storedIndexerId > 0 && IndexerIds.FirstOrDefault() != _storedIndexerId)
+            {
+                IndexerIds = new List<int> { _storedIndexerId };
+            }
         }
 
         public ReleaseProfile()

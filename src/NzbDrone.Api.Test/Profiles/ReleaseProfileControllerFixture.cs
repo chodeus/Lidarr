@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using FluentAssertions;
 using FluentValidation.Results;
 using Lidarr.Api.V1.Profiles.Release;
@@ -13,13 +14,15 @@ namespace NzbDrone.Api.Test.Profiles
     public class ReleaseProfileControllerFixture
     {
         private Mock<IIndexerFactory> _indexerFactory;
+        private Mock<IReleaseProfileService> _service;
         private TestController _subject;
 
         [SetUp]
         public void Setup()
         {
             _indexerFactory = new Mock<IIndexerFactory>();
-            _subject = new TestController(new Mock<IReleaseProfileService>().Object, _indexerFactory.Object);
+            _service = new Mock<IReleaseProfileService>();
+            _subject = new TestController(_service.Object, _indexerFactory.Object);
         }
 
         private static ReleaseProfileResource Resource()
@@ -115,6 +118,40 @@ namespace NzbDrone.Api.Test.Profiles
             resource.IndexerIds.Should().Equal(5, 7);
             resource.IndexerId.Should().Be(5);
             new ReleaseProfile().ToResource().IndexerId.Should().Be(0);
+        }
+
+        [Test]
+        public void should_reject_negative_indexer_ids()
+        {
+            var resource = Resource();
+            resource.IndexerIds = new List<int> { -1 };
+
+            _subject.Validate(resource).Errors.Should().ContainSingle().Which.PropertyName.Should().Be("IndexerIds");
+        }
+
+        [Test]
+        public void should_reject_a_negative_indexer_id()
+        {
+            var resource = Resource();
+            resource.IndexerId = -1;
+
+            _subject.Validate(resource).Errors.Should().ContainSingle().Which.PropertyName.Should().Be("IndexerId");
+        }
+
+        [TestCase(5, new[] { 5, 7 })]
+        [TestCase(9, new[] { 9 })]
+        public void should_keep_the_stored_indexers_when_a_client_sends_back_only_the_first(int indexerId, int[] saved)
+        {
+            _service.Setup(s => s.Get(3)).Returns(new ReleaseProfile { Id = 3, IndexerIds = new List<int> { 5, 7 } });
+
+            var resource = Resource();
+            resource.Id = 3;
+            resource.IndexerId = indexerId;
+            resource.IndexerIds = null;
+
+            _subject.Update(resource);
+
+            _service.Verify(s => s.Update(It.Is<ReleaseProfile>(p => p.IndexerIds.SequenceEqual(saved))), Times.Once());
         }
 
         [Test]

@@ -2,6 +2,9 @@ using System.Collections.Generic;
 using System.Linq;
 using NLog;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Core.Indexers;
+using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.ThingiProvider.Events;
 
 namespace NzbDrone.Core.Profiles.Releases
 {
@@ -18,7 +21,7 @@ namespace NzbDrone.Core.Profiles.Releases
         ReleaseProfile Update(ReleaseProfile restriction);
     }
 
-    public class ReleaseProfileService : IReleaseProfileService
+    public class ReleaseProfileService : IReleaseProfileService, IHandle<ProviderDeletedEvent<IIndexer>>
     {
         private readonly IRestrictionRepository _repo;
         private readonly Logger _logger;
@@ -76,6 +79,20 @@ namespace NzbDrone.Core.Profiles.Releases
         public ReleaseProfile Update(ReleaseProfile restriction)
         {
             return _repo.Update(restriction);
+        }
+
+        // A profile limited to a deleted indexer would match nothing, and dropping its last indexer would widen it to all, so it is disabled
+        public void Handle(ProviderDeletedEvent<IIndexer> message)
+        {
+            var changed = _repo.All().Where(p => p.IndexerIds.Remove(message.ProviderId)).ToList();
+
+            foreach (var profile in changed.Where(p => p.IndexerIds.Empty() && p.Enabled))
+            {
+                profile.Enabled = false;
+                _logger.Warn("Release profile {0} was limited to a deleted indexer and has been disabled", profile.Id);
+            }
+
+            _repo.UpdateMany(changed);
         }
     }
 }

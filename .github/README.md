@@ -12,3 +12,14 @@ Import identification scores the files' artist tag, the album artist where there
 - As `feat/artist-alias-distance` now does, the artist's own name is scored ahead of its aliases, for the whole credit and for each credited artist: an alias match costs `Distance.AliasPenalty` (0.05) more, so a tribute act that has the bare name as an alias doesn't beat the real artist. Aliases that clean to nothing are ignored, so files without an artist tag keep the full penalty, and they aren't counted as named like a web address.
 
 Tests: a tag crediting several artists scores closer than the same text as one name, and closer than an unrelated artist; the whole credit outranks one of its artists, including "&" against "and", a missing "The" (also for short names) and a listed name ending in "Feat"; the credit as written outranks its "and" spelling; a name written without its "&" still matches; the main artist outranks a featured guest, bracketed or not, a guest after a list separator is left out, and a co-artist after a bracketed guest still counts; names that contain a separator match themselves; a list naming neither artist, an empty tag and dotted names are still penalised; web addresses, padded, with a path or with a query string, aren't scored unless the artist is named like one, and a name followed by one, or listed with one, still is, also after a query string. Nineteen mutations each fail a test, among them a penalty of 0.1 on a listed artist, guests kept, a bracketed guest running to the end, a guest recognised only after a space, all three earlier guest patterns, the earlier address checks, skipping an address even for an artist named like one, an address with a query string not recognised, no leading-"The" reading, no tie-break on the loose reading, and scoring the whole credit only as written or only loosely; the alias tests still pass.
+
+## Summary by CodeRabbit
+
+- **Improvements**
+  - Artist matching during track imports better recognizes multi-artist credits and compares full credits with individual artists.
+  - “&” and “and” spellings, leading “The,” and featured guests are handled more consistently, while co-artists remain recognized.
+  - Web-address tags are excluded from matching unless the artist’s name is itself a web address.
+  - Artist aliases and names containing separators are handled more reliably; unrelated artists receive lower match confidence.
+
+- **Documentation**
+  - Expanded documentation of artist-tag matching behavior and test coverage.

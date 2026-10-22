@@ -12,6 +12,8 @@ Changes from Sonarr: the download remembers the reason it was notified for (`Tra
 - The message falls back to the download title when artist, albums or quality are missing.
 - Such a download reaches only notifications without tags. Sonarr's tag check dereferences the missing series, and the caught exception marks the notification failing.
 - Discord, CustomScript and the webhook payload skip the artist parts when there is no artist.
+- Discord links to MusicBrainz, in the embed and the Links field, only when the artist's id is a MusicBrainz id, so an artist from another metadata source gets no broken link.
+- The webhook's download info carries the tracked download's indexer. Sonarr declares the field but never sets it.
 
 Tests: the event fires once per reason, again for a new reason and not while a download cycles through Import Pending (re-audit, 2026-10), the flag and reason survive re-tracking, the handler's matched, missing-quality, untagged, tagged-unmatched and tagged-matched cases, the webhook payload with no artist, and the `Supports` flags. Nine mutations, all building, each fail a test.
 

@@ -6,6 +6,7 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Datastore;
+using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Notifications;
 using NzbDrone.Core.Notifications.Gotify;
@@ -120,6 +121,11 @@ namespace NzbDrone.Core.Test.NotificationTests.MetadataLinks
 
         private GotifyMessage GivenGotifyGrab(string message, params int[] metadataLinks)
         {
+            return GivenGotifyGrab(message, null, metadataLinks);
+        }
+
+        private GotifyMessage GivenGotifyGrab(string message, string posterUrl, params int[] metadataLinks)
+        {
             GotifyMessage payload = null;
 
             Mocker.GetMock<IGotifyProxy>()
@@ -132,14 +138,22 @@ namespace NzbDrone.Core.Test.NotificationTests.MetadataLinks
                 Settings = new GotifySettings
                 {
                     MetadataLinks = metadataLinks,
-                    PreferredMetadataLink = (int)MetadataLinkType.MusicBrainzAlbum
+                    PreferredMetadataLink = (int)MetadataLinkType.MusicBrainzAlbum,
+                    IncludeArtistPoster = posterUrl != null
                 }
             };
 
             gotify.OnGrab(new GrabMessage
             {
                 Message = message,
-                Artist = new Artist { Metadata = new LazyLoaded<ArtistMetadata>(new ArtistMetadata { ForeignArtistId = "11111111-1111-1111-1111-111111111111" }) },
+                Artist = new Artist
+                {
+                    Metadata = new LazyLoaded<ArtistMetadata>(new ArtistMetadata
+                    {
+                        ForeignArtistId = "11111111-1111-1111-1111-111111111111",
+                        Images = posterUrl == null ? new List<MediaCover.MediaCover>() : new List<MediaCover.MediaCover> { new MediaCover.MediaCover { CoverType = MediaCoverTypes.Poster, RemoteUrl = posterUrl } }
+                    })
+                },
                 RemoteAlbum = new RemoteAlbum { Albums = new List<Album> { new Album { ForeignAlbumId = "22222222-2222-2222-2222-222222222222" } } }
             });
 
@@ -153,6 +167,16 @@ namespace NzbDrone.Core.Test.NotificationTests.MetadataLinks
 
             payload.Message.Should().StartWith(@"M\*A\*S\*H - \[Untitled\]\(https://example.invalid\) \[FLAC\]");
             payload.Message.Should().Contain("1111)" + Environment.NewLine + Environment.NewLine + "[MusicBrainz Album]");
+        }
+
+        [Test]
+        public void gotify_should_escape_names_when_only_the_poster_turns_on_markdown()
+        {
+            var payload = GivenGotifyGrab("M*A*S*H [FLAC]", "https://example.invalid/poster.jpg");
+
+            payload.Message.Should().StartWith(@"M\*A\*S\*H \[FLAC\]");
+            payload.Message.Should().Contain("![](https://example.invalid/poster.jpg)");
+            payload.Extras.ClientDisplay.ContentType.Should().Be("text/markdown");
         }
 
         [Test]

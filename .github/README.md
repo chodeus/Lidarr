@@ -1,6 +1,6 @@
 # Fixed: Delay and tagging profile ordering and missing tags
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`tagging-profiles`](https://github.com/chodeus/Lidarr/tree/tagging-profiles). Reviewed in [#12](https://github.com/chodeus/Lidarr/pull/12), [#41](https://github.com/chodeus/Lidarr/pull/41) and [#50](https://github.com/chodeus/Lidarr/pull/50).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`tagging-profiles`](https://github.com/chodeus/Lidarr/tree/tagging-profiles), currently through its reviewed copy [`upstream-review/tagging-profiles`](https://github.com/chodeus/Lidarr/tree/upstream-review/tagging-profiles). Reviewed in [#12](https://github.com/chodeus/Lidarr/pull/12), [#41](https://github.com/chodeus/Lidarr/pull/41) and [#50](https://github.com/chodeus/Lidarr/pull/50).
 
 Delay and tagging profiles share their ordering code, and both had the same gaps:
 - **Reorder.** Moving a profile after itself, or after the default, left gaps or a duplicate `int.MaxValue`. `Add` numbered new profiles by row count, so a gap produced a duplicate. Delay's `Reorder` also left the best-for-tags cache stale for 30 seconds.
@@ -31,6 +31,13 @@ Third round, from a further audit of the branch:
 - **A default stored out of place.** An older save could leave the default at a low order, and an older reorder a tagged profile tied with it at `int.MaxValue`. Either way the default won every lookup. Lookups now rank the default last whatever its stored order, and `MakeRoom` renumbers on the next add. The pending queue worked out a held release's estimated time with its own order-only ranking; it now uses the same lookup.
 
 Tests: both DB fixtures run these against the real database: a reorder and a delete landing between a lookup's read and its store (on two threads), a failed insert after a renumber, a default stored out of place, a tagged profile at the maximum order, a held release's estimated time in the pending queue (`PendingQueueDelayFixture`), and cached lookups that must not wait for a writer or for another lookup's read. The tagging fixture also covers the seeded default. Each new case failed before its fix, except the four timing tests, which check that hits aren't serialised. Ten mutations each fail a test. Full Core suite: 3302 pass, and the 3 hardlink tests that fail on this Mac fail as before. Merged after the custom build's other branches, it builds, the plugin check passes, and the suite there passes 4143 and fails the same 3.
+
+Fourth round, after the base branch's own review:
+
+- **Deleting the default tagging profile.** Only the controller refused to delete the default; `TaggingProfileService.Delete(1)` removed it. The service now refuses too. The base branch keeps delay-profile behaviour here, so the guard lives in this branch.
+- **Missing tags.** The base branch's API now rejects a tagging profile sent without `tags`, as the delay profile API does. `ToModel` still treats missing tags as none for other callers.
+
+Tests: `delete_should_not_delete_seeded_default_profile` fails without the guard. The base branch's tests for a reorder after the default and for moving the default run here too and pass against `ProfileOrder`.
 
 ## Summary by CodeRabbit
 

@@ -13,7 +13,7 @@ namespace NzbDrone.Core.ImportLists.ImportListItems
         List<ImportListItemInfo> All();
         List<ImportListItemInfo> GetAllForLists(List<int> listIds);
         int SyncItemsForList(List<ImportListItemInfo> listItems, int listId);
-        void StoreMappedArtistIds(List<(ImportListItemKey Key, string ArtistMusicBrainzId)> mapped);
+        void StoreMappedArtistIds(List<int> listIds, List<(ImportListItemKey Key, string ArtistMusicBrainzId)> mapped);
     }
 
     public record ImportListItemKey(string Artist, string ArtistMusicBrainzId, string Album, string AlbumMusicBrainzId);
@@ -62,13 +62,18 @@ namespace NzbDrone.Core.ImportLists.ImportListItems
         }
 
         // Only a lookup by album id names the album's own artist; one found by a title or name search could be another artist's
-        public void StoreMappedArtistIds(List<(ImportListItemKey Key, string ArtistMusicBrainzId)> mapped)
+        public void StoreMappedArtistIds(List<int> listIds, List<(ImportListItemKey Key, string ArtistMusicBrainzId)> mapped)
         {
             var byKey = mapped.Where(m => m.Key.ArtistMusicBrainzId.IsNullOrWhiteSpace() && m.Key.AlbumMusicBrainzId.IsNotNullOrWhiteSpace() && m.ArtistMusicBrainzId.IsNotNullOrWhiteSpace())
                               .GroupBy(m => m.Key)
                               .ToDictionary(g => g.Key, g => g.First().ArtistMusicBrainzId);
 
-            var toUpdate = _importListItemRepository.All()
+            if (byKey.Count == 0)
+            {
+                return;
+            }
+
+            var toUpdate = _importListItemRepository.GetAllForLists(listIds)
                 .Where(i => byKey.TryGetValue(KeyOf(i), out var artistId) && i.MappedArtistMusicBrainzId != artistId)
                 .ToList();
 

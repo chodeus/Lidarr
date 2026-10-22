@@ -146,7 +146,7 @@ namespace NzbDrone.Core.ImportLists
 
             var processed = ProcessListItems(listItems);
 
-            _importListItemService.StoreMappedArtistIds(keys.Zip(listItems, (key, item) => (key, item.ArtistMusicBrainzId)).ToList());
+            _importListItemService.StoreMappedArtistIds(listItems.Select(i => i.ImportListId).Distinct().ToList(), keys.Zip(listItems, (key, item) => (key, item.ArtistMusicBrainzId)).ToList());
 
             return processed;
         }
@@ -415,7 +415,7 @@ namespace NzbDrone.Core.ImportLists
             _eventAggregator.PublishEvent(new ImportListSyncCompleteEvent(processed));
         }
 
-        private void TryCleanLibrary()
+        private void TryCleanLibrary(int? deletedListId = null)
         {
             if (_configService.ListSyncLevel == ListSyncLevelType.Disabled)
             {
@@ -426,11 +426,11 @@ namespace NzbDrone.Core.ImportLists
 
             if (pending.Any())
             {
-                CleanLibrary(pending);
+                CleanLibrary(pending, deletedListId);
             }
         }
 
-        private void CleanLibrary(List<int> pendingListIds)
+        private void CleanLibrary(List<int> pendingListIds, int? deletedListId)
         {
             if (_configService.ListSyncLevel == ListSyncLevelType.Disabled)
             {
@@ -444,7 +444,9 @@ namespace NzbDrone.Core.ImportLists
             }
 
             var artistsToUpdate = new List<Artist>();
-            var allListItems = _importListItemService.All();
+
+            // The deleted list's items may not be removed yet when its deletion triggers this clean
+            var allListItems = _importListItemService.All().Where(i => i.ImportListId != deletedListId).ToList();
 
             var listArtistIds = allListItems.SelectMany(l => new[] { l.ArtistMusicBrainzId, l.MappedArtistMusicBrainzId }).Where(x => x.IsNotNullOrWhiteSpace()).ToHashSet();
             var listArtistNames = allListItems.Where(l => l.Artist.IsNotNullOrWhiteSpace()).Select(l => l.Artist.CleanArtistName()).ToHashSet();
@@ -543,7 +545,7 @@ namespace NzbDrone.Core.ImportLists
 
         public void HandleAsync(ProviderDeletedEvent<IImportList> message)
         {
-            TryCleanLibrary();
+            TryCleanLibrary(message.ProviderId);
         }
     }
 }

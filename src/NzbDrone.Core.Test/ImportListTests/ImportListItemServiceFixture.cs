@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Linq.Expressions;
 using FluentAssertions;
 using Moq;
@@ -89,6 +90,28 @@ namespace NzbDrone.Core.Test.ImportListTests
 
             Mocker.GetMock<IImportListItemRepository>()
                 .Verify(v => v.DeleteMany(existing), Times.Once());
+        }
+
+        [Test]
+        public void store_mapped_artist_ids_should_read_only_the_synced_lists()
+        {
+            var item = new ImportListItemInfo { ImportListId = 1, Artist = "Artist Name", AlbumMusicBrainzId = "album-1" };
+            GivenExisting(new List<ImportListItemInfo> { item });
+
+            Subject.StoreMappedArtistIds(new List<int> { 1 }, new List<(ImportListItemKey, string)> { (ImportListItemService.KeyOf(item), "artist-1") });
+
+            item.MappedArtistMusicBrainzId.Should().Be("artist-1");
+            Mocker.GetMock<IImportListItemRepository>().Verify(v => v.GetAllForLists(It.Is<List<int>>(l => l.SequenceEqual(new[] { 1 }))), Times.Once());
+            Mocker.GetMock<IImportListItemRepository>().Verify(v => v.All(), Times.Never());
+        }
+
+        [Test]
+        public void store_mapped_artist_ids_should_read_nothing_when_nothing_was_mapped()
+        {
+            Subject.StoreMappedArtistIds(new List<int> { 1 }, new List<(ImportListItemKey, string)>());
+
+            Mocker.GetMock<IImportListItemRepository>().Verify(v => v.GetAllForLists(It.IsAny<List<int>>()), Times.Never());
+            Mocker.GetMock<IImportListItemRepository>().Verify(v => v.All(), Times.Never());
         }
     }
 }

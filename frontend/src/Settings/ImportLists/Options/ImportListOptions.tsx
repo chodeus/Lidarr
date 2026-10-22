@@ -85,7 +85,7 @@ function ImportListOptions(props: ImportListOptionsPageProps) {
     onChildMounted(() => dispatch(saveImportListOptions()));
 
     return () => {
-      dispatch(clearPendingChanges({ section: SECTION }));
+      dispatch(clearPendingChanges({ section: `settings.${SECTION}` }));
     };
   }, [dispatch, onChildMounted]);
 

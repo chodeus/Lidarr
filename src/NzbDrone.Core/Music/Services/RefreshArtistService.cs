@@ -308,7 +308,7 @@ namespace NzbDrone.Core.Music
 
         private bool HasFilesOutside(int artistId, string path)
         {
-            return _mediaFileService.GetFilesByArtist(artistId).Any(f => !path.IsParentPath(f.Path));
+            return _mediaFileService.GetAllFilesByArtist(artistId).Any(f => !path.IsParentPath(f.Path));
         }
 
         private void RescanArtists(List<int> artistIds, List<string> folders, bool isNew, CommandTrigger trigger, bool infoUpdated)

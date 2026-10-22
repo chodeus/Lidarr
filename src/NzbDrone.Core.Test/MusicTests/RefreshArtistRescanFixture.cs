@@ -47,6 +47,7 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IRootFolderService>().Setup(s => s.All()).Returns(new List<RootFolder> { new RootFolder { Path = "/music".AsOsAgnostic() } });
             Mocker.GetMock<IRootFolderService>().Setup(s => s.GetBestRootFolder(It.IsAny<string>())).Returns(new RootFolder { Path = "/music".AsOsAgnostic() });
             Mocker.GetMock<IMediaFileService>().Setup(s => s.GetFilesByArtist(It.IsAny<int>())).Returns(new List<TrackFile>());
+            Mocker.GetMock<IMediaFileService>().Setup(s => s.GetAllFilesByArtist(It.IsAny<int>())).Returns(new List<TrackFile>());
 
             _rescans = new List<RescanFoldersCommand>();
             Mocker.GetMock<IManageCommandQueue>()

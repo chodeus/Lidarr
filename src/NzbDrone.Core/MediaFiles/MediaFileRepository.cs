@@ -11,6 +11,7 @@ namespace NzbDrone.Core.MediaFiles
     public interface IMediaFileRepository : IBasicRepository<TrackFile>
     {
         List<TrackFile> GetFilesByArtist(int artistId);
+        List<TrackFile> GetAllFilesByArtist(int artistId);
         List<TrackFile> GetFilesByAlbum(int albumId);
         List<TrackFile> GetFilesByRelease(int releaseId);
         List<TrackFile> GetUnmappedFiles();
@@ -76,6 +77,11 @@ namespace NzbDrone.Core.MediaFiles
             return Query(Builder().LeftJoin<Track, AlbumRelease>((t, r) => t.AlbumReleaseId == r.Id)
                          .Where<AlbumRelease>(r => r.Monitored == true)
                          .Where<Artist>(a => a.Id == artistId));
+        }
+
+        public List<TrackFile> GetAllFilesByArtist(int artistId)
+        {
+            return Query(Builder().Where<Artist>(a => a.Id == artistId));
         }
 
         public List<TrackFile> GetFilesByAlbum(int albumId)

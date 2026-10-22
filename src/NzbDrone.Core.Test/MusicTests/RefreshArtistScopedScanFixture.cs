@@ -90,12 +90,12 @@ namespace NzbDrone.Core.Test.MusicTests
             return artist;
         }
 
-        private TrackFile GivenTrackFile(Artist artist, string path)
+        private TrackFile GivenTrackFile(Artist artist, string path, bool monitoredRelease = true)
         {
             var album = Builder<Album>.CreateNew().With(a => a.Id = 0).With(a => a.ArtistMetadataId = artist.ArtistMetadataId).Build();
             Db.Insert(album);
 
-            var release = Builder<AlbumRelease>.CreateNew().With(r => r.Id = 0).With(r => r.AlbumId = album.Id).With(r => r.Monitored = true).Build();
+            var release = Builder<AlbumRelease>.CreateNew().With(r => r.Id = 0).With(r => r.AlbumId = album.Id).With(r => r.Monitored = monitoredRelease).Build();
             Db.Insert(release);
 
             var file = Builder<TrackFile>.CreateNew().With(f => f.Id = 0).With(f => f.AlbumId = album.Id).With(f => f.Path = path.AsOsAgnostic()).With(f => f.Quality = new QualityModel(Quality.FLAC)).Build();
@@ -135,6 +135,24 @@ namespace NzbDrone.Core.Test.MusicTests
             var stale = GivenTrackFile(artist, "/music/Artist Old/01.flac");
 
             // The scan skips the clean-up of a folder with no audio files, as for an unmounted drive
+            var onDisk = new Mock<IFileInfo>();
+            onDisk.SetupGet(f => f.FullName).Returns("/music/Another Artist/01.flac".AsOsAgnostic());
+            onDisk.SetupGet(f => f.Name).Returns("01.flac");
+            onDisk.SetupGet(f => f.Extension).Returns(".flac");
+            Mocker.GetMock<IDiskProvider>().Setup(d => d.GetFileInfos("/music".AsOsAgnostic(), It.IsAny<bool>())).Returns(new List<IFileInfo> { onDisk.Object });
+
+            Subject.Execute(new RefreshArtistCommand(new List<int> { artist.Id }) { Trigger = CommandTrigger.Manual });
+
+            ScannedFolders().Should().Equal("/music".AsOsAgnostic());
+            Db.All<TrackFile>().Select(f => f.Path).Should().NotContain(stale.Path);
+        }
+
+        [Test]
+        public void should_scan_the_root_folders_when_a_file_of_an_unmonitored_release_is_outside_its_folder()
+        {
+            var artist = GivenArtist("artist-1", "/music/Artist New");
+            var stale = GivenTrackFile(artist, "/music/Artist Old/01.flac", monitoredRelease: false);
+
             var onDisk = new Mock<IFileInfo>();
             onDisk.SetupGet(f => f.FullName).Returns("/music/Another Artist/01.flac".AsOsAgnostic());
             onDisk.SetupGet(f => f.Name).Returns("01.flac");

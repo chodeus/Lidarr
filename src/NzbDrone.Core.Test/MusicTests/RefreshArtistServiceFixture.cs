@@ -33,6 +33,10 @@ namespace NzbDrone.Core.Test.MusicTests
         [SetUp]
         public void Setup()
         {
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(x => x.GetAllFilesByArtist(It.IsAny<int>()))
+                .Returns(new List<TrackFile>());
+
             _album1 = Builder<Album>.CreateNew()
                 .With(s => s.ForeignAlbumId = "1")
                 .Build();

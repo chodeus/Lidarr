@@ -173,12 +173,13 @@ jobs:
   notify:
     needs: [compile, image]
     if: failure()
-    uses: chodeus/chodeus-ops/.github/workflows/notify-discord.yml@579feb04e3219248963bd27843298a8c2ea6b2fd # main
+    uses: chodeus/chodeus-ops/.github/workflows/notify-discord.yml@cbd544d21103cfe854c8e0ec717ee2be4f097ad7 # main
     with:
       event_type: workflow
       status: failure
       title: "❌ Lidarr image build failed: ${{ github.ref_name }}"
       description: "No new image was published, so the running image stays on the last good build. If the Merge Sources step failed, rebase the branch it names onto develop; if compile failed, upstream develop changed code one of meta.json's `pr_branches` relies on; if Check Plugins failed, the step names the Lidarr type or member a plugin in `plugin_repos` uses that the build lacks, or the release it could not download."
       commit_sha: ${{ github.sha }}
+      needs: ${{ toJSON(needs) }}
     secrets:
       DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}

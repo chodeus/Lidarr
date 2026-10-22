@@ -72,7 +72,7 @@ jobs:
   notify:
     needs: update
     if: failure()
-    uses: chodeus/chodeus-ops/.github/workflows/notify-discord.yml@579feb04e3219248963bd27843298a8c2ea6b2fd # main
+    uses: chodeus/chodeus-ops/.github/workflows/notify-discord.yml@cbd544d21103cfe854c8e0ec717ee2be4f097ad7 # main
     with:
       event_type: workflow
       status: failure
@@ -85,7 +85,7 @@ jobs:
   notify-sync:
     needs: sync-develop
     if: failure()
-    uses: chodeus/chodeus-ops/.github/workflows/notify-discord.yml@579feb04e3219248963bd27843298a8c2ea6b2fd # main
+    uses: chodeus/chodeus-ops/.github/workflows/notify-discord.yml@cbd544d21103cfe854c8e0ec717ee2be4f097ad7 # main
     with:
       event_type: workflow
       status: failure

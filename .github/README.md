@@ -18,5 +18,7 @@ Tests: a selected refresh pushes a rescan of the artist's folder, a full refresh
 ## Summary by CodeRabbit
 
 * **Bug Fixes**
-  * Manual refreshes of selected artists now rescan their folders when all requested artists are found, avoiding scans of unrelated folders.
-  * If a requested artist has been merged away, the refresh rescans root folders instead. Full-library manual refreshes continue to scan root folders, ensuring collection-wide coverage when the selected set cannot be fully resolved.
+  * Selected-artist refreshes now scan artist folders when possible and fall back to root-folder scans when artists are missing or files are outside their folders.
+  * Artists outside configured root folders are excluded, while other eligible artists can still be scanned. Scans are not queued when no eligible folders remain.
+  * Full-library refreshes scan root folders when rescanning is enabled and exclude artists no longer in the library.
+  * New artists are scanned in their own folders unless they are merged during refresh; duplicate selections are scanned once.

@@ -146,7 +146,7 @@ namespace NzbDrone.Core.ImportLists
 
             var processed = ProcessListItems(listItems);
 
-            _importListItemService.StoreMappedArtistIds(listItems.Select(i => i.ImportListId).Distinct().ToList(), keys.Zip(listItems, (key, item) => (key, item.ArtistMusicBrainzId)).ToList());
+            _importListItemService.StoreMappedArtistIds(keys.Zip(listItems, (key, item) => (key, item.ArtistMusicBrainzId)).ToList());
 
             return processed;
         }

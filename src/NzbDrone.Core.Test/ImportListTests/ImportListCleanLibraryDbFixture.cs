@@ -241,10 +241,10 @@ namespace NzbDrone.Core.Test.ImportListTests
         public void should_not_count_a_case_only_change_as_a_removal()
         {
             var service = Mocker.Resolve<IImportListItemService>();
-            service.SyncItemsForList(new List<ImportListItemInfo> { new ImportListItemInfo { ImportListId = ListId, Artist = "Sigur Rós", ArtistMusicBrainzId = "mb-sr" } }, ListId);
+            service.SyncItemsForList(new List<ImportListItemInfo> { new ImportListItemInfo { ImportListId = ListId, Artist = "Artist Name", ArtistMusicBrainzId = "mb-sr" } }, ListId);
 
             // Same artist, the provider changed the case of the name
-            service.SyncItemsForList(new List<ImportListItemInfo> { new ImportListItemInfo { ImportListId = ListId, Artist = "Sigur rós", ArtistMusicBrainzId = "mb-sr" } }, ListId)
+            service.SyncItemsForList(new List<ImportListItemInfo> { new ImportListItemInfo { ImportListId = ListId, Artist = "Artist name", ArtistMusicBrainzId = "mb-sr" } }, ListId)
                    .Should().Be(0);
         }
 

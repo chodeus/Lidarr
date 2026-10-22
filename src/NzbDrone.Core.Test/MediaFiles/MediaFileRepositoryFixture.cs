@@ -95,6 +95,16 @@ namespace NzbDrone.Core.Test.MediaFiles
         }
 
         [Test]
+        public void get_all_files_by_artist_should_include_tracks_for_unmonitored_releases()
+        {
+            VerifyData();
+            var artistFiles = Subject.GetAllFilesByArtist(_artist.Id);
+            VerifyEagerLoaded(artistFiles);
+
+            artistFiles.Should().HaveCount(5);
+        }
+
+        [Test]
         public void get_unmapped_files()
         {
             VerifyData();
@@ -172,16 +182,6 @@ namespace NzbDrone.Core.Test.MediaFiles
             VerifyEagerLoaded(artistFiles);
 
             artistFiles.Should().HaveCount(4);
-        }
-
-        [Test]
-        public void get_all_files_by_artist_should_include_tracks_for_unmonitored_releases()
-        {
-            VerifyData();
-            var artistFiles = Subject.GetAllFilesByArtist(_artist.Id);
-            VerifyEagerLoaded(artistFiles);
-
-            artistFiles.Should().HaveCount(5);
         }
 
         [Test]

@@ -20,7 +20,8 @@ Tests: the event fires once per reason, again for a new reason and not while a d
 ## Summary by CodeRabbit
 
 * **New Features**
-  * Notifications can alert you when a download needs manual attention. Enable this event in notification settings; supported services can include download and album details.
-  * Discord alerts offer configurable fields, and webhooks include download details for manual-interaction events. Other supported notification services can also deliver these alerts.
+  * Notifications can alert you when a download requires manual attention. Enable this event in notification settings; supported services can include download and album details.
+  * Discord alerts offer configurable fields, and webhooks include download information. Other supported notification services can also deliver these alerts.
+  * Alerts use album and quality details when available, or fall back to the download title. Artist tags determine which notifications receive alerts when an artist is matched.
 * **Bug Fixes**
-  * Prevented duplicate manual-interaction alerts when an import remains blocked or a download is tracked again.
+  * Avoided repeat alerts when a download remains blocked for the same reason, while allowing a new alert if the reason changes. Notification status is preserved when a download is tracked again.

@@ -30,7 +30,7 @@ namespace NzbDrone.Core.Test.NotificationTests.Webhook
             var message = new ManualInteractionRequiredMessage
             {
                 Message = "Artist.Name-Album.Title-GROUP",
-                TrackedDownload = new TrackedDownload { DownloadItem = new DownloadClientItem { Title = "Artist.Name-Album.Title-GROUP", TotalSize = 10 } },
+                TrackedDownload = new TrackedDownload { DownloadItem = new DownloadClientItem { Title = "Artist.Name-Album.Title-GROUP", TotalSize = 10 }, Indexer = "Placeholder Indexer" },
                 DownloadId = "download-id"
             };
 
@@ -42,6 +42,7 @@ namespace NzbDrone.Core.Test.NotificationTests.Webhook
             payload.Albums.Should().BeNull();
             payload.DownloadInfo.Title.Should().Be("Artist.Name-Album.Title-GROUP");
             payload.DownloadInfo.Quality.Should().BeNull();
+            payload.DownloadInfo.Indexer.Should().Be("Placeholder Indexer");
             payload.DownloadId.Should().Be("download-id");
         }
     }

@@ -305,8 +305,7 @@ namespace NzbDrone.Core.Notifications.Discord
                     IconUrl = "https://raw.githubusercontent.com/lidarr/Lidarr/develop/Logo/256.png"
                 },
 
-                // Only a MusicBrainz ID has a MusicBrainz page
-                Url = artist != null && Guid.TryParseExact(artist.ForeignArtistId, "D", out _) ? $"https://musicbrainz.org/artist/{artist.ForeignArtistId}" : null,
+                Url = HasMusicBrainzId(artist) ? $"https://musicbrainz.org/artist/{artist.ForeignArtistId}" : null,
                 Description = "Manual interaction needed",
                 Title = artist != null && albums.Any() ? GetTitle(artist, albums) : GetDownloadTitle(message.TrackedDownload.DownloadItem.Title),
                 Color = (int)DiscordColors.Standard,
@@ -369,7 +368,7 @@ namespace NzbDrone.Core.Notifications.Discord
                         break;
                     case DiscordManualInteractionFieldType.Links:
                         discordField.Name = "Links";
-                        discordField.Value = artist != null ? GetLinksString(artist) : null;
+                        discordField.Value = HasMusicBrainzId(artist) ? GetLinksString(artist) : null;
                         break;
                 }
 
@@ -592,6 +591,12 @@ namespace NzbDrone.Core.Notifications.Discord
             var place = Convert.ToInt32(Math.Floor(Math.Log(bytes, 1024)));
             var num = Math.Round(bytes / Math.Pow(1024, place), 1);
             return string.Format("{0} {1}", (Math.Sign(byteCount) * num).ToString(), suf[place]);
+        }
+
+        // Only a MusicBrainz ID has a MusicBrainz page
+        private static bool HasMusicBrainzId(Artist artist)
+        {
+            return artist != null && Guid.TryParseExact(artist.ForeignArtistId, "D", out _);
         }
 
         private string GetLinksString(Artist artist)

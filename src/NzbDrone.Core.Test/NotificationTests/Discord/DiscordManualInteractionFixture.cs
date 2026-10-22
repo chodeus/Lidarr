@@ -69,6 +69,17 @@ namespace NzbDrone.Core.Test.NotificationTests.Discord
             });
 
             _payload.Embeds[0].Url.Should().Be(url);
+
+            var links = _payload.Embeds[0].Fields.Where(f => f.Name == "Links").Select(f => f.Value);
+
+            if (url == null)
+            {
+                links.Should().BeEmpty();
+            }
+            else
+            {
+                links.Should().ContainSingle().Which.Should().Contain(url);
+            }
         }
 
         [Test]

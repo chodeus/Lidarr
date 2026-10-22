@@ -146,7 +146,7 @@ namespace NzbDrone.Core.Notifications.Webhook
                 ApplicationUrl = _configService.ApplicationUrl,
                 Artist = GetArtist(message.Artist),
                 Albums = message.Album?.Albums?.ConvertAll(GetAlbum),
-                DownloadInfo = new WebhookDownloadClientItem(message.Quality, message.TrackedDownload.DownloadItem),
+                DownloadInfo = new WebhookDownloadClientItem(message.Quality, message.TrackedDownload.DownloadItem) { Indexer = message.TrackedDownload.Indexer },
                 DownloadClient = message.DownloadClientInfo?.Name,
                 DownloadClientType = message.DownloadClientInfo?.Type,
                 DownloadId = message.DownloadId

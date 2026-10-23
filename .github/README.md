@@ -13,4 +13,6 @@ Tests: three bracketed credits followed by a version, and a bare credit. With th
 ## Summary by CodeRabbit
 
 * **Bug Fixes**
-  * Track title parsing handles bracketed featuring and producer credits more consistently. Remix and mix labels that follow those credits are retained when they’re separate bracketed sections, while trailing remix labels attached to unbracketed feature text are removed with that text.
+  * Track title parsing now removes bracketed featuring and producer credits, including credits with nested parentheses, while preserving trailing remixer labels in supported cases.
+  * Original Mix labels in parentheses or square brackets are now removed from parsed track titles.
+  * Feature credits followed by remixer or dub-mix labels are handled more consistently.

@@ -167,5 +167,27 @@ namespace NzbDrone.App.Test
             configFileProvider.OidcClientId.Should().Be("lidarr");
             events.Verify(e => e.PublishEvent(It.IsAny<ConfigFileSavedEvent>()), Times.Once());
         }
+
+        [TestCase("http://internal-host/", 0)]
+        [TestCase("", 0)]
+        [TestCase("https://auth.example.com/new/", 1)]
+        public void should_only_fetch_a_changed_authority_that_passes_the_https_rule(string authority, int fetches)
+        {
+            var config = new Mock<IConfigFileProvider>();
+            config.SetupGet(c => c.OidcAuthority).Returns("https://auth.example.com/old/");
+            var discovery = new Mock<IOidcDiscoveryService>();
+            discovery.Setup(d => d.IsDiscoverable(It.IsAny<string>())).Returns(true);
+
+            var controller = new HostConfigController(config.Object,
+                                                      Mock.Of<IConfigService>(),
+                                                      Mock.Of<IUserService>(),
+                                                      new FileExistsValidator(Mock.Of<IDiskProvider>()),
+                                                      new OidcAuthorityValidator(discovery.Object));
+
+            var resource = new HostConfigResource { AuthenticationMethod = AuthenticationType.Oidc, OidcAuthority = authority };
+            GetSharedValidator(controller).Validate(resource, o => o.IncludeProperties(nameof(HostConfigResource.OidcAuthority)));
+
+            discovery.Verify(d => d.IsDiscoverable(It.IsAny<string>()), Times.Exactly(fetches));
+        }
     }
 }

@@ -43,7 +43,7 @@ namespace Lidarr.Http.Authentication
 
             if (!_configFileProvider.IsOidcConfigured())
             {
-                _logger.Error("OIDC authentication is enabled, but Authority, Client ID, Client Secret, User and Scopes are not all configured");
+                _logger.Error("OIDC authentication is enabled, but Authority, Client ID, Client Secret, User and Scopes are not all configured, or the Authority isn't https://");
 
                 return Redirect(_configFileProvider.UrlBase + "/login");
             }

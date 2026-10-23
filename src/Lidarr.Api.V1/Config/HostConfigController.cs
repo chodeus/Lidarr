@@ -79,7 +79,7 @@ namespace Lidarr.Api.V1.Config
             SharedValidator.RuleFor(c => c.OidcAuthority)
                 .Cascade(CascadeMode.Stop)
                 .NotEmpty()
-                .Must(c => c is not null && c.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                .Must(IsHttps)
                 .WithMessage("OIDC Authority must start with 'https://'")
                 .When(c => c.AuthenticationMethod == AuthenticationType.Oidc)
                 .WithName("OIDC Authority");
@@ -90,6 +90,7 @@ namespace Lidarr.Api.V1.Config
                 SharedValidator.RuleFor(c => c.OidcAuthority)
                     .SetValidator(oidcAuthorityValidator)
                     .When(c => c.AuthenticationMethod == AuthenticationType.Oidc &&
+                               IsHttps(c.OidcAuthority) &&
                                c.OidcAuthority != _configFileProvider.OidcAuthority)
                     .WithName("OIDC Authority");
             }
@@ -142,6 +143,12 @@ namespace Lidarr.Api.V1.Config
             SharedValidator.RuleFor(c => c.BackupFolder).IsValidPath().When(c => Path.IsPathRooted(c.BackupFolder));
             SharedValidator.RuleFor(c => c.BackupInterval).InclusiveBetween(1, 7);
             SharedValidator.RuleFor(c => c.BackupRetention).InclusiveBetween(1, 90);
+        }
+
+        // The server never fetches an Authority it rejects
+        private static bool IsHttps(string authority)
+        {
+            return authority is not null && authority.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
         }
 
         private bool IsMatchingPassword(HostConfigResource resource)

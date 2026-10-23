@@ -285,6 +285,7 @@ FormInputGroup.propTypes = {
   value: PropTypes.any,
   values: PropTypes.arrayOf(PropTypes.any),
   isDisabled: PropTypes.bool,
+  readOnly: PropTypes.bool,
   type: PropTypes.string.isRequired,
   kind: PropTypes.oneOf(kinds.all),
   min: PropTypes.number,
@@ -304,7 +305,8 @@ FormInputGroup.propTypes = {
   pending: PropTypes.bool,
   errors: PropTypes.arrayOf(PropTypes.object),
   warnings: PropTypes.arrayOf(PropTypes.object),
-  onChange: PropTypes.func.isRequired
+  onChange: PropTypes.func.isRequired,
+  onFocus: PropTypes.func
 };
 
 FormInputGroup.defaultProps = {

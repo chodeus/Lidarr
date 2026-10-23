@@ -48,6 +48,11 @@ namespace Lidarr.Api.V1.Config
         public int BackupInterval { get; set; }
         public int BackupRetention { get; set; }
         public bool TrustCgnatIpAddresses { get; set; }
+        public string OidcAuthority { get; set; }
+        public string OidcClientId { get; set; }
+        public string OidcClientSecret { get; set; }
+        public string OidcUserIdentifier { get; set; }
+        public string OidcScopes { get; set; }
     }
 
     public static class HostConfigResourceMapper
@@ -66,9 +71,14 @@ namespace Lidarr.Api.V1.Config
                 AuthenticationRequired = model.AuthenticationRequired,
                 AllowedHosts = model.AllowedHosts,
                 AnalyticsEnabled = model.AnalyticsEnabled,
+                OidcAuthority = model.OidcAuthority,
+                OidcClientId = model.OidcClientId,
+                OidcUserIdentifier = model.OidcUserIdentifier,
+                OidcScopes = model.OidcScopes,
 
                 // Username
                 // Password
+                // OidcClientSecret
                 LogLevel = model.LogLevel,
                 LogSizeLimit = model.LogSizeLimit,
                 ConsoleLogLevel = model.ConsoleLogLevel,

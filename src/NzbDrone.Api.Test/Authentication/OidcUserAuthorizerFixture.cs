@@ -137,5 +137,14 @@ namespace NzbDrone.Api.Test.Authentication
         {
             OidcUserAuthorizer.TryAuthorize(configuredUser, Principal(("sub", " ")), null).Should().BeFalse();
         }
+
+        [TestCase("subject-1", "subject-1", true)]
+        [TestCase("Subject-1", "subject-1", false)]
+        [TestCase("user@example.com", "USER@example.com", true)]
+        [TestCase("", "", false)]
+        public void is_configured_user_should_follow_the_sign_in_rule(string configuredUser, string user, bool expected)
+        {
+            OidcUserAuthorizer.IsConfiguredUser(configuredUser, user).Should().Be(expected);
+        }
     }
 }

@@ -43,14 +43,18 @@ namespace Lidarr.Http.Authentication
         }
 
         // Some providers let users choose their subject, so a subject must never pass for an email
+        // Sign in and a session's later checks share this rule: an email ignores case, a subject doesn't
+        public static bool IsConfiguredUser(string configuredUser, string user)
+        {
+            return configuredUser.IsNotNullOrWhiteSpace() &&
+                   string.Equals(user, configuredUser, configuredUser.Contains('@') ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+        }
+
         private static bool Matches(string configuredUser, ClaimsPrincipal principal, JsonElement? user)
         {
-            if (configuredUser.Contains('@'))
-            {
-                return string.Equals(GetVerifiedEmail(principal, user), configuredUser, StringComparison.OrdinalIgnoreCase);
-            }
+            var identifier = configuredUser.Contains('@') ? GetVerifiedEmail(principal, user) : GetClaimValue(principal, user, "sub");
 
-            return string.Equals(GetClaimValue(principal, user, "sub"), configuredUser, StringComparison.Ordinal);
+            return IsConfiguredUser(configuredUser, identifier);
         }
 
         // The user info answer, when there is one, decides on its own whether the email counts

@@ -93,8 +93,7 @@ namespace Lidarr.Http.Authentication
                         var configuredUser = configFileProvider.OidcUserIdentifier;
 
                         if (configFileProvider.EffectiveAuthenticationMethod() == AuthenticationType.Oidc &&
-                            configuredUser.IsNotNullOrWhiteSpace() &&
-                            string.Equals(context.Principal?.FindFirst("user")?.Value, configuredUser, StringComparison.OrdinalIgnoreCase))
+                            OidcUserAuthorizer.IsConfiguredUser(configuredUser, context.Principal?.FindFirst("user")?.Value))
                         {
                             return Task.CompletedTask;
                         }

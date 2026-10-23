@@ -12,6 +12,8 @@ Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom)
 - The API key and its query parameter are unchanged.
 - `IConfigFileProvider` gains the OIDC settings with default bodies, and `HostConfigController` keeps develop's constructor. A rejected sign in logs the user's subject, not their email. Adds `Microsoft.AspNetCore.Authentication.OpenIdConnect` 8.0.31.
 
+- The security settings section (`SecuritySettings`) and `FormInputButton` are TypeScript now, as in Radarr. `FormInputGroup` stays JavaScript, with `readOnly` and `onFocus` added to its prop types since it already passes them through.
+
 Tests: the configuration rules (every setting, `openid`, `https://`, the fallback to Forms, scope parsing), the discovery check, the health check, the allowed-user rules (subject matched exactly, verified email from user info or the token ignoring case, a subject shaped like the configured email), the UI policy's scheme, the login page in the fallback, the log line for a rejected user, the secret placeholder after an Authority change, the return URL kept inside the URL base, the container picking the controller constructor with the Authority check, the sign-in cookies over http and https, and a save that leaves the OIDC settings out. Each rule was broken on purpose and caught by a test. Not exercised against a live provider.
 
 ## Summary by CodeRabbit

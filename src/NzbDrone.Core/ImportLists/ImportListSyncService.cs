@@ -547,9 +547,11 @@ namespace NzbDrone.Core.ImportLists
 
             var untagged = new List<Artist>();
 
-            foreach (var artist in _artistService.GetAllArtists())
+            // The library list is cached, so each artist is read again before writing, as the clean does, to keep a tag added since
+            foreach (var candidate in _artistService.GetAllArtists().Where(a => UnlistedTags(a, listedByTag).Any()))
             {
-                var tagsToRemove = artist.Tags.Where(t => listedByTag.TryGetValue(t, out var listed) && !listed.Contains(artist)).ToList();
+                var artist = FindArtist(candidate.Id);
+                var tagsToRemove = artist == null ? new List<int>() : UnlistedTags(artist, listedByTag);
 
                 if (tagsToRemove.Empty())
                 {
@@ -567,6 +569,11 @@ namespace NzbDrone.Core.ImportLists
             }
         }
 
+        private static List<int> UnlistedTags(Artist artist, Dictionary<int, ListedArtists> listedByTag)
+        {
+            return artist.Tags.Where(t => listedByTag.TryGetValue(t, out var listed) && !listed.Contains(artist)).ToList();
+        }
+
         // An album list keeps the artist of any listed album, including one listed by a former ID
         private ILookup<string, Album> FindListedAlbums(List<ImportListItemInfo> items)
         {
@@ -576,7 +583,7 @@ namespace NzbDrone.Core.ImportLists
 
             if (unmatchedAlbumIds.Any())
             {
-                listedAlbums.AddRange(_albumService.GetAllAlbums().Where(a => a.OldForeignAlbumIds.Any(unmatchedAlbumIds.Contains)));
+                listedAlbums.AddRange(_albumService.FindByOldForeignIds(unmatchedAlbumIds.ToList()));
             }
 
             return listedAlbums.SelectMany(a => a.OldForeignAlbumIds.Append(a.ForeignAlbumId), (album, id) => (id, album)).ToLookup(x => x.id, x => x.album);

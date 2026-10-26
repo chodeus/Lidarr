@@ -5,6 +5,7 @@ using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
+using NzbDrone.Core.Datastore;
 using NzbDrone.Core.ImportLists;
 using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.ImportLists.ImportListItems;
@@ -75,6 +76,10 @@ namespace NzbDrone.Core.Test.ImportListTests
 
             Mocker.GetMock<IAlbumService>()
                 .Setup(v => v.FindById(It.IsAny<List<string>>()))
+                .Returns(new List<Album>());
+
+            Mocker.GetMock<IAlbumService>()
+                .Setup(v => v.FindByOldForeignIds(It.IsAny<List<string>>()))
                 .Returns(new List<Album>());
 
             Mocker.GetMock<IArtistService>()
@@ -731,6 +736,13 @@ namespace NzbDrone.Core.Test.ImportListTests
             Mocker.GetMock<IArtistService>()
                 .Setup(v => v.GetAllArtists())
                 .Returns(artists.ToList());
+
+            foreach (var artist in artists)
+            {
+                Mocker.GetMock<IArtistService>()
+                    .Setup(v => v.GetArtist(artist.Id))
+                    .Returns(artist);
+            }
         }
 
         private void WithStoredItems(params ImportListItemInfo[] items)
@@ -765,6 +777,36 @@ namespace NzbDrone.Core.Test.ImportListTests
             VerifyUntagged(offList);
             offList.Tags.Should().BeEquivalentTo(new[] { 3 });
             onList.Tags.Should().BeEquivalentTo(new[] { 7, 3 });
+        }
+
+        [Test]
+        public void should_keep_a_tag_added_after_the_library_was_read()
+        {
+            var cached = TaggedArtist(1, "mb-off-list", 7);
+            var current = TaggedArtist(1, "mb-off-list", 7, 9);
+            WithLibrary(cached);
+            Mocker.GetMock<IArtistService>().Setup(v => v.GetArtist(1)).Returns(current);
+            WithStoredItems(StoredArtist(1, "mb-on-list"));
+            WithSyncLists(TaggingList(1, TagExistingType.Sync, 7));
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            Mocker.GetMock<IArtistService>()
+                .Verify(v => v.UpdateTags(It.Is<List<Artist>>(l => l.Single() == current && current.Tags.SetEquals(new[] { 9 }))), Times.Once());
+            cached.Tags.Should().BeEquivalentTo(new[] { 7 });
+        }
+
+        [Test]
+        public void should_skip_an_artist_deleted_after_the_library_was_read()
+        {
+            WithLibrary(TaggedArtist(1, "mb-off-list", 7));
+            Mocker.GetMock<IArtistService>().Setup(v => v.GetArtist(1)).Throws(new ModelNotFoundException(typeof(Artist), 1));
+            WithStoredItems(StoredArtist(1, "mb-on-list"));
+            WithSyncLists(TaggingList(1, TagExistingType.Sync, 7));
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            VerifyNotTagged();
         }
 
         [Test]

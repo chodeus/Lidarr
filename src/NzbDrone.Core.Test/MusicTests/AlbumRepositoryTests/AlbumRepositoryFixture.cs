@@ -88,6 +88,27 @@ namespace NzbDrone.Core.Test.MusicTests.AlbumRepositoryTests
         }
 
         [Test]
+        public void should_find_albums_by_a_former_id()
+        {
+            _album.OldForeignAlbumIds = new List<string> { "11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222" };
+            _albumRepo.Update(_album);
+
+            _albumRepo.FindByOldForeignIds(new List<string> { "22222222-2222-2222-2222-222222222222", "33333333-3333-3333-3333-333333333333" })
+                      .Should().ContainSingle(a => a.Id == _album.Id);
+        }
+
+        [TestCase("%")]
+        [TestCase("_")]
+        [TestCase("1111111_-1111-1111-1111-111111111111")]
+        public void should_not_treat_like_wildcards_in_a_former_id_as_wildcards(string id)
+        {
+            _album.OldForeignAlbumIds = new List<string> { "11111111-1111-1111-1111-111111111111" };
+            _albumRepo.Update(_album);
+
+            _albumRepo.FindByOldForeignIds(new List<string> { id }).Should().BeEmpty();
+        }
+
+        [Test]
         public void should_find_album_in_db_by_releaseid()
         {
             var id = "e00e40a3-5ed5-4ed3-9c22-0a8ff4119bdf";

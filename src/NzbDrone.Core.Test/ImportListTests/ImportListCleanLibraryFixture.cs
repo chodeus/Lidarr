@@ -81,8 +81,8 @@ namespace NzbDrone.Core.Test.ImportListTests
                   .Returns((List<string> ids) => _existingAlbums.Where(a => ids.Contains(a.ForeignAlbumId)).ToList());
 
             Mocker.GetMock<IAlbumService>()
-                  .Setup(v => v.GetAllAlbums())
-                  .Returns(_existingAlbums);
+                  .Setup(v => v.FindByOldForeignIds(It.IsAny<List<string>>()))
+                  .Returns((List<string> ids) => _existingAlbums.Where(a => a.OldForeignAlbumIds.Any(ids.Contains)).ToList());
 
             Mocker.GetMock<IImportListItemService>()
                   .Setup(v => v.All())

@@ -23,6 +23,7 @@ namespace NzbDrone.Core.Music
         Album AddAlbum(Album newAlbum, bool doRefresh);
         Album FindById(string foreignId);
         List<Album> FindById(List<string> foreignIds);
+        List<Album> FindByOldForeignIds(List<string> oldForeignIds);
         Album FindByTitle(int artistMetadataId, string title);
         Album FindByTitleInexact(int artistMetadataId, string title);
         Album FindByTitleAndYear(int artistMetadataId, string title, int? year);
@@ -102,6 +103,11 @@ namespace NzbDrone.Core.Music
         public List<Album> FindById(List<string> foreignIds)
         {
             return _albumRepository.FindById(foreignIds);
+        }
+
+        public List<Album> FindByOldForeignIds(List<string> oldForeignIds)
+        {
+            return _albumRepository.FindByOldForeignIds(oldForeignIds);
         }
 
         public Album FindByTitle(int artistMetadataId, string title)

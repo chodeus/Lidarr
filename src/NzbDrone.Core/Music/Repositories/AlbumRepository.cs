@@ -19,6 +19,7 @@ namespace NzbDrone.Core.Music
         Album FindByTitle(int artistMetadataId, string title);
         Album FindById(string foreignAlbumId);
         List<Album> FindById(List<string> foreignAlbumIds);
+        List<Album> FindByOldForeignIds(List<string> oldForeignAlbumIds);
         PagingSpec<Album> AlbumsWithoutFiles(PagingSpec<Album> pagingSpec);
         PagingSpec<Album> AlbumsWhereCutoffUnmet(PagingSpec<Album> pagingSpec, List<QualitiesBelowCutoff> qualitiesBelowCutoff);
         List<Album> AlbumsBetweenDates(DateTime startDate, DateTime endDate, bool includeUnmonitored);
@@ -95,6 +96,23 @@ namespace NzbDrone.Core.Music
         {
             // Chunked to stay under SQLite's bound parameter limit
             return foreignAlbumIds.Chunk(500).SelectMany(ids => Query(s => ids.Contains(s.ForeignAlbumId))).ToList();
+        }
+
+        // Former IDs are stored as JSON text, so each is a LIKE, as ArtistRepository.FindById does; one scan per chunk
+        public List<Album> FindByOldForeignIds(List<string> oldForeignAlbumIds)
+        {
+            return oldForeignAlbumIds.Chunk(500).SelectMany(ids =>
+            {
+                var parameters = ids.Select((id, i) => (Name: $"oldId{i}", Pattern: $"%{EscapeLike(id)}%")).ToList();
+                var condition = string.Join(" OR ", parameters.Select(p => $"\"OldForeignAlbumIds\" LIKE @{p.Name} ESCAPE '\\'"));
+
+                return Query(Builder().Where($"({condition})", parameters.ToDictionary(p => p.Name, p => (object)p.Pattern)));
+            }).DistinctBy(a => a.Id).ToList();
+        }
+
+        private static string EscapeLike(string value)
+        {
+            return value.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
         }
 
         // x.Id == null is converted to SQL, so warning incorrect

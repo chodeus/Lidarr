@@ -73,7 +73,7 @@ namespace NzbDrone.Core.ImportLists.ImportListItems
                 return;
             }
 
-            // Every list's rows, since the sync de-duplicates items across lists before mapping them
+            // Every list's rows with the key, since the artist an item maps to doesn't depend on which list names it
             var toUpdate = _importListItemRepository.All()
                 .Where(i => byKey.TryGetValue(KeyOf(i), out var artistId) && i.MappedArtistMusicBrainzId != artistId)
                 .ToList();

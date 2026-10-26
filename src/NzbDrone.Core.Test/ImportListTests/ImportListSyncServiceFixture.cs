@@ -874,6 +874,26 @@ namespace NzbDrone.Core.Test.ImportListTests
         }
 
         [Test]
+        public void should_not_hold_the_tag_for_a_list_with_automatic_add_off()
+        {
+            var offList = TaggedArtist(1, "mb-off-list", 7);
+            WithLibrary(offList);
+            WithStoredItems(StoredArtist(1, "mb-on-list"));
+
+            var manual = TaggingList(2, TagExistingType.None, 7);
+            manual.EnableAutomaticAdd = false;
+            WithSyncLists(TaggingList(1, TagExistingType.Sync, 7), manual);
+
+            Mocker.GetMock<IImportListStatusService>()
+                .Setup(v => v.GetListStatus(2))
+                .Returns(new ImportListStatus());
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            VerifyUntagged(offList);
+        }
+
+        [Test]
         public void should_not_remove_tags_that_no_sync_list_has()
         {
             WithLibrary(TaggedArtist(1, "mb-off-list", 3));

@@ -483,10 +483,10 @@ namespace NzbDrone.Core.ImportLists
         // A Sync list's tag comes off an artist on no list with that tag, once every such list has synced
         private void RemoveTagsFromArtistsNotOnLists()
         {
-            var importLists = _importListFactory.All().Where(l => l.EnableAutomaticAdd).ToList();
+            var importLists = _importListFactory.All();
 
             var tagsToSync = importLists
-                .Where(l => l.TagExisting == TagExistingType.Sync)
+                .Where(l => l.EnableAutomaticAdd && l.TagExisting == TagExistingType.Sync)
                 .SelectMany(l => l.Tags)
                 .ToHashSet();
 
@@ -495,11 +495,12 @@ namespace NzbDrone.Core.ImportLists
                 return;
             }
 
+            // Every list with the tag keeps it on its artists, as the clean counts them all; only lists a sync fetches can hold it
             var listsByTag = tagsToSync.ToDictionary(t => t, t => importLists.Where(l => l.Tags.Contains(t)).ToList());
 
             tagsToSync.RemoveWhere(tag =>
             {
-                var unsyncedList = listsByTag[tag].FirstOrDefault(l => !HasSyncedSuccessfully(_importListStatusService.GetListStatus(l.Id)));
+                var unsyncedList = listsByTag[tag].FirstOrDefault(l => l.EnableAutomaticAdd && !HasSyncedSuccessfully(_importListStatusService.GetListStatus(l.Id)));
 
                 if (unsyncedList != null)
                 {
@@ -525,7 +526,7 @@ namespace NzbDrone.Core.ImportLists
                 var tagItems = items.Where(i => listIds.Contains(i.ImportListId)).ToList();
 
                 // A fetch that came back empty is more often a provider hiccup than an emptied list
-                var emptyList = listsByTag[tag].FirstOrDefault(l => tagItems.None(i => i.ImportListId == l.Id));
+                var emptyList = listsByTag[tag].FirstOrDefault(l => l.EnableAutomaticAdd && tagItems.None(i => i.ImportListId == l.Id));
 
                 if (emptyList != null)
                 {
@@ -534,7 +535,8 @@ namespace NzbDrone.Core.ImportLists
                 }
 
                 // Fail closed, as the clean does: an item matched by name alone could miss its artist
-                var unresolved = tagItems.FirstOrDefault(i => ListedArtists.IsUnresolved(i, listedAlbums));
+                var fetchedIds = listsByTag[tag].Where(l => l.EnableAutomaticAdd).Select(l => l.Id).ToHashSet();
+                var unresolved = tagItems.FirstOrDefault(i => fetchedIds.Contains(i.ImportListId) && ListedArtists.IsUnresolved(i, listedAlbums));
 
                 if (unresolved != null)
                 {

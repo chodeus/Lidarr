@@ -8,7 +8,7 @@ namespace Lidarr.Api.V1.ImportLists
         public bool? EnableAutomaticAdd { get; set; }
         public string RootFolderPath { get; set; }
         public int? QualityProfileId { get; set; }
-        public bool? TagExisting { get; set; }
+        public TagExistingType? TagExisting { get; set; }
     }
 
     public class ImportListBulkResourceMapper : ProviderBulkResourceMapper<ImportListBulkResource, ImportListDefinition>

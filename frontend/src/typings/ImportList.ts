@@ -1,5 +1,7 @@
 import ModelBase from 'App/ModelBase';
 
+export type TagExisting = 'none' | 'add' | 'sync';
+
 export interface Field {
   order: number;
   name: string;
@@ -22,6 +24,7 @@ interface ImportList extends ModelBase {
   configContract: string;
   infoLink: string;
   tags: number[];
+  tagExisting: TagExisting;
 }
 
 export default ImportList;

@@ -9,7 +9,7 @@ namespace NzbDrone.Core.ImportLists
         public bool EnableAutomaticAdd { get; set; }
         public ImportListMonitorType ShouldMonitor { get; set; }
         public bool ShouldMonitorExisting { get; set; }
-        public bool TagExisting { get; set; }
+        public TagExistingType TagExisting { get; set; }
         public NewItemMonitorTypes MonitorNewItems { get; set; }
         public bool ShouldSearch { get; set; }
         public int ProfileId { get; set; }

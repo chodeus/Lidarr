@@ -23,6 +23,7 @@ import { icons, inputTypes, kinds, tooltipPositions } from 'Helpers/Props';
 import AdvancedSettingsButton from 'Settings/AdvancedSettingsButton';
 import formatShortTimeSpan from 'Utilities/Date/formatShortTimeSpan';
 import translate from 'Utilities/String/translate';
+import tagExistingOptions from './tagExistingOptions';
 import styles from './EditImportListModalContent.css';
 
 function ImportListMonitoringOptionsPopoverContent() {
@@ -305,9 +306,11 @@ function EditImportListModalContent(props) {
                   </FormLabel>
 
                   <FormInputGroup
-                    type={inputTypes.CHECK}
+                    type={inputTypes.SELECT}
                     name="tagExisting"
+                    values={tagExistingOptions}
                     helpText={translate('TagExistingHelpText')}
+                    helpTextWarning={translate('TagExistingHelpTextWarning')}
                     {...tagExisting}
                     onChange={onInputChange}
                   />

@@ -1,10 +1,13 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using FizzWare.NBuilder;
+using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.ImportLists;
 using NzbDrone.Core.ImportLists.Exclusions;
+using NzbDrone.Core.ImportLists.ImportListItems;
 using NzbDrone.Core.IndexerSearch;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.MetadataSource;
@@ -61,6 +64,22 @@ namespace NzbDrone.Core.Test.ImportListTests
             Mocker.GetMock<IAddAlbumService>()
                 .Setup(v => v.AddAlbums(It.IsAny<List<Album>>(), false, true))
                 .Returns((List<Album> albums, bool doRefresh, bool ignoreErrors) => albums);
+
+            Mocker.GetMock<IImportListStatusService>()
+                .Setup(v => v.GetListStatus(It.IsAny<int>()))
+                .Returns(new ImportListStatus { LastInfoSync = DateTime.UtcNow });
+
+            Mocker.GetMock<IImportListItemService>()
+                .Setup(v => v.GetAllForLists(It.IsAny<List<int>>()))
+                .Returns(new List<ImportListItemInfo>());
+
+            Mocker.GetMock<IAlbumService>()
+                .Setup(v => v.FindById(It.IsAny<List<string>>()))
+                .Returns(new List<Album>());
+
+            Mocker.GetMock<IArtistService>()
+                .Setup(v => v.GetAllArtists())
+                .Returns(new List<Artist>());
         }
 
         private void WithAlbum()
@@ -556,9 +575,9 @@ namespace NzbDrone.Core.Test.ImportListTests
                 .Returns(lists.ToList());
         }
 
-        private static ImportListDefinition TaggingList(int id, bool tagExisting, params int[] tags)
+        private static ImportListDefinition TaggingList(int id, TagExistingType tagExisting, params int[] tags)
         {
-            return new ImportListDefinition { Id = id, ShouldMonitor = ImportListMonitorType.EntireArtist, TagExisting = tagExisting, Tags = new HashSet<int>(tags) };
+            return new ImportListDefinition { Id = id, Name = $"List {id}", EnableAutomaticAdd = true, ShouldMonitor = ImportListMonitorType.EntireArtist, TagExisting = tagExisting, Tags = new HashSet<int>(tags) };
         }
 
         private void WithLibraryArtist(int id, params int[] tags)
@@ -586,13 +605,14 @@ namespace NzbDrone.Core.Test.ImportListTests
                 .Verify(v => v.UpdateArtists(It.IsAny<List<Artist>>(), It.IsAny<bool>()), Times.Never());
         }
 
-        [Test]
-        public void should_add_the_lists_tags_to_an_existing_artist_when_tag_existing_is_on()
+        [TestCase(TagExistingType.Add)]
+        [TestCase(TagExistingType.Sync)]
+        public void should_add_the_lists_tags_to_an_existing_artist_when_tag_existing_is_on(TagExistingType tagExisting)
         {
             WithArtistId();
             WithExistingArtist(true);
             WithLibraryArtist(1, 3);
-            WithTaggingLists(TaggingList(0, true, 1, 2));
+            WithTaggingLists(TaggingList(0, tagExisting, 1, 2));
 
             Subject.Execute(new ImportListSyncCommand());
 
@@ -605,7 +625,7 @@ namespace NzbDrone.Core.Test.ImportListTests
             WithArtistId();
             WithExistingArtist(true);
             WithLibraryArtist(1, 3);
-            WithTaggingLists(TaggingList(0, false, 1, 2));
+            WithTaggingLists(TaggingList(0, TagExistingType.None, 1, 2));
 
             Subject.Execute(new ImportListSyncCommand());
 
@@ -618,7 +638,7 @@ namespace NzbDrone.Core.Test.ImportListTests
             WithArtistId();
             WithExistingArtist(true);
             WithLibraryArtist(1, 1, 2);
-            WithTaggingLists(TaggingList(0, true, 1, 2));
+            WithTaggingLists(TaggingList(0, TagExistingType.Add, 1, 2));
 
             Subject.Execute(new ImportListSyncCommand());
 
@@ -633,7 +653,7 @@ namespace NzbDrone.Core.Test.ImportListTests
             WithExistingAlbum(true);
             var artistId = Mocker.GetMock<IAlbumService>().Object.FindById(_importListReports.First().AlbumMusicBrainzId).ArtistId;
             WithLibraryArtist(artistId);
-            WithTaggingLists(TaggingList(0, true, 4));
+            WithTaggingLists(TaggingList(0, TagExistingType.Add, 4));
 
             Subject.Execute(new ImportListSyncCommand());
 
@@ -650,7 +670,7 @@ namespace NzbDrone.Core.Test.ImportListTests
             _importListReports.Add(new ImportListItemInfo { ImportListId = 1, Artist = "Artist Name", ArtistMusicBrainzId = sharedArtistId });
             _importListReports.Add(new ImportListItemInfo { ImportListId = 1, Artist = "Other Artist", ArtistMusicBrainzId = otherArtistId });
             _importListReports.Add(new ImportListItemInfo { ImportListId = 2, Artist = "Artist Name", ArtistMusicBrainzId = sharedArtistId });
-            WithTaggingLists(TaggingList(1, false, 1), TaggingList(2, false, 2));
+            WithTaggingLists(TaggingList(1, TagExistingType.None, 1), TaggingList(2, TagExistingType.None, 2));
 
             Subject.Execute(new ImportListSyncCommand());
 
@@ -665,7 +685,7 @@ namespace NzbDrone.Core.Test.ImportListTests
             WithArtistId();
             _importListReports.First().ImportListId = 1;
             _importListReports.Add(new ImportListItemInfo { ImportListId = 2, ArtistMusicBrainzId = _importListReports.First().ArtistMusicBrainzId, AlbumMusicBrainzId = _importListReports.First().AlbumMusicBrainzId });
-            WithTaggingLists(TaggingList(1, false, 1), TaggingList(2, false, 2));
+            WithTaggingLists(TaggingList(1, TagExistingType.None, 1), TaggingList(2, TagExistingType.None, 2));
 
             Subject.Execute(new ImportListSyncCommand());
 
@@ -682,11 +702,162 @@ namespace NzbDrone.Core.Test.ImportListTests
             WithLibraryArtist(1, 3);
             _importListReports.First().ImportListId = 1;
             _importListReports.Add(new ImportListItemInfo { ImportListId = 2, ArtistMusicBrainzId = _importListReports.First().ArtistMusicBrainzId, AlbumMusicBrainzId = _importListReports.First().AlbumMusicBrainzId });
-            WithTaggingLists(TaggingList(1, false, 1), TaggingList(2, true, 2));
+            WithTaggingLists(TaggingList(1, TagExistingType.None, 1), TaggingList(2, TagExistingType.Add, 2));
 
             Subject.Execute(new ImportListSyncCommand());
 
             VerifyTagged(1, 2, 3);
+        }
+
+        private static Artist TaggedArtist(int id, string foreignArtistId, params int[] tags)
+        {
+            return new Artist
+            {
+                Id = id,
+                CleanName = foreignArtistId,
+                Metadata = new ArtistMetadata { ForeignArtistId = foreignArtistId, OldForeignArtistIds = new List<string>() },
+                Tags = new HashSet<int>(tags)
+            };
+        }
+
+        private void WithSyncLists(params ImportListDefinition[] lists)
+        {
+            _importListReports.First().ImportListId = lists.First().Id;
+            WithTaggingLists(lists);
+        }
+
+        private void WithLibrary(params Artist[] artists)
+        {
+            Mocker.GetMock<IArtistService>()
+                .Setup(v => v.GetAllArtists())
+                .Returns(artists.ToList());
+        }
+
+        private void WithStoredItems(params ImportListItemInfo[] items)
+        {
+            Mocker.GetMock<IImportListItemService>()
+                .Setup(v => v.GetAllForLists(It.IsAny<List<int>>()))
+                .Returns((List<int> ids) => items.Where(i => ids.Contains(i.ImportListId)).ToList());
+        }
+
+        private static ImportListItemInfo StoredArtist(int listId, string foreignArtistId)
+        {
+            return new ImportListItemInfo { ImportListId = listId, Artist = foreignArtistId, ArtistMusicBrainzId = foreignArtistId };
+        }
+
+        private void VerifyUntagged(params Artist[] artists)
+        {
+            Mocker.GetMock<IArtistService>()
+                .Verify(v => v.UpdateTags(It.Is<List<Artist>>(l => l.Select(a => a.Id).OrderBy(i => i).SequenceEqual(artists.Select(a => a.Id).OrderBy(i => i)))), Times.Once());
+        }
+
+        [Test]
+        public void should_remove_a_sync_lists_tag_from_an_artist_no_longer_on_it()
+        {
+            var onList = TaggedArtist(1, "mb-on-list", 7, 3);
+            var offList = TaggedArtist(2, "mb-off-list", 7, 3);
+            WithLibrary(onList, offList);
+            WithStoredItems(StoredArtist(1, "mb-on-list"));
+            WithSyncLists(TaggingList(1, TagExistingType.Sync, 7));
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            VerifyUntagged(offList);
+            offList.Tags.Should().BeEquivalentTo(new[] { 3 });
+            onList.Tags.Should().BeEquivalentTo(new[] { 7, 3 });
+        }
+
+        [Test]
+        public void should_not_remove_tags_when_the_list_only_adds_them()
+        {
+            WithLibrary(TaggedArtist(1, "mb-off-list", 7));
+            WithStoredItems(StoredArtist(1, "mb-on-list"));
+            WithSyncLists(TaggingList(1, TagExistingType.Add, 7));
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            VerifyNotTagged();
+        }
+
+        [Test]
+        public void should_keep_the_tag_while_the_artist_is_on_another_list_with_it()
+        {
+            var first = TaggedArtist(1, "mb-first", 7);
+            var second = TaggedArtist(2, "mb-second", 7);
+            var neither = TaggedArtist(3, "mb-neither", 7);
+            WithLibrary(first, second, neither);
+            WithStoredItems(StoredArtist(1, "mb-first"), StoredArtist(2, "mb-second"));
+            WithSyncLists(TaggingList(1, TagExistingType.Sync, 7), TaggingList(2, TagExistingType.None, 7));
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            VerifyUntagged(neither);
+        }
+
+        [TestCase(false, false, false)]
+        [TestCase(true, true, false)]
+        [TestCase(true, false, true)]
+        public void should_keep_the_tag_while_a_list_with_it_has_not_synced(bool synced, bool disabled, bool failedSinceSync)
+        {
+            WithLibrary(TaggedArtist(1, "mb-off-list", 7));
+            WithStoredItems(StoredArtist(1, "mb-on-list"));
+            WithSyncLists(TaggingList(1, TagExistingType.Sync, 7), TaggingList(2, TagExistingType.None, 7));
+
+            var lastSync = DateTime.UtcNow.AddHours(-1);
+            Mocker.GetMock<IImportListStatusService>()
+                .Setup(v => v.GetListStatus(2))
+                .Returns(new ImportListStatus
+                {
+                    LastInfoSync = synced ? lastSync : null,
+                    DisabledTill = disabled ? DateTime.UtcNow.AddHours(1) : null,
+                    MostRecentFailure = failedSinceSync ? lastSync.AddMinutes(30) : null
+                });
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            VerifyNotTagged();
+        }
+
+        [Test]
+        public void should_not_remove_tags_that_no_sync_list_has()
+        {
+            WithLibrary(TaggedArtist(1, "mb-off-list", 3));
+            WithStoredItems(StoredArtist(1, "mb-on-list"));
+            WithSyncLists(TaggingList(1, TagExistingType.Sync, 7));
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            VerifyNotTagged();
+        }
+
+        [Test]
+        public void should_keep_the_tag_while_a_list_item_is_not_matched_to_an_artist()
+        {
+            WithLibrary(TaggedArtist(1, "mb-off-list", 7));
+            WithStoredItems(StoredArtist(1, "mb-on-list"), new ImportListItemInfo { ImportListId = 1, Artist = "Unmatched Name" });
+            WithSyncLists(TaggingList(1, TagExistingType.Sync, 7));
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            VerifyNotTagged();
+        }
+
+        [Test]
+        public void should_keep_the_tag_for_the_artist_of_a_listed_album()
+        {
+            var albumArtist = TaggedArtist(1, "mb-album-artist", 7);
+            albumArtist.ArtistMetadataId = 11;
+            WithLibrary(albumArtist);
+            WithStoredItems(new ImportListItemInfo { ImportListId = 1, Album = "Album Title", AlbumMusicBrainzId = "mb-album", ArtistMusicBrainzId = "mb-credited" });
+            WithSyncLists(TaggingList(1, TagExistingType.Sync, 7));
+
+            Mocker.GetMock<IAlbumService>()
+                .Setup(v => v.FindById(It.IsAny<List<string>>()))
+                .Returns(new List<Album> { new Album { ForeignAlbumId = "mb-album", ArtistMetadataId = 11, OldForeignAlbumIds = new List<string>() } });
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            VerifyNotTagged();
         }
 
         private static bool HasTags(List<Artist> artists, string foreignArtistId, params int[] tags)

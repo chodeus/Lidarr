@@ -8,6 +8,8 @@ import ModalContent from 'Components/Modal/ModalContent';
 import ModalFooter from 'Components/Modal/ModalFooter';
 import ModalHeader from 'Components/Modal/ModalHeader';
 import { inputTypes } from 'Helpers/Props';
+import tagExistingOptions from 'Settings/ImportLists/ImportLists/tagExistingOptions';
+import { TagExisting } from 'typings/ImportList';
 import translate from 'Utilities/String/translate';
 import styles from './ManageImportListsEditModalContent.css';
 
@@ -15,7 +17,7 @@ interface SavePayload {
   enableAutomaticAdd?: boolean;
   qualityProfileId?: number;
   rootFolderPath?: string;
-  tagExisting?: boolean;
+  tagExisting?: TagExisting;
 }
 
 interface ManageImportListsEditModalContentProps {
@@ -48,6 +50,17 @@ const autoAddOptions = [
   },
 ];
 
+const tagExistingWithNoChangeOptions = [
+  {
+    key: NO_CHANGE,
+    get value() {
+      return translate('NoChange');
+    },
+    isDisabled: true,
+  },
+  ...tagExistingOptions,
+];
+
 function ManageImportListsEditModalContent(
   props: ManageImportListsEditModalContentProps
 ) {
@@ -58,7 +71,9 @@ function ManageImportListsEditModalContent(
     NO_CHANGE
   );
   const [rootFolderPath, setRootFolderPath] = useState(NO_CHANGE);
-  const [tagExisting, setTagExisting] = useState(NO_CHANGE);
+  const [tagExisting, setTagExisting] = useState<
+    TagExisting | typeof NO_CHANGE
+  >(NO_CHANGE);
 
   const save = useCallback(() => {
     let hasChanges = false;
@@ -81,7 +96,7 @@ function ManageImportListsEditModalContent(
 
     if (tagExisting !== NO_CHANGE) {
       hasChanges = true;
-      payload.tagExisting = tagExisting === 'enabled';
+      payload.tagExisting = tagExisting;
     }
 
     if (hasChanges) {
@@ -111,7 +126,7 @@ function ManageImportListsEditModalContent(
           setRootFolderPath(value);
           break;
         case 'tagExisting':
-          setTagExisting(value);
+          setTagExisting(value as TagExisting);
           break;
         default:
           console.warn(`EditImportListModalContent Unknown Input: '${name}'`);
@@ -173,7 +188,7 @@ function ManageImportListsEditModalContent(
             type={inputTypes.SELECT}
             name="tagExisting"
             value={tagExisting}
-            values={autoAddOptions}
+            values={tagExistingWithNoChangeOptions}
             onChange={onInputChange}
           />
         </FormGroup>

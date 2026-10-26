@@ -9,7 +9,7 @@ namespace Lidarr.Api.V1.ImportLists
         public bool EnableAutomaticAdd { get; set; }
         public ImportListMonitorType ShouldMonitor { get; set; }
         public bool ShouldMonitorExisting { get; set; }
-        public bool TagExisting { get; set; }
+        public TagExistingType TagExisting { get; set; }
         public bool ShouldSearch { get; set; }
         public string RootFolderPath { get; set; }
         public NewItemMonitorTypes MonitorNewItems { get; set; }

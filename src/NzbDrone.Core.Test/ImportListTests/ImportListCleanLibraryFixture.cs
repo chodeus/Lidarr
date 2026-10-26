@@ -56,6 +56,10 @@ namespace NzbDrone.Core.Test.ImportListTests
                   .Setup(v => v.AutomaticAddEnabled(It.IsAny<bool>()))
                   .Returns(_importLists);
 
+            Mocker.GetMock<IImportListFactory>()
+                  .Setup(v => v.All())
+                  .Returns(() => _importLists.Select(l => (ImportListDefinition)l.Definition).ToList());
+
             Mocker.GetMock<IFetchAndParseImportList>()
                   .Setup(v => v.Fetch())
                   .Returns(new List<ImportListItemInfo>());

@@ -51,7 +51,7 @@ namespace NzbDrone.Core.Test.ImportListTests
             Mocker.GetMock<IAddAlbumService>().Setup(v => v.AddAlbums(It.IsAny<List<Album>>(), It.IsAny<bool>(), It.IsAny<bool>())).Returns(new List<Album>());
             Mocker.GetMock<ISearchForNewArtist>().Setup(v => v.SearchForNewArtist(It.IsAny<string>())).Returns(new List<Artist>());
 
-            _list = new ImportListDefinition { Id = 1, Name = "List", EnableAutomaticAdd = true, TagExisting = true, Tags = new HashSet<int> { 7 } };
+            _list = new ImportListDefinition { Id = 1, Name = "List", EnableAutomaticAdd = true, TagExisting = TagExistingType.Add, Tags = new HashSet<int> { 7 } };
 
             var instance = new Mock<IImportList>();
             instance.SetupGet(v => v.Definition).Returns(_list);
@@ -151,6 +151,36 @@ namespace NzbDrone.Core.Test.ImportListTests
             Sync();
 
             _added.Should().ContainSingle(a => a.ForeignArtistId == "mb-new");
+        }
+
+        [Test]
+        public void should_remove_a_sync_lists_tag_only_from_artists_no_longer_on_it()
+        {
+            var listed = GivenLibraryArtist("Listed", "mb-listed");
+            var renamed = GivenLibraryArtist("Renamed", "mb-renamed");
+            var unlisted = GivenLibraryArtist("Unlisted", "mb-unlisted");
+
+            var renamedMetadata = Mocker.Resolve<ArtistMetadataRepository>().Get(renamed.ArtistMetadataId);
+            renamedMetadata.OldForeignArtistIds = new List<string> { "mb-renamed-old" };
+            Mocker.Resolve<ArtistMetadataRepository>().Update(renamedMetadata);
+
+            foreach (var artist in new[] { listed, renamed, unlisted })
+            {
+                artist.Tags = new HashSet<int> { 7, 3 };
+                Mocker.Resolve<ArtistRepository>().Update(artist);
+            }
+
+            _list.TagExisting = TagExistingType.Sync;
+            _items.Add(new ImportListItemInfo { ImportListId = 1, Artist = "Listed", ArtistMusicBrainzId = "mb-listed" });
+            _items.Add(new ImportListItemInfo { ImportListId = 1, Artist = "Old Name", ArtistMusicBrainzId = "mb-renamed-old" });
+            Mocker.Resolve<IImportListItemService>().SyncItemsForList(_items, 1);
+            Mocker.GetMock<IImportListStatusService>().Setup(v => v.GetListStatus(1)).Returns(new ImportListStatus { LastInfoSync = System.DateTime.UtcNow });
+
+            Sync();
+
+            Mocker.Resolve<ArtistRepository>().Get(listed.Id).Tags.Should().BeEquivalentTo(new[] { 7, 3 });
+            Mocker.Resolve<ArtistRepository>().Get(renamed.Id).Tags.Should().BeEquivalentTo(new[] { 7, 3 });
+            Mocker.Resolve<ArtistRepository>().Get(unlisted.Id).Tags.Should().BeEquivalentTo(new[] { 3 });
         }
     }
 }

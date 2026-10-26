@@ -86,10 +86,12 @@ namespace NzbDrone.Core.HealthCheck
         MountSeries,
         NotificationStatusAll,
         NotificationStatusSingle,
-        OidcAuthorityNotSecure,
+
+        // Numbered past develop's reasons, so those keep the values that plugins built against develop use
+        OidcAuthorityNotSecure = 1000,
         OidcDiscoveryFailed,
         OidcNotConfigured,
-        Package,
+        Package = NotificationStatusSingle + 1,
         ProxyBadRequest,
         ProxyFailed,
         ProxyResolveIp,

@@ -155,7 +155,7 @@ namespace NzbDrone.App.Test
 
             // A client built before the OIDC settings doesn't send them
             resource = controller.GetHostConfig();
-            resource.LogLevel = "debug";
+            resource.LogLevel = "trace";
             resource.OidcAuthority = null;
             resource.OidcClientId = null;
             resource.OidcClientSecret = null;
@@ -163,7 +163,7 @@ namespace NzbDrone.App.Test
             resource.OidcScopes = null;
             controller.SaveHostConfig(resource);
 
-            configFileProvider.LogLevel.Should().Be("debug");
+            configFileProvider.LogLevel.Should().Be("trace");
             configFileProvider.OidcClientId.Should().Be("lidarr");
             events.Verify(e => e.PublishEvent(It.IsAny<ConfigFileSavedEvent>()), Times.Once());
         }

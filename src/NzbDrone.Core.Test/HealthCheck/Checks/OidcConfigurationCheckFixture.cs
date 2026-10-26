@@ -1,7 +1,11 @@
+using System;
+using System.Linq;
+using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Authentication;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.HealthCheck;
 using NzbDrone.Core.HealthCheck.Checks;
 using NzbDrone.Core.Localization;
 using NzbDrone.Core.Test.Framework;
@@ -72,6 +76,18 @@ namespace NzbDrone.Core.Test.HealthCheck.Checks
                   .Returns("Some Warning Message");
 
             Subject.Check().ShouldBeError(wikiFragment: "#oidc-configuration-unavailable");
+        }
+
+        [Test]
+        public void should_number_the_oidc_reasons_past_the_others()
+        {
+            var others = Enum.GetValues<HealthCheckReason>()
+                             .Where(r => !r.ToString().StartsWith("Oidc"))
+                             .Select(r => (int)r)
+                             .OrderBy(v => v)
+                             .ToList();
+
+            others.Should().Equal(Enumerable.Range(0, others.Count));
         }
     }
 }

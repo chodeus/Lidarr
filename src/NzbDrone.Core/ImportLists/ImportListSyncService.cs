@@ -524,6 +524,15 @@ namespace NzbDrone.Core.ImportLists
                 var listIds = listsByTag[tag].Select(l => l.Id).ToHashSet();
                 var tagItems = items.Where(i => listIds.Contains(i.ImportListId)).ToList();
 
+                // A fetch that came back empty is more often a provider hiccup than an emptied list
+                var emptyList = listsByTag[tag].FirstOrDefault(l => tagItems.None(i => i.ImportListId == l.Id));
+
+                if (emptyList != null)
+                {
+                    _logger.Debug("Not removing tag {0}, import list {1} has no items", tag, emptyList.Name);
+                    continue;
+                }
+
                 // Fail closed, as the clean does: an item matched by name alone could miss its artist
                 var unresolved = tagItems.FirstOrDefault(i => ListedArtists.IsUnresolved(i, listedAlbums));
 

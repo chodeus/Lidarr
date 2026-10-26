@@ -800,7 +800,7 @@ namespace NzbDrone.Core.Test.ImportListTests
         public void should_keep_the_tag_while_a_list_with_it_has_not_synced(bool synced, bool disabled, bool failedSinceSync)
         {
             WithLibrary(TaggedArtist(1, "mb-off-list", 7));
-            WithStoredItems(StoredArtist(1, "mb-on-list"));
+            WithStoredItems(StoredArtist(1, "mb-on-list"), StoredArtist(2, "mb-on-list"));
             WithSyncLists(TaggingList(1, TagExistingType.Sync, 7), TaggingList(2, TagExistingType.None, 7));
 
             var lastSync = DateTime.UtcNow.AddHours(-1);
@@ -812,6 +812,19 @@ namespace NzbDrone.Core.Test.ImportListTests
                     DisabledTill = disabled ? DateTime.UtcNow.AddHours(1) : null,
                     MostRecentFailure = failedSinceSync ? lastSync.AddMinutes(30) : null
                 });
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            VerifyNotTagged();
+        }
+
+        [TestCase(TagExistingType.Sync)]
+        [TestCase(TagExistingType.None)]
+        public void should_keep_the_tag_while_a_list_with_it_has_no_items(TagExistingType emptyListMode)
+        {
+            WithLibrary(TaggedArtist(1, "mb-off-list", 7));
+            WithStoredItems(StoredArtist(1, "mb-on-list"));
+            WithSyncLists(TaggingList(1, TagExistingType.Sync, 7), TaggingList(2, emptyListMode, 7));
 
             Subject.Execute(new ImportListSyncCommand());
 

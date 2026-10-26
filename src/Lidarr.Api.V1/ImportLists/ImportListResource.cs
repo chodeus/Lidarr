@@ -9,7 +9,7 @@ namespace Lidarr.Api.V1.ImportLists
         public bool EnableAutomaticAdd { get; set; }
         public ImportListMonitorType ShouldMonitor { get; set; }
         public bool ShouldMonitorExisting { get; set; }
-        public TagExistingType TagExisting { get; set; }
+        public TagExistingType? TagExisting { get; set; }
         public bool ShouldSearch { get; set; }
         public string RootFolderPath { get; set; }
         public NewItemMonitorTypes MonitorNewItems { get; set; }
@@ -59,7 +59,7 @@ namespace Lidarr.Api.V1.ImportLists
             definition.EnableAutomaticAdd = resource.EnableAutomaticAdd;
             definition.ShouldMonitor = resource.ShouldMonitor;
             definition.ShouldMonitorExisting = resource.ShouldMonitorExisting;
-            definition.TagExisting = resource.TagExisting;
+            definition.TagExisting = resource.TagExisting ?? existingDefinition?.TagExisting ?? TagExistingType.None;
             definition.ShouldSearch = resource.ShouldSearch;
             definition.RootFolderPath = resource.RootFolderPath;
             definition.MonitorNewItems = resource.MonitorNewItems;

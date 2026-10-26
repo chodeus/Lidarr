@@ -174,6 +174,7 @@ namespace NzbDrone.Core.ImportLists
 
             var listExclusions = _importListExclusionService.All().ToDictionary(x => x.ForeignId);
             var importLists = _importListFactory.All();
+            var mappedByKey = new Dictionary<ImportListItemKey, ImportListItemInfo>();
 
             foreach (var item in items)
             {
@@ -185,7 +186,7 @@ namespace NzbDrone.Core.ImportLists
                 {
                     if (item.AlbumMusicBrainzId.IsNullOrWhiteSpace() || item.ArtistMusicBrainzId.IsNullOrWhiteSpace())
                     {
-                        MapAlbumReport(item);
+                        MapOnce(item, mappedByKey, MapAlbumReport);
                     }
 
                     ProcessAlbumReport(importList, item, listExclusions, albumsToAdd, artistsToAdd, existingArtistTags);
@@ -194,7 +195,7 @@ namespace NzbDrone.Core.ImportLists
                 {
                     if (item.ArtistMusicBrainzId.IsNullOrWhiteSpace())
                     {
-                        MapArtistReport(item);
+                        MapOnce(item, mappedByKey, MapArtistReport);
                     }
 
                     ProcessArtistReport(importList, item, listExclusions, artistsToAdd, existingArtistTags);
@@ -217,6 +218,24 @@ namespace NzbDrone.Core.ImportLists
             }
 
             return processed;
+        }
+
+        // An item that several lists share is searched for once; the other lists' copies take its result
+        private static void MapOnce(ImportListItemInfo item, Dictionary<ImportListItemKey, ImportListItemInfo> mappedByKey, Action<ImportListItemInfo> map)
+        {
+            var key = ImportListItemService.KeyOf(item);
+
+            if (mappedByKey.TryGetValue(key, out var mapped))
+            {
+                item.Artist = mapped.Artist;
+                item.ArtistMusicBrainzId = mapped.ArtistMusicBrainzId;
+                item.Album = mapped.Album;
+                item.AlbumMusicBrainzId = mapped.AlbumMusicBrainzId;
+                return;
+            }
+
+            map(item);
+            mappedByKey.Add(key, item);
         }
 
         private void MapAlbumReport(ImportListItemInfo report)

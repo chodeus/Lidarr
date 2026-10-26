@@ -935,6 +935,44 @@ namespace NzbDrone.Core.Test.ImportListTests
             VerifyNotTagged();
         }
 
+        [Test]
+        public void should_search_once_for_an_artist_two_lists_share()
+        {
+            _importListReports.Clear();
+            _importListReports.Add(new ImportListItemInfo { ImportListId = 1, Artist = "Artist Name" });
+            _importListReports.Add(new ImportListItemInfo { ImportListId = 2, Artist = "Artist Name" });
+            WithTaggingLists(TaggingList(1, TagExistingType.None, 1), TaggingList(2, TagExistingType.None, 2));
+
+            Mocker.GetMock<ISearchForNewArtist>()
+                .Setup(v => v.SearchForNewArtist("Artist Name"))
+                .Returns(new List<Artist> { new Artist { Metadata = new ArtistMetadata { ForeignArtistId = "mb-shared", Name = "Artist Name" } } });
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            Mocker.GetMock<ISearchForNewArtist>().Verify(v => v.SearchForNewArtist(It.IsAny<string>()), Times.Once());
+            Mocker.GetMock<IAddArtistService>()
+                .Verify(v => v.AddArtists(It.Is<List<Artist>>(l => HasTags(l, "mb-shared", 1, 2)), false, It.IsAny<bool>()));
+        }
+
+        [Test]
+        public void should_search_once_for_an_album_two_lists_share()
+        {
+            _importListReports.Clear();
+            _importListReports.Add(new ImportListItemInfo { ImportListId = 1, Artist = "Artist Name", Album = "Album Title" });
+            _importListReports.Add(new ImportListItemInfo { ImportListId = 2, Artist = "Artist Name", Album = "Album Title" });
+            WithTaggingLists(TaggingList(1, TagExistingType.None, 1), TaggingList(2, TagExistingType.None, 2));
+
+            Mocker.GetMock<ISearchForNewAlbum>()
+                .Setup(v => v.SearchForNewAlbum("Album Title", "Artist Name"))
+                .Returns(new List<Album> { new Album { ForeignAlbumId = "mb-album", Title = "Album Title", ArtistMetadata = new ArtistMetadata { ForeignArtistId = "mb-shared", Name = "Artist Name" } } });
+
+            Subject.Execute(new ImportListSyncCommand());
+
+            Mocker.GetMock<ISearchForNewAlbum>().Verify(v => v.SearchForNewAlbum(It.IsAny<string>(), It.IsAny<string>()), Times.Once());
+            Mocker.GetMock<IAddArtistService>()
+                .Verify(v => v.AddArtists(It.Is<List<Artist>>(l => HasTags(l, "mb-shared", 1, 2)), false, It.IsAny<bool>()));
+        }
+
         private static bool HasTags(List<Artist> artists, string foreignArtistId, params int[] tags)
         {
             return artists.Single(a => a.ForeignArtistId == foreignArtistId).Tags.SetEquals(tags);

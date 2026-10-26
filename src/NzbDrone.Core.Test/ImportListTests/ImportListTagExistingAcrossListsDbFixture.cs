@@ -133,20 +133,29 @@ namespace NzbDrone.Core.Test.ImportListTests
         }
 
         [Test]
-        public void should_keep_a_sync_lists_tag_on_an_artist_another_list_also_lists()
+        public void should_keep_a_sync_tag_on_an_artist_only_another_list_with_the_tag_names()
         {
             var kept = GivenLibraryArtist("Kept", "mb-kept");
-            kept.Tags = new HashSet<int> { 2 };
-            Mocker.Resolve<ArtistRepository>().Update(kept);
+            var unlisted = GivenLibraryArtist("Unlisted", "mb-unlisted");
+            GivenLibraryArtist("Other", "mb-other");
+
+            foreach (var artist in new[] { kept, unlisted })
+            {
+                artist.Tags = new HashSet<int> { 2 };
+                Mocker.Resolve<ArtistRepository>().Update(artist);
+            }
+
+            _list1.TagExisting = TagExistingType.None;
+            _list1.Tags = new HashSet<int> { 2 };
             _list2.TagExisting = TagExistingType.Sync;
 
             _items1.Add(new ImportListItemInfo { Artist = "Kept", ArtistMusicBrainzId = "mb-kept" });
-            _items2.Add(new ImportListItemInfo { Artist = "Kept", ArtistMusicBrainzId = "mb-kept" });
+            _items2.Add(new ImportListItemInfo { Artist = "Other", ArtistMusicBrainzId = "mb-other" });
 
-            Sync();
             Sync();
 
             Mocker.Resolve<ArtistRepository>().Get(kept.Id).Tags.Should().Contain(2);
+            Mocker.Resolve<ArtistRepository>().Get(unlisted.Id).Tags.Should().NotContain(2);
         }
 
         // List 1 has automatic add off but still stores the artist, which Clean Library counts as listed

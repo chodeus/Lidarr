@@ -99,7 +99,7 @@ namespace NzbDrone.Core.ImportLists
             return pending;
         }
 
-        // Not failed the last time, not never synced, and not failed since its last sync, as during the startup grace period
+        // Synced, not disabled, and not failed since its last sync, since a list isn't disabled during the startup grace period
         private static bool HasSyncedSuccessfully(ImportListStatus status)
         {
             return !status.DisabledTill.HasValue && status.LastInfoSync.HasValue && !(status.MostRecentFailure > status.LastInfoSync);

@@ -50,6 +50,9 @@ namespace NzbDrone.Core.Music
         {
             public TEntity Entity { get; set; }
             public List<ArtistMetadata> Metadata { get; set; }
+
+            // The source has no usable copy (not found, or no usable releases): keep and mark it rather than delete on one answer
+            public bool MissingFromSource { get; set; }
         }
 
         protected virtual void LogProgress(TEntity local)
@@ -67,6 +70,10 @@ namespace NzbDrone.Core.Music
         protected virtual bool ShouldDelete(TEntity local)
         {
             return true;
+        }
+
+        protected virtual void MarkMissingFromSource(TEntity local)
+        {
         }
 
         protected abstract UpdateResult UpdateEntity(TEntity local, TEntity remote);
@@ -123,17 +130,22 @@ namespace NzbDrone.Core.Music
 
             if (remote == null)
             {
+                if (data.MissingFromSource)
+                {
+                    _logger.Error($"{typeof(TEntity).Name} {local} is no longer available from the metadata source (not found, or no usable releases) and is kept until you delete it");
+                    MarkMissingFromSource(local);
+                    return false;
+                }
+
                 if (ShouldDelete(local))
                 {
-                    _logger.Warn($"{typeof(TEntity).Name} {local} not found in metadata and is being deleted");
+                    _logger.Warn($"{typeof(TEntity).Name} {local} is no longer listed in its metadata and is being deleted");
                     DeleteEntity(local, true);
                     return false;
                 }
-                else
-                {
-                    _logger.Error($"{typeof(TEntity).Name} {local} was not found, it may have been removed from Metadata sources.");
-                    return false;
-                }
+
+                _logger.Error($"{typeof(TEntity).Name} {local} was not found, it may have been removed from Metadata sources.");
+                return false;
             }
 
             if (data.Metadata != null)

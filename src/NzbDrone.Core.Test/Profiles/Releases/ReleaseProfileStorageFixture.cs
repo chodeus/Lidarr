@@ -8,6 +8,7 @@ using NzbDrone.Core.Indexers;
 using NzbDrone.Core.Profiles.Releases;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Core.ThingiProvider.Events;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.Profiles.Releases
 {
@@ -69,6 +70,8 @@ namespace NzbDrone.Core.Test.Profiles.Releases
             Subject.Get(onlyFive.Id).Should().Match<ReleaseProfile>(p => p.IndexerIds.Count == 0 && !p.Enabled);
             Subject.Get(fiveAndSeven.Id).Should().Match<ReleaseProfile>(p => p.IndexerIds.SequenceEqual(new[] { 7 }) && p.Enabled);
             Subject.Get(every.Id).Should().Match<ReleaseProfile>(p => p.IndexerIds.Count == 0 && p.Enabled);
+
+            ExceptionVerification.ExpectedWarns(1);
         }
     }
 }

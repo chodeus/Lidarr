@@ -1,15 +1,25 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using FizzWare.NBuilder;
+using FluentAssertions;
 using Moq;
 using NUnit.Framework;
+using NzbDrone.Common.Cache;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Http;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.History;
+using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.Messaging.Commands;
+using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Music;
+using NzbDrone.Core.Music.Events;
+using NzbDrone.Core.Profiles.Metadata;
+using NzbDrone.Core.RootFolders;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Test.Common;
 
@@ -42,6 +52,8 @@ namespace NzbDrone.Core.Test.MusicTests
                 .With(s => s.Id = 1234)
                 .With(s => s.ForeignAlbumId = "1")
                 .With(s => s.AlbumReleases = _releases)
+                .With(s => s.MetadataMissingSince = null)
+                .With(s => s.LastInfoSync = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc))
                 .Build();
 
             _albums = new List<Album> { album1 };
@@ -161,7 +173,7 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
-        public void should_remove_album_with_no_valid_releases()
+        public void should_keep_and_mark_album_with_no_valid_releases()
         {
             var album = _albums.First();
             album.AlbumReleases = new List<AlbumRelease>();
@@ -170,11 +182,368 @@ namespace NzbDrone.Core.Test.MusicTests
 
             Subject.RefreshAlbumInfo(album, null, false);
 
+            VerifyKeptAndMarked(album);
+            ExceptionVerification.ExpectedErrors(1);
+        }
+
+        [Test]
+        public void should_keep_and_mark_album_the_source_does_not_have()
+        {
+            var album = _albums.First();
+
+            Subject.RefreshAlbumInfo(album, null, false);
+
+            VerifyKeptAndMarked(album);
+            ExceptionVerification.ExpectedErrors(1);
+        }
+
+        [Test]
+        public void should_keep_and_mark_unlisted_album_the_source_does_not_have()
+        {
+            var album = _albums.First();
+
+            Subject.RefreshAlbumInfo(album, new List<Album>(), false);
+
+            VerifyKeptAndMarked(album);
+            ExceptionVerification.ExpectedErrors(1);
+        }
+
+        private Album GivenUnlistedAlbumTheSourceStillHas(string sourceArtistId, bool profileAllowsIt, List<string> mustNotContain = null)
+        {
+            var album = _albums.First();
+            album.ArtistMetadata.Value.ForeignArtistId = _fakeArtistForeignId;
+
+            var stillInSource = album.JsonClone();
+            stillInSource.ArtistMetadata = album.ArtistMetadata.Value.JsonClone();
+            album.Artist = _artist;
+            _artist.MetadataProfileId = 7;
+
+            Mocker.GetMock<IArtistService>()
+                .Setup(s => s.FindById(_fakeArtistForeignId))
+                .Returns(_artist);
+            stillInSource.AlbumType = PrimaryAlbumType.Album.Name;
+            stillInSource.SecondaryTypes = new List<SecondaryAlbumType>();
+            stillInSource.AlbumReleases = _releases;
+            _releases.ForEach(r => r.Status = ReleaseStatus.Official.Name);
+
+            Mocker.GetMock<IProvideAlbumInfo>()
+                .Setup(s => s.GetAlbumInfo(album.ForeignAlbumId))
+                .Returns(new Tuple<string, Album, List<ArtistMetadata>>(sourceArtistId, stillInSource, _fakeArtists));
+
+            Mocker.GetMock<IMetadataProfileService>().Setup(s => s.Exists(7)).Returns(true);
+            Mocker.GetMock<IMetadataProfileService>()
+                .Setup(s => s.Get(7))
+                .Returns(new MetadataProfile
+                {
+                    PrimaryAlbumTypes = new List<ProfilePrimaryAlbumTypeItem> { new ProfilePrimaryAlbumTypeItem { PrimaryAlbumType = PrimaryAlbumType.Album, Allowed = profileAllowsIt } },
+                    SecondaryAlbumTypes = new List<ProfileSecondaryAlbumTypeItem> { new ProfileSecondaryAlbumTypeItem { SecondaryAlbumType = SecondaryAlbumType.Studio, Allowed = true } },
+                    ReleaseStatuses = new List<ProfileReleaseStatusItem> { new ProfileReleaseStatusItem { ReleaseStatus = ReleaseStatus.Official, Allowed = true } },
+                    Ignored = mustNotContain
+                });
+
+            return album;
+        }
+
+        [Test]
+        public void should_keep_and_refresh_an_unlisted_album_the_source_still_has_for_the_same_artist()
+        {
+            var album = GivenUnlistedAlbumTheSourceStillHas(_fakeArtistForeignId, true);
+
+            Subject.RefreshAlbumInfo(album, new List<Album>(), false);
+
             Mocker.GetMock<IAlbumService>()
-                .Verify(x => x.DeleteAlbum(album.Id, true, false),
-                        Times.Once());
+                .Verify(x => x.DeleteAlbum(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<IAlbumService>()
+                .Verify(x => x.UpdateMetadataMissingSince(It.IsAny<List<Album>>()), Times.Never());
+        }
+
+        [Test]
+        public void should_delete_unlisted_album_the_profile_now_excludes()
+        {
+            var album = GivenUnlistedAlbumTheSourceStillHas(_fakeArtistForeignId, false);
+
+            Subject.RefreshAlbumInfo(album, new List<Album>(), false);
+
+            Mocker.GetMock<IAlbumService>()
+                .Verify(x => x.DeleteAlbum(album.Id, true, false), Times.Once());
 
             ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_delete_unlisted_album_a_must_not_contain_term_now_excludes()
+        {
+            Mocker.SetConstant<ICacheManager>(new CacheManager());
+            _albums.First().Title = "Live at the Hall";
+            var album = GivenUnlistedAlbumTheSourceStillHas(_fakeArtistForeignId, true, new List<string> { "live" });
+
+            Subject.RefreshAlbumInfo(album, new List<Album>(), false);
+
+            Mocker.GetMock<IAlbumService>()
+                .Verify(x => x.DeleteAlbum(album.Id, true, false), Times.Once());
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_delete_unlisted_album_the_source_moved_to_another_artist()
+        {
+            var album = GivenUnlistedAlbumTheSourceStillHas("another-artist", true);
+
+            Subject.RefreshAlbumInfo(album, new List<Album>(), false);
+
+            Mocker.GetMock<IAlbumService>()
+                .Verify(x => x.DeleteAlbum(album.Id, true, false), Times.Once());
+            Mocker.GetMock<IAlbumService>()
+                .Verify(x => x.UpdateMetadataMissingSince(It.IsAny<List<Album>>()), Times.Never());
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_keep_and_mark_unlisted_album_the_source_has_without_valid_releases()
+        {
+            var album = _albums.First();
+            var withoutReleases = album.JsonClone();
+            withoutReleases.AlbumReleases = new List<AlbumRelease>();
+            GivenNewAlbumInfo(withoutReleases);
+
+            Subject.RefreshAlbumInfo(album, new List<Album>(), false);
+
+            VerifyKeptAndMarked(album);
+            ExceptionVerification.ExpectedErrors(1);
+        }
+
+        private Album GivenNeverSynced(bool minValue)
+        {
+            var album = _albums.First();
+            album.LastInfoSync = minValue ? DateTime.MinValue : null;
+
+            return album;
+        }
+
+        private void VerifyDeletedNotMarked(Album album)
+        {
+            Mocker.GetMock<IAlbumService>()
+                .Verify(x => x.DeleteAlbum(album.Id, true, false), Times.Once());
+            Mocker.GetMock<IAlbumService>()
+                .Verify(x => x.UpdateMetadataMissingSince(It.IsAny<List<Album>>()), Times.Never());
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_delete_never_synced_album_with_no_valid_releases(bool minValue)
+        {
+            var album = GivenNeverSynced(minValue);
+            var withoutReleases = album.JsonClone();
+            withoutReleases.AlbumReleases = new List<AlbumRelease>();
+            GivenNewAlbumInfo(withoutReleases);
+
+            Subject.RefreshAlbumInfo(album, null, false);
+
+            VerifyDeletedNotMarked(album);
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_delete_never_synced_album_the_source_does_not_have(bool minValue)
+        {
+            var album = GivenNeverSynced(minValue);
+
+            Subject.RefreshAlbumInfo(album, null, false);
+
+            VerifyDeletedNotMarked(album);
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_delete_unlisted_never_synced_album_without_asking_the_source()
+        {
+            var album = GivenNeverSynced(true);
+
+            Subject.RefreshAlbumInfo(album, new List<Album>(), false);
+
+            VerifyDeletedNotMarked(album);
+            Mocker.GetMock<IProvideAlbumInfo>()
+                .Verify(x => x.GetAlbumInfo(It.IsAny<string>()), Times.Never());
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_keep_and_mark_never_synced_album_with_files(bool unlisted)
+        {
+            var album = GivenNeverSynced(true);
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(x => x.GetFilesByAlbum(album.Id))
+                .Returns(new List<TrackFile> { new TrackFile() });
+
+            Subject.RefreshAlbumInfo(album, unlisted ? new List<Album>() : null, false);
+
+            VerifyKeptAndMarked(album);
+            ExceptionVerification.ExpectedErrors(1);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_keep_and_mark_never_synced_album_added_by_hand(bool unlisted)
+        {
+            var album = GivenNeverSynced(true);
+            album.AddOptions = new AddAlbumOptions { AddType = AlbumAddType.Manual };
+
+            Subject.RefreshAlbumInfo(album, unlisted ? new List<Album>() : null, false);
+
+            VerifyKeptAndMarked(album);
+            ExceptionVerification.ExpectedErrors(1);
+        }
+
+        [Test]
+        public void should_keep_the_first_missing_date()
+        {
+            var album = _albums.First();
+            var firstMissing = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            album.MetadataMissingSince = firstMissing;
+
+            Subject.RefreshAlbumInfo(album, null, false);
+
+            album.MetadataMissingSince.Should().Be(firstMissing);
+            Mocker.GetMock<IAlbumService>()
+                .Verify(x => x.UpdateMetadataMissingSince(It.IsAny<List<Album>>()), Times.Never());
+
+            ExceptionVerification.ExpectedErrors(1);
+        }
+
+        [Test]
+        public void should_clear_the_missing_date_when_the_source_has_the_album_again()
+        {
+            var album = _albums.First();
+            album.MetadataMissingSince = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            var newAlbumInfo = album.JsonClone();
+            newAlbumInfo.ArtistMetadata = album.ArtistMetadata.Value.JsonClone();
+            newAlbumInfo.AlbumReleases = _releases;
+            GivenNewAlbumInfo(newAlbumInfo);
+
+            Subject.RefreshAlbumInfo(_albums, null, false, false, null);
+
+            Mocker.GetMock<IAlbumService>()
+                .Verify(v => v.UpdateMany(It.Is<List<Album>>(s => s.First().MetadataMissingSince == null)));
+            Mocker.GetMock<IEventAggregator>()
+                .Verify(v => v.PublishEvent(It.IsAny<AlbumUpdatedEvent>()), Times.Once());
+        }
+
+        [Test]
+        public void should_publish_an_update_when_only_the_missing_date_clears()
+        {
+            var album = _albums.First();
+            album.MetadataMissingSince = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            var sameAlbum = new Album();
+            sameAlbum.UseMetadataFrom(album);
+            sameAlbum.UseDbFieldsFrom(album);
+            sameAlbum.ArtistMetadata = album.ArtistMetadata;
+            sameAlbum.AlbumReleases = _releases;
+            sameAlbum.Should().Be(album, "only the missing date may change this refresh");
+            GivenNewAlbumInfo(sameAlbum);
+
+            Mocker.GetMock<IArtistMetadataService>()
+                .Setup(s => s.UpsertMany(It.IsAny<List<ArtistMetadata>>()))
+                .Returns(false);
+
+            Subject.RefreshAlbumInfo(album, null, false);
+
+            album.MetadataMissingSince.Should().BeNull();
+            Mocker.GetMock<IEventAggregator>()
+                .Verify(v => v.PublishEvent(It.IsAny<AlbumUpdatedEvent>()), Times.Once());
+        }
+
+        [Test]
+        public void should_publish_an_update_when_marking_an_album_missing()
+        {
+            Subject.RefreshAlbumInfo(_albums.First(), null, false);
+
+            Mocker.GetMock<IEventAggregator>()
+                .Verify(v => v.PublishEvent(It.IsAny<AlbumUpdatedEvent>()), Times.Once());
+
+            ExceptionVerification.ExpectedErrors(1);
+        }
+
+        [Test]
+        public void should_leave_an_unlisted_album_alone_when_the_source_check_fails()
+        {
+            Mocker.GetMock<IProvideAlbumInfo>()
+                .Setup(s => s.GetAlbumInfo(It.IsAny<string>()))
+                .Throws(new HttpException(new HttpResponse(new HttpRequest("http://metadata.example.invalid"), new HttpHeader(), Array.Empty<byte>(), HttpStatusCode.ServiceUnavailable)));
+
+            Subject.RefreshAlbumInfo(_albums, new List<Album>(), true, false, null);
+
+            Mocker.GetMock<IAlbumService>()
+                .Verify(x => x.DeleteAlbum(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<IAlbumService>()
+                .Verify(x => x.UpdateMetadataMissingSince(It.IsAny<List<Album>>()), Times.Never());
+
+            ExceptionVerification.ExpectedErrors(1);
+        }
+
+        [Test]
+        public void should_not_ask_the_source_about_more_unlisted_albums_after_a_failure()
+        {
+            var albums = Builder<Album>.CreateListOfSize(3)
+                .All()
+                .With(x => x.ArtistMetadata = Builder<ArtistMetadata>.CreateNew().Build())
+                .With(x => x.AlbumReleases = _releases)
+                .With(x => x.MetadataMissingSince = null)
+                .With(x => x.LastInfoSync = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc))
+                .Build()
+                .ToList();
+
+            Mocker.GetMock<IProvideAlbumInfo>()
+                .Setup(s => s.GetAlbumInfo(It.IsAny<string>()))
+                .Throws(new HttpException(new HttpResponse(new HttpRequest("http://metadata.example.invalid"), new HttpHeader(), Array.Empty<byte>(), HttpStatusCode.ServiceUnavailable)));
+
+            Subject.RefreshAlbumInfo(albums, new List<Album>(), true, false, null);
+
+            Mocker.GetMock<IProvideAlbumInfo>()
+                .Verify(s => s.GetAlbumInfo(It.IsAny<string>()), Times.Once());
+            Mocker.GetMock<IAlbumService>()
+                .Verify(x => x.DeleteAlbum(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+
+            ExceptionVerification.ExpectedErrors(1);
+        }
+
+        [Test]
+        public void should_keep_an_unlisted_album_already_marked_missing()
+        {
+            var album = _albums.First();
+            album.LastInfoSync = null;
+            album.MetadataMissingSince = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            Subject.RefreshAlbumInfo(album, new List<Album>(), false);
+
+            Mocker.GetMock<IAlbumService>()
+                .Verify(x => x.DeleteAlbum(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+
+            ExceptionVerification.ExpectedErrors(1);
+        }
+
+        [Test]
+        public void should_keep_the_constructor_that_plugins_call()
+        {
+            typeof(RefreshAlbumService).GetConstructor(new[]
+            {
+                typeof(IAlbumService), typeof(IArtistService), typeof(IRootFolderService), typeof(IAddArtistService), typeof(IArtistMetadataService),
+                typeof(IReleaseService), typeof(IProvideAlbumInfo), typeof(IRefreshAlbumReleaseService), typeof(IMediaFileService), typeof(IHistoryService),
+                typeof(IEventAggregator), typeof(IManageCommandQueue), typeof(ICheckIfAlbumShouldBeRefreshed), typeof(IMapCoversToLocal), typeof(NLog.Logger)
+            }).Should().NotBeNull();
+        }
+
+        private void VerifyKeptAndMarked(Album album)
+        {
+            Mocker.GetMock<IAlbumService>()
+                .Verify(x => x.DeleteAlbum(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<IAlbumService>()
+                .Verify(x => x.UpdateMetadataMissingSince(It.Is<List<Album>>(l => l.Single().Id == album.Id && l.Single().MetadataMissingSince.HasValue)), Times.Once());
         }
 
         [Test]

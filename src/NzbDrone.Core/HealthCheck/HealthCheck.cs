@@ -122,6 +122,8 @@ namespace NzbDrone.Core.HealthCheck
         PluginFailed,
         MountArtist,
         FpcalcMissing,
-        FpcalcUpgrade
+        FpcalcUpgrade,
+        RemovedAlbumSingle,
+        RemovedAlbumMultiple
     }
 }

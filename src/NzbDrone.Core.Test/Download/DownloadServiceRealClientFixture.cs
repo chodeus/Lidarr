@@ -172,14 +172,14 @@ namespace NzbDrone.Core.Test.Download
             {
                 Title = "Artist - Album",
                 DownloadProtocol = nameof(UsenetDownloadProtocol),
-                DownloadUrl = "http://prowlarr:9696/1/download?link=abc",
+                DownloadUrl = "http://indexer.example/1/download?link=abc",
                 IndexerId = 5
             };
 
             // SocketsHttpHandler throws this through ManagedHttpDispatcher unwrapped
             Mocker.GetMock<IHttpClient>()
                 .Setup(s => s.GetAsync(It.IsAny<HttpRequest>()))
-                .ThrowsAsync(new HttpRequestException(HttpRequestError.ConnectionError, "Connection refused (prowlarr:9696)"));
+                .ThrowsAsync(new HttpRequestException(HttpRequestError.ConnectionError, "Connection refused (indexer.example)"));
 
             var outcome = "grabbed";
             try
@@ -193,6 +193,7 @@ namespace NzbDrone.Core.Test.Download
 
             Assert.That(_second.Invocations.Count(i => i.Method.Name == "Download"), Is.EqualTo(0), $"Indexer was down, yet the second client was tried. Outcome: {outcome}");
             Mocker.GetMock<IIndexerStatusService>().Verify(v => v.RecordFailure(5, It.IsAny<TimeSpan>()), Times.Once());
+            ExceptionVerification.ExpectedErrors(1);
         }
 
         [Test]
@@ -246,6 +247,7 @@ namespace NzbDrone.Core.Test.Download
             Assert.ThrowsAsync<ReleaseDownloadException>(async () => await Subject.DownloadReport(_remoteAlbum, null));
 
             Mocker.GetMock<IIndexerStatusService>().Verify(v => v.RecordFailure(5, It.IsAny<TimeSpan>()), Times.Once());
+            ExceptionVerification.ExpectedErrors(1);
         }
 
         [Test]

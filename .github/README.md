@@ -9,6 +9,7 @@ Adds Must Not Contain terms to metadata profiles (upstream request #4923):
 - Whole-word matching uses lookarounds, not `\b`, so terms that start or end with punctuation, like `(live)`, still match.
 - The validator rejects invalid regexes and regexes that match an empty title.
 - Migration 900 adds `MetadataProfiles.Ignored`. The 900+ range is reserved for build-only changes.
+- Also merges [`fix/keep-unlisted-metadata`](https://github.com/chodeus/Lidarr/tree/fix/keep-unlisted-metadata), which keeps an album the artist's list leaves out unless the source moved it or the metadata profile excludes it. That check now uses the shared album filter, so a Must Not Contain term removes such an album too.
 
 `SkyHookProxy` is unchanged apart from using the shared album filter, so plugins still construct it with develop's constructor. The aggregator builds its own `TermMatcherService`, since the whole-word match isn't on `ITermMatcherService`.
 

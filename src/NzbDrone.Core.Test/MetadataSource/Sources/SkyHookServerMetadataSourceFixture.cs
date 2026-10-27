@@ -55,7 +55,7 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
 
             Subject.Test().Errors.Single().ErrorMessage.Should().Contain("HTTP 500").And.NotContain(token);
 
-            // SkyHookProxy warns about the failed request too, with its URL; only the log cleanser hides a token there
+            // SkyHookProxy also warns about the failed request, with its URL; see the README on the log cleanser
             ExceptionVerification.ExpectedWarns(2);
         }
     }

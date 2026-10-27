@@ -1,6 +1,7 @@
 using System;
 using System.Net;
 using NzbDrone.Common.Http;
+using NzbDrone.Core.MetadataSource.SkyHook;
 
 namespace NzbDrone.Core.MetadataSource.Sources
 {
@@ -13,6 +14,8 @@ namespace NzbDrone.Core.MetadataSource.Sources
             {
                 switch (inner)
                 {
+                    case UnexpectedHtmlContentException html:
+                        return $"HTTP {(int)html.Response.StatusCode}, browser content instead of API data";
                     case HttpException http:
                         return $"HTTP {(int)http.Response.StatusCode}";
                     case WebException web:
@@ -20,7 +23,8 @@ namespace NzbDrone.Core.MetadataSource.Sources
                 }
             }
 
-            return ex.Message;
+            // SkyHookProxy builds the errors it throws without an inner exception from fixed text
+            return ex is SkyHookException && ex.InnerException == null ? ex.Message : ex.GetBaseException().GetType().Name;
         }
     }
 }

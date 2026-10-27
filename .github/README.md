@@ -1,6 +1,6 @@
 # Add a supplementary role that only adds albums the artist lacks
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`feat/discogs-disk-cache`](https://github.com/chodeus/Lidarr/tree/feat/discogs-disk-cache). Reviewed in [#37](https://github.com/chodeus/Lidarr/pull/37).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`feat/discogs-disk-cache`](https://github.com/chodeus/Lidarr/tree/feat/discogs-disk-cache). Reviewed in [#37](https://github.com/chodeus/Lidarr/pull/37) and [#68](https://github.com/chodeus/Lidarr/pull/68).
 
 - A third source role, Supplementary, that only adds albums the artist doesn't have and never changes other sources' albums.
 - The supplement finds the artist through the primary artist's links (MusicBrainz lists Discogs and Deezer artist pages) via a new `IMetadataSource.IdFromLink`; there is no name search. A supplement of the same ID kind uses the artist's own ID. No link means the supplement adds nothing.

@@ -336,13 +336,10 @@ namespace NzbDrone.Core.MetadataSource.Sources
         private static Artist MergeAlbums(List<Artist> found)
         {
             var albums = found[0].Albums.Value;
-            var listed = new List<Album>();
 
-            // An album skipped as one the artist has still counts, so a later source that lists it by one of its IDs matches too
             foreach (var other in found.Skip(1))
             {
-                albums.AddRange(MissingAlbums.ById(albums.Concat(listed), other.Albums.Value));
-                listed.AddRange(other.Albums.Value);
+                albums.AddRange(MissingAlbums.ById(albums, other.Albums.Value));
             }
 
             return found[0];

@@ -145,6 +145,29 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
         }
 
         [Test]
+        public void a_primary_album_takes_the_nearest_of_two_same_title_albums_the_supplement_added()
+        {
+            Mocker.GetMock<IAlbumService>().Setup(s => s.GetAlbumsByArtist(5)).Returns(new List<Album>
+            {
+                NamedAlbum("mb-1", "First Album", 2001),
+                NamedAlbum("other:102", "Live", 2004),
+                NamedAlbum("other:103", "Live", 2005)
+            });
+            GivenSource(1, MetadataSourceRole.Primary, MetadataIdFamilies.MusicBrainz).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(new Artist
+            {
+                Metadata = new ArtistMetadata { ForeignArtistId = MusicBrainzId, Name = "Artist Name", Links = new List<Links> { new() { Name = "other", Url = OtherLink + "9" } } },
+                Albums = new List<Album> { NamedAlbum("mb-1", "First Album", 2001), NamedAlbum("mb-2", "Live", 2005) }
+            });
+            GivenSource(2, MetadataSourceRole.Supplementary, "Other").Setup(s => s.GetArtistInfo("other:9", 1))
+                .Returns(new Artist { Albums = new List<Album> { NamedAlbum("other:102", "Live", 2004), NamedAlbum("other:103", "Live", 2005) } });
+
+            var albums = Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value;
+
+            albums.Select(a => a.ForeignAlbumId).Should().Equal("mb-1", "mb-2", "other:102");
+            albums[1].OldForeignAlbumIds.Should().Equal("other:103");
+        }
+
+        [Test]
         public void supplementary_album_keeps_its_owner_after_the_source_becomes_a_fallback()
         {
             GivenSource(1, MetadataSourceRole.Primary, MetadataIdFamilies.MusicBrainz);

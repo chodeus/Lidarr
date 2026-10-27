@@ -14,18 +14,30 @@ namespace NzbDrone.Core.MetadataSource.Sources
         // An album the artist has, or had before a merge, can come back under another title
         public static List<Album> ById(IEnumerable<Album> known, IEnumerable<Album> candidates)
         {
-            var ids = known.SelectMany(IdsOf).ToHashSet();
+            var owners = new Dictionary<string, Album>();
+
+            foreach (var album in known)
+            {
+                Own(owners, album, album);
+            }
+
             var missing = new List<Album>();
 
             foreach (var album in candidates)
             {
-                if (IdsOf(album).Any(ids.Contains))
+                var match = IdsOf(album).Select(id => owners.GetValueOrDefault(id)).FirstOrDefault(a => a != null);
+
+                if (match == null)
                 {
+                    missing.Add(album);
+                    Own(owners, album, album);
                     continue;
                 }
 
-                ids.UnionWith(IdsOf(album));
-                missing.Add(album);
+                // Like an adopted album: its IDs become old IDs of the match, so a later source listing it by one of them matches too
+                match.OldForeignAlbumIds ??= new List<string>();
+                match.OldForeignAlbumIds.AddRange(IdsOf(album).Where(id => id != match.ForeignAlbumId && !match.OldForeignAlbumIds.Contains(id)).Distinct().ToList());
+                Own(owners, album, match);
             }
 
             return missing;
@@ -47,6 +59,14 @@ namespace NzbDrone.Core.MetadataSource.Sources
             var key = Key(album);
 
             return known.FirstOrDefault(k => SameAlbum(Key(k), key));
+        }
+
+        private static void Own(Dictionary<string, Album> owners, Album album, Album owner)
+        {
+            foreach (var id in IdsOf(album))
+            {
+                owners.TryAdd(id, owner);
+            }
         }
 
         private static IEnumerable<string> IdsOf(Album album)

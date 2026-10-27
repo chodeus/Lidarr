@@ -251,6 +251,42 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
         }
 
         [Test]
+        public void supplements_should_not_add_an_album_twice_through_a_chain_of_merges()
+        {
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(ArtistWith("old-id"));
+
+            var caughtUp = ArtistWith("new-id");
+            caughtUp.Albums.Value.Single().OldForeignAlbumIds.Add("old-id");
+            GivenSource(2, MetadataSourceRole.Supplementary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(caughtUp);
+
+            var mergedAgain = ArtistWith("newer-id");
+            mergedAgain.Albums.Value.Single().OldForeignAlbumIds.Add("new-id");
+            GivenSource(3, MetadataSourceRole.Supplementary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(mergedAgain);
+
+            var albums = Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value;
+
+            albums.Select(a => a.ForeignAlbumId).Should().Equal("old-id");
+            albums.Single().OldForeignAlbumIds.Should().BeEquivalentTo("new-id", "newer-id");
+        }
+
+        [Test]
+        public void a_supplement_should_not_add_an_album_an_and_merge_skipped_by_an_old_id()
+        {
+            _profile.PrimaryCombination = MetadataSourceCombination.And;
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(ArtistWith("old-id"));
+
+            var caughtUp = ArtistWith("new-id");
+            caughtUp.Albums.Value.Single().OldForeignAlbumIds.Add("old-id");
+            GivenSource(2, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(caughtUp);
+
+            var mergedAgain = ArtistWith("newer-id");
+            mergedAgain.Albums.Value.Single().OldForeignAlbumIds.Add("new-id");
+            GivenSource(3, MetadataSourceRole.Supplementary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(mergedAgain);
+
+            Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("old-id");
+        }
+
+        [Test]
         public void a_supplementary_source_of_the_same_kind_that_is_down_fails_the_lookup()
         {
             GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(ArtistWith("album-1"));
@@ -615,6 +651,23 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
             var caughtUp = ArtistWith("new-id");
             caughtUp.Albums.Value.Single().OldForeignAlbumIds.Add("old-id");
             GivenSource(2, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(caughtUp);
+
+            Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("old-id");
+        }
+
+        [Test]
+        public void and_merge_should_not_add_an_album_a_later_source_lists_by_an_id_a_skipped_album_keeps_as_old()
+        {
+            _profile.PrimaryCombination = MetadataSourceCombination.And;
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(ArtistWith("old-id"));
+
+            var caughtUp = ArtistWith("new-id");
+            caughtUp.Albums.Value.Single().OldForeignAlbumIds.Add("old-id");
+            GivenSource(2, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(caughtUp);
+
+            var mergedAgain = ArtistWith("newer-id");
+            mergedAgain.Albums.Value.Single().OldForeignAlbumIds.Add("new-id");
+            GivenSource(3, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(mergedAgain);
 
             Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("old-id");
         }

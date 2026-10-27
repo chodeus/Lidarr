@@ -251,6 +251,38 @@ namespace NzbDrone.Core.Test.Download
         }
 
         [Test]
+        public async Task unreachable_qbittorrent_after_a_redirect_to_a_magnet_should_send_release_to_the_next_client()
+        {
+            Mocker.SetConstant<IQBittorrentProxySelector>(Mocker.Resolve<QBittorrentProxySelector>());
+
+            var qbit = Mocker.Resolve<QBittorrent>();
+            qbit.Definition = new DownloadClientDefinition { Id = 1, Name = "qBittorrent", Settings = new QBittorrentSettings { Host = "qbittorrent", Port = 8080, Username = "user", Password = "pass" } };
+            _clients.Add(qbit);
+            WithSecondClient(nameof(TorrentDownloadProtocol));
+
+            _remoteAlbum.Release = new TorrentInfo
+            {
+                Title = "Artist - Album",
+                DownloadProtocol = nameof(TorrentDownloadProtocol),
+                DownloadUrl = "http://indexer.example/torrent/1",
+                IndexerId = 5
+            };
+
+            Mocker.GetMock<IHttpClient>()
+                .Setup(s => s.GetAsync(It.IsAny<HttpRequest>()))
+                .ReturnsAsync(new HttpResponse(new HttpRequest("http://indexer.example"), new HttpHeader { { "Location", $"magnet:?xt=urn:btih:{Hash}&tr=udp://tracker.example:80" } }, Array.Empty<byte>(), HttpStatusCode.Found));
+            Mocker.GetMock<IHttpClient>()
+                .Setup(s => s.Execute(It.IsAny<HttpRequest>()))
+                .Throws(new HttpRequestException(HttpRequestError.ConnectionError, "Connection refused (qbittorrent:8080)"));
+
+            await Subject.DownloadReport(_remoteAlbum, null);
+
+            Assert.That(_second.Invocations.Count(i => i.Method.Name == "Download"), Is.EqualTo(1));
+            Mocker.GetMock<IIndexerStatusService>().Verify(v => v.RecordFailure(It.IsAny<int>(), It.IsAny<TimeSpan>()), Times.Never());
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
         public void should_let_only_qbittorrent_and_sabnzbd_fall_back()
         {
             var clients = typeof(DownloadService).Assembly.GetTypes()

@@ -132,6 +132,7 @@ namespace NzbDrone.Core.Download
         private async Task<string> DownloadFromWebUrl(RemoteAlbum remoteAlbum, IIndexer indexer, string torrentUrl)
         {
             byte[] torrentFile = null;
+            string redirectUrl = null;
 
             try
             {
@@ -152,24 +153,19 @@ namespace NzbDrone.Core.Download
 
                     _logger.Trace("Torrent request is being redirected to: {0}", locationHeader);
 
-                    if (locationHeader != null)
+                    if (locationHeader == null)
                     {
-                        if (locationHeader.StartsWith("magnet:"))
-                        {
-                            return DownloadFromMagnetUrl(remoteAlbum, indexer, locationHeader);
-                        }
-
-                        request.Url += new HttpUri(locationHeader);
-
-                        return await DownloadFromWebUrl(remoteAlbum, indexer, request.Url.ToString());
+                        throw new WebException("Remote website tried to redirect without providing a location.");
                     }
 
-                    throw new WebException("Remote website tried to redirect without providing a location.");
+                    redirectUrl = locationHeader.StartsWith("magnet:") ? locationHeader : (request.Url + new HttpUri(locationHeader)).ToString();
                 }
+                else
+                {
+                    torrentFile = response.ResponseData;
 
-                torrentFile = response.ResponseData;
-
-                _logger.Debug("Downloading torrent for release '{0}' finished ({1} bytes from {2})", remoteAlbum.Release.Title, torrentFile.Length, torrentUrl);
+                    _logger.Debug("Downloading torrent for release '{0}' finished ({1} bytes from {2})", remoteAlbum.Release.Title, torrentFile.Length, torrentUrl);
+                }
             }
             catch (HttpException ex)
             {
@@ -195,6 +191,14 @@ namespace NzbDrone.Core.Download
                 _logger.Error(ex, "Downloading torrent file for release '{0}' failed ({1})", remoteAlbum.Release.Title, torrentUrl);
 
                 throw new ReleaseDownloadException(remoteAlbum.Release, "Downloading torrent failed", ex);
+            }
+
+            // Followed outside the try, so the client's error on the redirected release isn't reported as the indexer's
+            if (redirectUrl != null)
+            {
+                return redirectUrl.StartsWith("magnet:")
+                    ? DownloadFromMagnetUrl(remoteAlbum, indexer, redirectUrl)
+                    : await DownloadFromWebUrl(remoteAlbum, indexer, redirectUrl);
             }
 
             var filename = string.Format("{0}.torrent", FileNameBuilder.CleanFileName(remoteAlbum.Release.Title));

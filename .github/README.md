@@ -13,6 +13,8 @@ Tests: an existing artist tagged, nothing written with the option off or when th
 ## Summary by CodeRabbit
 
 * **New Features**
-  * Import lists can now apply their tags to artists already in your library, including artists associated with albums on the list.
-  * Enable or disable this behavior for each import list in its settings. When updating a list without changing this option, its current setting is preserved.
-  * Tags from multiple lists are combined, and existing artist tags are retained.
+  * Configure import lists to tag artists already in your library, including artists matched through listed albums.
+  * Choose to leave existing artists unchanged, add tags without removing them, or synchronize tags by adding and removing them.
+  * Tags from multiple lists are combined, and tags not managed by those lists are preserved.
+  * In synchronization mode, tags are removed only when relevant lists sync successfully and their artists can be matched; incomplete, empty or unresolved list data prevents removal.
+  * Newly added artists also receive tags from their import lists.

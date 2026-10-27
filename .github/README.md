@@ -4,7 +4,7 @@ Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom)
 
 - An artist the metadata source reports as not found is kept, whether or not it has files. It stays marked removed and listed by the existing removed-artist health check; its folder is no longer deleted.
 - An album the source no longer has (not found, or no releases with tracks) is kept and marked with the date it went missing (`Albums.MetadataMissingSince`, migration 908) when there is something to keep: it has files, was added by hand, or was synced from the source at least once. An album the source listed but never had a usable copy of (a video-only release, say) is deleted, as develop does. The first date is kept; the mark clears when the source has the album again.
-- An album without files and not added by hand that drops out of its artist's list is removed as before if it was never synced. Otherwise it is checked against the source first. If the source moved it to another artist, or the artist's metadata profile now leaves it out, it is removed as before. If the source still has it under the same artist and the profile allows it, the artist's list only missed it, so it is kept and refreshed as usual. If the source no longer has it, it is kept and marked. If that check fails (timeout, 5xx) the album is left alone until the next refresh, and so are the rest of that artist's unlisted albums in that refresh. An album already marked is never deleted by a refresh.
+- An album without files and not added by hand that drops out of its artist's list is removed as before if it was never synced. Otherwise it is checked against the source first. If the source moved it to another artist, or the artist's metadata profile now leaves it out, it is removed as before. If the source still has it under the same artist and the profile allows it, the artist's list only missed it, so it is kept and refreshed as usual. If the source no longer has it, it is kept and marked. If that check fails (timeout, 5xx) the album is left alone until the next refresh, and so are the rest of that artist's unlisted albums in that refresh. An album already marked is checked against the source like a synced one, so a refresh removes it only if the source moved it or the profile now leaves it out.
 - A new health check lists the marked albums.
 - New `IAlbumService` and `IAlbumRepository` members have default bodies. `RefreshAlbumService` keeps develop's constructor; the container uses a new one that adds the metadata profile service.
 
@@ -13,8 +13,8 @@ Tests: refresh cases for not found, no valid releases, unlisted and moved to ano
 ## Summary by CodeRabbit
 
 * **New Features**
-  * Albums no longer found in the metadata source are retained and marked with the date they went missing. That date is cleared if the album returns.
-  * Health checks warn when albums are missing from the source, identifying each album whether one or several are affected.
+  * Albums retained when missing from metadata are marked with the date they went missing; the date clears when metadata returns.
+  * Health checks warn when albums are missing from the metadata source and identify each affected album.
 * **Bug Fixes**
-  * Albums without valid releases from the source are kept and marked as missing rather than deleted.
-  * Artists missing from metadata are marked deleted without being physically removed.
+  * Albums with files, added by hand, or synced from the source before are kept and marked missing when the source no longer has them or has no usable releases.
+  * Artists missing from metadata are marked as deleted without being physically removed.

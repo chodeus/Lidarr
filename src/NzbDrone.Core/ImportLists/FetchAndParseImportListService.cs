@@ -89,7 +89,7 @@ namespace NzbDrone.Core.ImportLists
 
             Task.WaitAll(taskList.ToArray());
 
-            // Per list, so each list that names an item gets its tags and settings applied
+            // Per list, so every list that names an item adds its tags, and monitors it when it is already in the library
             result = result.DistinctBy(r => new { r.ImportListId, r.Artist, r.Album, r.ArtistMusicBrainzId, r.AlbumMusicBrainzId }).ToList();
 
             _logger.Debug("Found {0} total reports from {1} lists", result.Count, importLists.Count);
@@ -139,7 +139,7 @@ namespace NzbDrone.Core.ImportLists
 
             Task.WaitAll(taskList.ToArray());
 
-            // Per list, so each list that names an item gets its tags and settings applied
+            // Per list, so every list that names an item adds its tags, and monitors it when it is already in the library
             result = result.DistinctBy(r => new { r.ImportListId, r.Artist, r.Album, r.ArtistMusicBrainzId, r.AlbumMusicBrainzId }).ToList();
 
             return result;

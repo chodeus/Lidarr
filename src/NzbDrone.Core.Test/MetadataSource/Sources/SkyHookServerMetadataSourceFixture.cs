@@ -4,6 +4,9 @@ using System.Linq;
 using System.Net;
 using FluentAssertions;
 using Moq;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Common.Cache;
 using NzbDrone.Common.Http;
@@ -50,10 +53,26 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
 
             Subject.Definition = new MetadataSourceDefinition
             {
+                Name = "Mirror",
                 Settings = new SkyHookServerMetadataSourceSettings { Url = "https://metadata.example.invalid/" + token + "/api/v0.4" }
             };
 
-            Subject.Test().Errors.Single().ErrorMessage.Should().Contain("HTTP 500").And.NotContain(token);
+            var target = new MemoryTarget("skyhook-server-test") { Layout = "${message}" };
+            var config = LogManager.Configuration ?? new LoggingConfiguration();
+            config.AddRuleForAllLevels(target);
+            LogManager.Configuration = config;
+
+            try
+            {
+                Subject.Test().Errors.Single().ErrorMessage.Should().Contain("HTTP 500").And.NotContain(token);
+
+                target.Logs.Should().ContainSingle(l => l.StartsWith("Unable to reach the metadata server")).Which.Should().Contain("Mirror").And.NotContain(token);
+            }
+            finally
+            {
+                config.RemoveTarget(target.Name);
+                LogManager.Configuration = config;
+            }
 
             // SkyHookProxy also warns about the failed request, with its URL; see the README on the log cleanser
             ExceptionVerification.ExpectedWarns(2);

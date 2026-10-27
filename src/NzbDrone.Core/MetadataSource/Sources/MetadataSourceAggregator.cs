@@ -125,7 +125,7 @@ namespace NzbDrone.Core.MetadataSource.Sources
             _sourceCache.Clear();
         }
 
-        private T Lookup<T>(Route route, Func<IMetadataSource, T> call, Func<Exception> notFound, Func<T, T, T> merge, Func<T, bool> usable = null)
+        private T Lookup<T>(Route route, Func<IMetadataSource, T> call, Func<Exception> notFound, Func<List<T>, T> merge, Func<T, bool> usable = null)
         {
             Exception outage = null;
             var found = new List<T>();
@@ -172,7 +172,7 @@ namespace NzbDrone.Core.MetadataSource.Sources
 
             if (found.Any())
             {
-                return found.Aggregate(merge);
+                return merge(found);
             }
 
             foreach (var source in route.Fallback)
@@ -316,15 +316,27 @@ namespace NzbDrone.Core.MetadataSource.Sources
             return changed;
         }
 
-        private static Artist MergeAlbums(Artist first, Artist other)
+        private static Artist MergeAlbums(List<Artist> found)
         {
-            var albums = first.Albums.Value;
-            var known = new HashSet<string>(albums.SelectMany(a => (a.OldForeignAlbumIds ?? new List<string>()).Append(a.ForeignAlbumId)));
+            var albums = found[0].Albums.Value;
+            var known = albums.SelectMany(AlbumIds).ToHashSet();
 
-            // A source that hasn't caught up with a merge may still list the album by an ID the other one keeps as old
-            albums.AddRange(other.Albums.Value.Where(a => !known.Contains(a.ForeignAlbumId) && !(a.OldForeignAlbumIds ?? new List<string>()).Any(known.Contains)));
+            // A source that hasn't caught up with a merge may still list the album by an ID another one keeps as old
+            foreach (var other in found.Skip(1))
+            {
+                var added = other.Albums.Value.Where(a => !AlbumIds(a).Any(known.Contains)).ToList();
 
-            return first;
+                // A skipped album's IDs count too, so a later source that lists it by one of them still matches
+                known.UnionWith(other.Albums.Value.SelectMany(AlbumIds));
+                albums.AddRange(added);
+            }
+
+            return found[0];
+        }
+
+        private static IEnumerable<string> AlbumIds(Album album)
+        {
+            return (album.OldForeignAlbumIds ?? new List<string>()).Append(album.ForeignAlbumId);
         }
 
         private static string EntityKey(object entity)

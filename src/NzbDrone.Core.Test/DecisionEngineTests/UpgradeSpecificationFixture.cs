@@ -287,5 +287,28 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
                         new List<CustomFormat> { _formatTwenty })
                    .Should().Be(UpgradeableRejectReason.MinCustomFormatScore);
         }
+
+        [Test]
+        public void should_not_let_extreme_scores_overflow_out_of_an_upgrade()
+        {
+            GivenAutoDownloadPropers(ProperDownloadTypes.PreferAndUpgrade);
+
+            var low = new CustomFormat { Id = 3, Name = "Low" };
+            var high = new CustomFormat { Id = 4, Name = "High" };
+            var profile = GivenProfile(Quality.FLAC, cutoffFormatScore: int.MaxValue);
+            profile.FormatItems = new List<ProfileFormatItem>
+            {
+                new ProfileFormatItem { Format = low, Score = -10 },
+                new ProfileFormatItem { Format = high, Score = int.MaxValue - 5 }
+            };
+
+            Subject.GetUpgradeRejectReason(
+                        profile,
+                        new List<QualityModel> { new QualityModel(Quality.MP3_320) },
+                        new List<CustomFormat> { low },
+                        new QualityModel(Quality.MP3_320),
+                        new List<CustomFormat> { high })
+                   .Should().Be(UpgradeableRejectReason.None);
+        }
     }
 }

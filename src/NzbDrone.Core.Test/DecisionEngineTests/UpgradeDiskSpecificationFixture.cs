@@ -254,7 +254,7 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
             var decision = Subject.IsSatisfiedBy(_parseResultSingle, null);
 
             decision.Accepted.Should().BeFalse();
-            decision.Reason.Should().Be("Existing files on disk has a equal or higher Custom Format score: 20");
+            decision.Reason.Should().Be("Existing files on disk has an equal or higher Custom Format score: 20");
         }
 
         [Test]

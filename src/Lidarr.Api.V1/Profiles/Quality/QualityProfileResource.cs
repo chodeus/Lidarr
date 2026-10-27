@@ -15,9 +15,7 @@ namespace Lidarr.Api.V1.Profiles.Quality
         public List<QualityProfileQualityItemResource> Items { get; set; }
         public int MinFormatScore { get; set; }
         public int CutoffFormatScore { get; set; }
-
-        // Clients written against develop omit this field; 1 keeps their saves valid
-        public int MinUpgradeFormatScore { get; set; } = 1;
+        public int? MinUpgradeFormatScore { get; set; }
         public List<ProfileFormatItemResource> FormatItems { get; set; }
     }
 
@@ -91,7 +89,8 @@ namespace Lidarr.Api.V1.Profiles.Quality
             };
         }
 
-        public static QualityProfile ToModel(this QualityProfileResource resource)
+        // Clients written against develop leave out the increment: an update keeps the stored one, a new profile gets 1
+        public static QualityProfile ToModel(this QualityProfileResource resource, QualityProfile existing = null)
         {
             if (resource == null)
             {
@@ -107,7 +106,7 @@ namespace Lidarr.Api.V1.Profiles.Quality
                 Items = resource.Items.ConvertAll(ToModel),
                 MinFormatScore = resource.MinFormatScore,
                 CutoffFormatScore = resource.CutoffFormatScore,
-                MinUpgradeFormatScore = resource.MinUpgradeFormatScore,
+                MinUpgradeFormatScore = resource.MinUpgradeFormatScore ?? existing?.MinUpgradeFormatScore ?? 1,
                 FormatItems = resource.FormatItems.ConvertAll(ToModel)
             };
         }

@@ -61,7 +61,7 @@ namespace Lidarr.Api.V1.Profiles.Quality
         [RestPutById]
         public ActionResult<QualityProfileResource> Update([FromBody] QualityProfileResource resource)
         {
-            var model = resource.ToModel();
+            var model = resource.ToModel(_qualityProfileService.Get(resource.Id));
 
             _qualityProfileService.Update(model);
 

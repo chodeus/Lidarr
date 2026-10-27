@@ -21,7 +21,7 @@ namespace NzbDrone.Core.CustomFormats
         List<CustomFormat> ParseCustomFormat(EntityHistory history, Artist artist);
         List<CustomFormat> ParseCustomFormat(LocalTrack localTrack);
 
-        // Every file gets the album's size, as a release does, so a Size condition reads the same on both
+        // CustomFormatCalculationService gives every file the album's size, as a release has; this fallback reads each file by its own
         List<List<CustomFormat>> ParseCustomFormats(List<TrackFile> albumFiles, Artist artist)
         {
             return albumFiles.Select(f => ParseCustomFormat(f, artist)).ToList();

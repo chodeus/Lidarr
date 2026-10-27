@@ -19,3 +19,7 @@ Tests: the API client (not-found, other errors, failed requests, paging, rate li
 * **Improvements**
   * Album metadata from Deezer is retrieved across multiple pages, with track order preserved across discs.
   * Metadata profile rules are applied consistently when filtering albums from metadata sources.
+* **Bug Fixes**
+  * An empty reply for an artist or album counts as Deezer being down, not as not-found; only Deezer's code 800 is a not-found. A search page without its list also counts as Deezer being down, where it read as no results.
+  * An album or track list counts as Deezer being down when a page has no list, an empty page points to a next one, an item repeats, or the list is shorter than the largest total any page gives. Before, refresh could take a short list as complete and drop what was missing.
+  * An album whose track list is shorter than the album's own track count counts as Deezer being down.

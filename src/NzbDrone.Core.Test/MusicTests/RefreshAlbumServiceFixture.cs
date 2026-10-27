@@ -506,6 +506,8 @@ namespace NzbDrone.Core.Test.MusicTests
 
             Mocker.GetMock<IAlbumService>()
                 .Verify(x => x.DeleteAlbum(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+
+            ExceptionVerification.ExpectedErrors(1);
         }
 
         [Test]

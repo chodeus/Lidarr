@@ -451,15 +451,8 @@ namespace NzbDrone.Core.MetadataSource.Sources
         // The primary now lists an album the supplement added: its ID becomes an old ID of the primary's album, so refresh merges the two
         private void AdoptAlbumsAddedBy(IMetadataSource source, string foreignArtistId, List<Album> primary)
         {
-            foreach (var stored in StoredAlbumsOf(source, foreignArtistId))
+            foreach (var (stored, match) in MissingAlbums.Matches(primary, StoredAlbumsOf(source, foreignArtistId)))
             {
-                var match = MissingAlbums.SameAlbumAs(primary, stored);
-
-                if (match == null)
-                {
-                    continue;
-                }
-
                 match.OldForeignAlbumIds ??= new List<string>();
 
                 if (!match.OldForeignAlbumIds.Contains(stored.ForeignAlbumId))

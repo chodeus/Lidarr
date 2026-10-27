@@ -12,13 +12,13 @@ Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom)
 **Shape**
 - `UpgradableSpecification.GetUpgradeRejectReason` says why a release is not an upgrade, and the disk, queue and history checks (which inject the concrete class) reject with a message per reason. `IUpgradableSpecification` keeps develop's five members, pinned by a reflection test of the member names; the interface's text is develop's, so plugins that implement it still load. `ICustomFormatCalculationService.ParseCustomFormats`, which gives each file the album's size, has a default body.
 - An album has several files. Each file is judged on its own: a downgrade for any file rejects; otherwise one upgraded file is enough, as before. A revision counts only at the same quality, as in develop, so a proper at a lower quality never blocks a better quality, and a higher-quality proper is not an upgrade once the cutoff is met or with upgrades off.
-- Each existing file is judged by its own custom formats; before, every file was scored with the first file's. A file at the same quality that would lose custom format score counts as a downgrade, like a lower quality does. The cutoff counts as met only when every file meets it.
+- Each existing file is judged by its own custom formats in the disk, cutoff and upgrades-allowed checks; before, every file was scored with the first file's. A file at the same quality that would lose custom format score counts as a downgrade, like a lower quality does. The cutoff counts as met only when every file meets it.
 - `CutoffSpecification` keeps develop's public shape. With upgrades off, its message names the first allowed quality as the cutoff.
 - The API resource defaults `minUpgradeFormatScore` to 1, so clients that don't send the field can still save profiles.
 
 `feat/smaller-release-upgrades` uses `IsUpgradable` to match the grab check at import, so it follows the same rules. Its test profile had no cutoff, which this check treats as met; it now sets real cutoffs (2b00d24), and its tests pass merged with this branch.
 
-Tests: 25 new cases across `UpgradeSpecificationFixture`, `UpgradeDiskSpecificationFixture` and `CutoffSpecificationDecisionFixture`, and `AlbumSizeCustomFormatFixture`, which runs the real custom format calculation for the disk and cutoff checks; each rule fails at least one of them when removed. The migration and the housekeeper change have database tests, which pass.
+Tests: 27 new cases across `UpgradeSpecificationFixture`, `UpgradeDiskSpecificationFixture`, `CutoffSpecificationDecisionFixture`, `UpgradeAllowedSpecificationDecisionFixture` and `AlbumSizeCustomFormatFixture`; the last runs the real custom format calculation for the disk and cutoff checks. Each rule fails at least one of them when removed. The migration and the housekeeper change have database tests, which pass.
 
 ## Summary by CodeRabbit
 

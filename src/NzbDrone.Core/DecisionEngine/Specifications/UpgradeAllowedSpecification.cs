@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using NLog;
 using NzbDrone.Common.Cache;
@@ -8,6 +9,7 @@ using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Qualities;
 
 namespace NzbDrone.Core.DecisionEngine.Specifications
 {
@@ -55,16 +57,17 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
                     // Get a distinct list of all current track qualities for a given album
                     var currentQualities = trackFiles.Select(c => c.Quality).Distinct().ToList();
 
-                    // TODO: Should union these?
-                    var fileCustomFormats = _formatService.ParseCustomFormats(trackFiles, subject.Artist).First();
-
                     _logger.Debug("Comparing file quality with report. Existing files contain {0}", currentQualities.ConcatToString());
 
-                    if (!_upgradableSpecification.IsUpgradeAllowed(qualityProfile,
-                                                                   currentQualities,
-                                                                   fileCustomFormats,
-                                                                   subject.ParsedAlbumInfo.Quality,
-                                                                   subject.CustomFormats))
+                    var upgradeAllowed = trackFiles.Zip(_formatService.ParseCustomFormats(trackFiles, subject.Artist), (f, customFormats) => (f.Quality, CustomFormats: customFormats))
+                                                   .DistinctBy(f => (f.Quality, qualityProfile.CalculateCustomFormatScore(f.CustomFormats)))
+                                                   .All(f => _upgradableSpecification.IsUpgradeAllowed(qualityProfile,
+                                                                                                       new List<QualityModel> { f.Quality },
+                                                                                                       f.CustomFormats,
+                                                                                                       subject.ParsedAlbumInfo.Quality,
+                                                                                                       subject.CustomFormats));
+
+                    if (!upgradeAllowed)
                     {
                         _logger.Debug("Upgrading is not allowed by the quality profile");
 

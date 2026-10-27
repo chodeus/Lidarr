@@ -27,7 +27,8 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
         private const string SiteUrl = "https://www.discogs.com";
 
-        private static readonly Regex ForeignId = new Regex(@"^discogs:(artist|master|release):(\d+)$", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        // Case-sensitive, matched lower-cased: IgnoreCase follows the culture a regex is built under
+        private static readonly Regex ForeignId = new Regex(@"^discogs:(artist|master|release):(\d+)$", RegexOptions.Compiled);
 
         // Discogs numbers artists and labels that share a name, as in "Placeholder (2)"
         private static readonly Regex NameNumber = new Regex(@"\s\(\d+\)$", RegexOptions.Compiled);
@@ -35,8 +36,8 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
         private static readonly Regex ProfileMarkup = new Regex(@"\[/?(?:a|l|r|m)?\d*(?:b|i|u|url[^\]]*)?\]", RegexOptions.Compiled);
         private static readonly Regex DiscTrack = new Regex(@"^[A-Za-z]{0,3}(\d+)[-.]\d+", RegexOptions.Compiled);
 
-        // Discogs allows lower-case sides too
-        private static readonly Regex VinylSide = new Regex(@"^([A-Z])\d*$", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        // Discogs allows lower-case sides too; no IgnoreCase, as for ForeignId
+        private static readonly Regex VinylSide = new Regex(@"^([A-Za-z])\d*$", RegexOptions.Compiled);
         private static readonly Regex FormatQuantity = new Regex(@"^\d+x", RegexOptions.Compiled);
 
         // The artist list shortens names, as in Comp, TP, W/Lbl, Maxi, Unofficial and DVD-V
@@ -63,9 +64,9 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
         public static bool TryParseId(string foreignId, out string kind, out long id)
         {
-            var match = ForeignId.Match(foreignId ?? string.Empty);
+            var match = ForeignId.Match((foreignId ?? string.Empty).ToLowerInvariant());
 
-            kind = match.Success ? match.Groups[1].Value.ToLowerInvariant() : null;
+            kind = match.Success ? match.Groups[1].Value : null;
             id = 0;
 
             return match.Success && long.TryParse(match.Groups[2].Value, NumberStyles.None, CultureInfo.InvariantCulture, out id);

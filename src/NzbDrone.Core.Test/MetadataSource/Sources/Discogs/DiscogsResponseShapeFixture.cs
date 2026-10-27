@@ -13,7 +13,7 @@ using NzbDrone.Core.Test.Framework;
 
 namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
 {
-    // The real DiscogsApi and DiscogsMetadataSource; only HTTP is mocked
+    // The real DiscogsApi and DiscogsMetadataSource, fed canned HTTP replies
     [TestFixture]
     public class DiscogsResponseShapeFixture : CoreTest<DiscogsMetadataSource>
     {

@@ -27,7 +27,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
         private const string SiteUrl = "https://www.discogs.com";
 
-        private static readonly Regex ForeignId = new Regex(@"^discogs:(artist|master|release):(\d+)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex ForeignId = new Regex(@"^discogs:(artist|master|release):(\d+)$", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         // Discogs numbers artists and labels that share a name, as in "Placeholder (2)"
         private static readonly Regex NameNumber = new Regex(@"\s\(\d+\)$", RegexOptions.Compiled);
@@ -36,7 +36,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
         private static readonly Regex DiscTrack = new Regex(@"^[A-Za-z]{0,3}(\d+)[-.]\d+", RegexOptions.Compiled);
 
         // Discogs allows lower-case sides too
-        private static readonly Regex VinylSide = new Regex(@"^([A-Z])\d*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex VinylSide = new Regex(@"^([A-Z])\d*$", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         private static readonly Regex FormatQuantity = new Regex(@"^\d+x", RegexOptions.Compiled);
 
         // The artist list shortens names, as in Comp, TP, W/Lbl, Maxi, Unofficial and DVD-V

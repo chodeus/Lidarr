@@ -125,6 +125,30 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
         }
 
         [Test]
+        public void down_supplement_does_not_keep_an_album_listed_under_its_old_id_and_merges_it()
+        {
+            var stored = NamedAlbum("other:105", "Renamed Album", 2009);
+            stored.OldForeignAlbumIds.Add("other:104");
+            Mocker.GetMock<IAlbumService>().Setup(s => s.GetAlbumsByArtist(5)).Returns(new List<Album> { NamedAlbum("mb-1", "First Album", 2001), stored });
+
+            var listed = NamedAlbum("mb-3", "Third Album", 2005);
+            listed.OldForeignAlbumIds.Add("other:104");
+            GivenSource(1, MetadataSourceRole.Primary, MetadataIdFamilies.MusicBrainz).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(new Artist
+            {
+                Metadata = new ArtistMetadata { ForeignArtistId = MusicBrainzId, Name = "Artist Name", Links = new List<Links> { new() { Name = "other", Url = OtherLink + "9" } } },
+                Albums = new List<Album> { NamedAlbum("mb-1", "First Album", 2001), listed }
+            });
+            GivenSource(2, MetadataSourceRole.Supplementary, "Other").Setup(s => s.GetArtistInfo("other:9", 1)).Throws(new TimeoutException("Source 2 is down"));
+
+            var albums = Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value;
+
+            albums.Select(a => a.ForeignAlbumId).Should().Equal("mb-1", "mb-3");
+            albums.Last().OldForeignAlbumIds.Should().Contain("other:105");
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
         public void an_album_the_primary_now_lists_becomes_an_old_id_of_the_primarys_album()
         {
             GivenSource(1, MetadataSourceRole.Primary, MetadataIdFamilies.MusicBrainz).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(new Artist

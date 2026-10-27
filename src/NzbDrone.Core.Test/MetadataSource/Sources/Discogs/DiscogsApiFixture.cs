@@ -220,6 +220,18 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
         }
 
         [Test]
+        public void the_full_read_after_a_broken_own_release_order_asks_for_each_page_once()
+        {
+            GivenResponse<DiscogsArtistReleasesPageResource>(HttpStatusCode.OK, r => r.Url.Query.Contains("page=1&")
+                ? Releases(2, "Main:1")
+                : Releases(2, "Main:2", "Appearance:3", "Main:4"));
+
+            Subject.GetArtistOwnReleases(3, Token).Select(r => r.Id).Should().Equal(1, 2, 4);
+
+            _requests.Select(r => r.Url.Query).Should().Equal("page=1&per_page=100", "page=2&per_page=100");
+        }
+
+        [Test]
         public void a_long_list_whose_own_releases_end_early_is_read_up_to_them()
         {
             GivenResponse<DiscogsArtistReleasesPageResource>(HttpStatusCode.OK, r => r.Url.Query.Contains("page=1&")
@@ -270,6 +282,18 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
             GivenResponse<DiscogsArtistReleasesPageResource>(HttpStatusCode.OK, r => Releases(1, "UnofficialRelease:1", "Main:2", "UnofficialRelease:3"));
 
             Subject.GetArtistBootlegs(3, Token).Select(r => r.Id).Should().Equal(1, 3);
+        }
+
+        [Test]
+        public void the_full_read_after_a_broken_bootleg_order_asks_for_each_page_once()
+        {
+            GivenResponse<DiscogsArtistReleasesPageResource>(HttpStatusCode.OK, r => r.Url.Query.Contains("page=1&") ? Releases(3, "Main:1", "UnofficialRelease:2")
+                : r.Url.Query.Contains("page=2&") ? Releases(3, "Appearance:3")
+                : Releases(3, "UnofficialRelease:4"));
+
+            Subject.GetArtistBootlegs(3, Token).Select(r => r.Id).Should().Equal(2, 4);
+
+            _requests.Select(r => r.Url.Query).Should().Equal("page=1&per_page=100", "page=3&per_page=100", "page=2&per_page=100");
         }
 
         [Test]

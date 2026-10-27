@@ -26,6 +26,9 @@ namespace NzbDrone.Core.Profiles.Tagging
         private readonly ITaggingProfileRepository _repo;
         private readonly ICached<TaggingProfile> _bestForTagsCache;
 
+        // Add, Update, Delete and Reorder each read orders, then write them back
+        private readonly object _syncRoot = new object();
+
         public TaggingProfileService(ITaggingProfileRepository repo,
                                      ICacheManager cacheManager)
         {
@@ -35,33 +38,57 @@ namespace NzbDrone.Core.Profiles.Tagging
 
         public TaggingProfile Add(TaggingProfile profile)
         {
-            profile.Order = ProfileOrder.Next(_repo.All(), p => p.Order);
+            lock (_syncRoot)
+            {
+                var all = All();
 
-            var result = _repo.Insert(profile);
-            _bestForTagsCache.Clear();
+                if (ProfileOrder.MakeRoom(all, p => p.Order, (p, order) => p.Order = order))
+                {
+                    _repo.SetFields(all, p => p.Order);
+                }
 
-            return result;
+                profile.Order = ProfileOrder.Next(all, p => p.Order);
+
+                var result = _repo.Insert(profile);
+                _bestForTagsCache.Clear();
+
+                return result;
+            }
         }
 
         public TaggingProfile Update(TaggingProfile profile)
         {
-            // Order only changes through Reorder, and the seeded default stays the last-resort match
-            profile.Order = profile.Id == ProfileOrder.DefaultProfileId ? int.MaxValue : _repo.Get(profile.Id).Order;
+            lock (_syncRoot)
+            {
+                // Order only changes through Reorder, and the seeded default stays the last-resort match
+                profile.Order = profile.Id == ProfileOrder.DefaultProfileId ? int.MaxValue : _repo.Get(profile.Id).Order;
 
-            var result = _repo.Update(profile);
-            _bestForTagsCache.Clear();
-            return result;
+                var result = _repo.Update(profile);
+                _bestForTagsCache.Clear();
+                return result;
+            }
         }
 
         public void Delete(int id)
         {
-            _repo.Delete(id);
+            lock (_syncRoot)
+            {
+                try
+                {
+                    _repo.Delete(id);
 
-            var all = All();
-            ProfileOrder.Renumber(all, p => p.Order, (p, order) => p.Order = order);
+                    var all = All();
+                    ProfileOrder.Renumber(all, p => p.Order, (p, order) => p.Order = order);
 
-            _repo.UpdateMany(all);
-            _bestForTagsCache.Clear();
+                    // Only the order column, so a save of another profile isn't reverted
+                    _repo.SetFields(all, p => p.Order);
+                }
+                finally
+                {
+                    // The delete has committed even when the renumber fails
+                    _bestForTagsCache.Clear();
+                }
+            }
         }
 
         public List<TaggingProfile> All()
@@ -110,15 +137,18 @@ namespace NzbDrone.Core.Profiles.Tagging
 
         public List<TaggingProfile> Reorder(int id, int? afterId)
         {
-            var all = All();
-
-            if (ProfileOrder.Reorder(all, id, afterId, p => p.Order, (p, order) => p.Order = order))
+            lock (_syncRoot)
             {
-                _repo.UpdateMany(all);
-                _bestForTagsCache.Clear();
-            }
+                var all = All();
 
-            return All();
+                if (ProfileOrder.Reorder(all, id, afterId, p => p.Order, (p, order) => p.Order = order))
+                {
+                    _repo.SetFields(all, p => p.Order);
+                    _bestForTagsCache.Clear();
+                }
+
+                return All();
+            }
         }
     }
 }

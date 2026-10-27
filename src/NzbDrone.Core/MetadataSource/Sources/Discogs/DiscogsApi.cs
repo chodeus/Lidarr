@@ -58,15 +58,17 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
         public List<DiscogsArtistReleaseResource> GetArtistOwnReleases(long id, string token)
         {
             var resource = "artists/" + id + "/releases";
-            return Cached(resource, ListLifetime, () => ReadOwnReleases(resource, token)
-                ?? GetAll<DiscogsArtistReleasesPageResource, DiscogsArtistReleaseResource>(resource, token, p => p.Releases).Where(IsOwn).ToList());
+            var pages = Pages<DiscogsArtistReleasesPageResource>(resource, token);
+
+            return Cached(resource, ListLifetime, () => ReadOwnReleases(pages, resource) ?? GetAll(pages, resource, p => p.Releases).Where(IsOwn).ToList());
         }
 
         public List<DiscogsArtistReleaseResource> GetArtistBootlegs(long id, string token)
         {
             var resource = "artists/" + id + "/releases";
-            return Cached(resource + "#bootlegs", ListLifetime, () => ReadBootlegs(resource, token)
-                ?? GetAll<DiscogsArtistReleasesPageResource, DiscogsArtistReleaseResource>(resource, token, p => p.Releases).Where(IsBootleg).ToList());
+            var pages = Pages<DiscogsArtistReleasesPageResource>(resource, token);
+
+            return Cached(resource + "#bootlegs", ListLifetime, () => ReadBootlegs(pages, resource) ?? GetAll(pages, resource, p => p.Releases).Where(IsBootleg).ToList());
         }
 
         public DiscogsMasterResource GetMaster(long id, string token)
@@ -78,7 +80,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
         public List<DiscogsVersionResource> GetMasterVersions(long id, string token)
         {
             var resource = "masters/" + id + "/versions";
-            return Cached(resource, ListLifetime, () => GetAll<DiscogsVersionsPageResource, DiscogsVersionResource>(resource, token, p => p.Versions));
+            return Cached(resource, ListLifetime, () => GetAll(Pages<DiscogsVersionsPageResource>(resource, token), resource, p => p.Versions));
         }
 
         public DiscogsReleaseResource GetRelease(long id, string token)
@@ -120,13 +122,13 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
         // Discogs lists an artist's own releases before every other credit, so reading stops at the first other one.
         // Null when the list breaks that order, so the caller reads all of it
-        private List<DiscogsArtistReleaseResource> ReadOwnReleases(string resource, string token)
+        private List<DiscogsArtistReleaseResource> ReadOwnReleases(Func<int, DiscogsArtistReleasesPageResource> pages, string resource)
         {
             var own = new List<DiscogsArtistReleaseResource>();
 
             for (var page = 1; page <= MaxPages; page++)
             {
-                var result = GetPage<DiscogsArtistReleasesPageResource>(resource, token, page);
+                var result = pages(page);
                 var ownOnPage = result.Releases.TakeWhile(IsOwn).ToList();
                 var others = result.Releases.Skip(ownOnPage.Count).ToList();
                 var lastPage = page >= result.Pagination.Pages;
@@ -137,7 +139,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
                 }
 
                 // One look past the limit, so an artist with too many releases of their own fails without reading them all
-                if (page == 1 && result.Pagination.Pages > MaxPages && GetPage<DiscogsArtistReleasesPageResource>(resource, token, MaxPages + 1).Releases.Take(1).Any(IsOwn))
+                if (page == 1 && result.Pagination.Pages > MaxPages && pages(MaxPages + 1).Releases.Take(1).Any(IsOwn))
                 {
                     throw TooManyPages("own releases", resource);
                 }
@@ -155,15 +157,15 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
         // Bootlegs come after every other credit, so reading starts at the last page and stops at the first other one.
         // Null when the list breaks that order, so the caller reads all of it
-        private List<DiscogsArtistReleaseResource> ReadBootlegs(string resource, string token)
+        private List<DiscogsArtistReleaseResource> ReadBootlegs(Func<int, DiscogsArtistReleasesPageResource> pages, string resource)
         {
-            var first = GetPage<DiscogsArtistReleasesPageResource>(resource, token, 1);
+            var first = pages(1);
             var lastPage = Math.Max(first.Pagination.Pages, 1);
             var bootlegs = new List<DiscogsArtistReleaseResource>();
 
             for (var page = lastPage; page >= 1 && page > lastPage - MaxPages; page--)
             {
-                var releases = page == 1 ? first.Releases : GetPage<DiscogsArtistReleasesPageResource>(resource, token, page).Releases;
+                var releases = pages(page).Releases;
                 var bootlegsOnPage = releases.AsEnumerable().Reverse().TakeWhile(IsBootleg).Reverse().ToList();
                 var others = releases.Take(releases.Count - bootlegsOnPage.Count).ToList();
 
@@ -176,7 +178,8 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
 
                 if (others.Any() || page == 1)
                 {
-                    return bootlegs;
+                    // A bootleg on page 1, before the run that ends here, also breaks the order
+                    return page != 1 && first.Releases.Any(IsBootleg) ? null : bootlegs;
                 }
             }
 
@@ -213,14 +216,14 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
         }
 
         // Never a partial list: refresh would take it as complete and drop what is missing
-        private List<TItem> GetAll<TPage, TItem>(string resource, string token, Func<TPage, List<TItem>> items)
-            where TPage : DiscogsPageResource, new()
+        private List<TItem> GetAll<TPage, TItem>(Func<int, TPage> pages, string resource, Func<TPage, List<TItem>> items)
+            where TPage : DiscogsPageResource
         {
             var all = new List<TItem>();
 
             for (var page = 1; page <= MaxPages; page++)
             {
-                var result = GetPage<TPage>(resource, token, page);
+                var result = pages(page);
 
                 // Checked on the first page, so a list too long to read costs one request
                 if (result.Pagination.Pages > MaxPages)
@@ -237,6 +240,15 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
             }
 
             throw new MetadataSourceUnavailableException("Discogs request for {0} failed: more than {1} pages", resource, MaxPages);
+        }
+
+        // Each page is asked for once per lookup, so the full read after a broken order reuses the pages already read
+        private Func<int, TPage> Pages<TPage>(string resource, string token)
+            where TPage : DiscogsPageResource, new()
+        {
+            var read = new Dictionary<int, TPage>();
+
+            return page => read.TryGetValue(page, out var result) ? result : read[page] = GetPage<TPage>(resource, token, page);
         }
 
         // A page without pagination can't say whether the list is complete, so it counts as Discogs being down
@@ -277,14 +289,19 @@ namespace NzbDrone.Core.MetadataSource.Sources.Discogs
                 throw new MetadataSourceUnavailableException("Discogs request for {0} failed with HTTP {1}", resource, (int)response.StatusCode);
             }
 
+            T result;
+
             try
             {
-                return response.Resource;
+                result = response.Resource;
             }
             catch (JsonException ex)
             {
                 throw new MetadataSourceUnavailableException("Discogs request for {0} returned an unreadable response: {1}", resource, ex.Message);
             }
+
+            // An empty answer is no proof the item is gone: only Discogs's 404 is
+            return result ?? throw new MetadataSourceUnavailableException("Discogs returned an empty response for {0}", resource);
         }
 
         private HttpResponse<T> Send<T>(string resource, string token, (string Key, string Value)[] query)

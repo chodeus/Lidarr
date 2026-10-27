@@ -36,10 +36,19 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
         }
 
         [Test]
-        public void should_keep_skyhooks_own_message_when_it_wraps_nothing()
+        public void should_describe_an_error_that_wraps_nothing_by_its_type_not_its_message()
         {
-            MetadataSourceErrors.Describe(new SkyHookException("Unable to communicate with LidarrAPI. Service temporarily unavailable (503)."))
-                .Should().Contain("(503)");
+            MetadataSourceErrors.Describe(new SkyHookException("Search failed at " + Url))
+                .Should().Be(nameof(SkyHookException));
+        }
+
+        [Test]
+        public void should_describe_an_http_error_without_a_response_by_its_type()
+        {
+            var http = new HttpException(new HttpRequest(Url), null, "HTTP request failed at " + Url);
+
+            MetadataSourceErrors.Describe(new SkyHookException("Search failed. {0}", http, http.Message))
+                .Should().Be(nameof(HttpException));
         }
     }
 }

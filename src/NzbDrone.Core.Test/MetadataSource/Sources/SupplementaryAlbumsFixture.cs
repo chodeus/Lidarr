@@ -12,6 +12,7 @@ using NzbDrone.Core.Music;
 using NzbDrone.Core.Profiles.Metadata;
 using NzbDrone.Core.Profiles.MetadataSources;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.MetadataSource.Sources
 {
@@ -122,6 +123,8 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
 
             albums.Select(a => a.ForeignAlbumId).Should().Equal("mb-1", "mb-2");
             albums.Last().OldForeignAlbumIds.Should().Contain("other:102");
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]

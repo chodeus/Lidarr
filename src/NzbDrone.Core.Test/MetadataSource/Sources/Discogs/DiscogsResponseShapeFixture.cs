@@ -13,7 +13,7 @@ using NzbDrone.Core.Test.Framework;
 
 namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
 {
-    // The real DiscogsApi and DiscogsMetadataSource; only HTTP is mocked
+    // The real DiscogsApi and DiscogsMetadataSource, fed canned HTTP replies
     [TestFixture]
     public class DiscogsResponseShapeFixture : CoreTest<DiscogsMetadataSource>
     {
@@ -70,11 +70,16 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
             Mocker.Resolve<DiscogsApi>().GetArtistBootlegs(3, null).Select(e => e.Id).Should().Equal(5, 6);
         }
 
-        [TestCase("c1", 2)]
-        [TestCase("d", 2)]
-        public void lower_case_vinyl_sides_pair_into_discs(string position, int medium)
+        [Test]
+        public void lower_case_vinyl_sides_read_from_json_pair_into_discs()
         {
-            DiscogsMapper.MediumNumber(position).Should().Be(medium);
+            Given<DiscogsReleaseResource>(r => "{\"id\":100,\"title\":\"R\",\"artists\":[{\"id\":3,\"name\":\"Placeholder Artist\"}],\"formats\":[{\"name\":\"Vinyl\",\"descriptions\":[\"LP\"]}]," +
+                                              "\"tracklist\":[{\"type_\":\"track\",\"position\":\"a1\",\"title\":\"One\"},{\"type_\":\"track\",\"position\":\"b\",\"title\":\"Two\"},{\"type_\":\"track\",\"position\":\"c1\",\"title\":\"Three\"},{\"type_\":\"track\",\"position\":\"d\",\"title\":\"Four\"}]}");
+
+            var release = Subject.GetAlbumInfo("discogs:release:100").Item2.AlbumReleases.Value.Single();
+
+            release.Tracks.Value.Select(t => t.MediumNumber).Should().Equal(1, 1, 2, 2);
+            release.Media.Select(m => m.Number).Should().Equal(1, 2);
         }
 
         [Test]

@@ -13,14 +13,16 @@ namespace NzbDrone.Core.MetadataSource.Sources
             {
                 switch (inner)
                 {
-                    case HttpException http:
+                    case UnexpectedHtmlContentException html:
+                        return $"HTTP {(int)html.Response.StatusCode}, browser content instead of API data";
+                    case HttpException http when http.Response != null:
                         return $"HTTP {(int)http.Response.StatusCode}";
                     case WebException web:
                         return $"request failed ({web.Status})";
                 }
             }
 
-            return ex.Message;
+            return ex.GetBaseException().GetType().Name;
         }
     }
 }

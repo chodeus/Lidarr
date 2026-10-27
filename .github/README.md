@@ -1,6 +1,6 @@
 # Add Discogs as a built-in metadata source
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`feat/deezer-metadata-source`](https://github.com/chodeus/Lidarr/tree/feat/deezer-metadata-source). Reviewed in [#35](https://github.com/chodeus/Lidarr/pull/35).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`feat/deezer-metadata-source`](https://github.com/chodeus/Lidarr/tree/feat/deezer-metadata-source). Reviewed in [#35](https://github.com/chodeus/Lidarr/pull/35) and [#67](https://github.com/chodeus/Lidarr/pull/67).
 
 - Discogs as a built-in metadata source, written from Discogs's public API. IDs are `discogs:artist:<n>`, `discogs:master:<n>` and `discogs:release:<n>`; Discogs has no track IDs, so tracks use the release ID and track index.
 - Settings: an optional personal access token (sent in a header, never the URL) and Pressings Per Album (default 25, 0 = every pressing). A master album loads its main release, then the pressings most people own. The settings test marks the Token field only when Discogs rejects the token.

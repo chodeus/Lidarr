@@ -126,7 +126,7 @@ namespace NzbDrone.Core.MetadataSource.Sources
             _sourceCache.Clear();
         }
 
-        private T Lookup<T>(Route route, Func<IMetadataSource, T> call, Func<Exception> notFound, Func<T, T, T> merge, Func<T, bool> usable = null)
+        private T Lookup<T>(Route route, Func<IMetadataSource, T> call, Func<Exception> notFound, Func<List<T>, T> merge, Func<T, bool> usable = null)
         {
             Exception outage = null;
             var found = new List<T>();
@@ -165,15 +165,15 @@ namespace NzbDrone.Core.MetadataSource.Sources
                 found.Add(result);
             }
 
+            // Refresh treats the album list as complete, so a merge missing a down primary would drop its albums, and so would a fallback's list
+            if (route.CombineAll && merge != null && outage != null)
+            {
+                ExceptionDispatchInfo.Capture(outage).Throw();
+            }
+
             if (found.Any())
             {
-                // Refresh treats the album list as complete, so a merge missing a down source would drop its albums
-                if (outage != null)
-                {
-                    ExceptionDispatchInfo.Capture(outage).Throw();
-                }
-
-                return found.Aggregate(merge);
+                return merge(found);
             }
 
             foreach (var source in route.Fallback)
@@ -271,7 +271,7 @@ namespace NzbDrone.Core.MetadataSource.Sources
             }
             catch (Exception ex)
             {
-                _logger.Warn(ex, "Metadata source {0} failed", source.Definition?.Name);
+                _logger.Warn("Metadata source {0} failed: {1}", source.Definition?.Name, MetadataSourceErrors.Describe(ex));
                 outage ??= ex;
             }
 
@@ -283,7 +283,8 @@ namespace NzbDrone.Core.MetadataSource.Sources
         {
             var sources = EnabledSources().Values.ToList();
 
-            if (sources.Empty())
+            // MusicBrainz lookups fall back to Lidarr's server when no enabled source takes them, so its changes count too
+            if (!sources.Any(s => s is LidarrMetadataSource))
             {
                 sources.Add(_lastResort);
             }
@@ -300,7 +301,7 @@ namespace NzbDrone.Core.MetadataSource.Sources
                 }
                 catch (Exception ex)
                 {
-                    _logger.Info(ex, "{0} could not list changes", source.Definition?.Name);
+                    _logger.Info("{0} could not list changes: {1}", source.Definition?.Name, MetadataSourceErrors.Describe(ex));
                     return null;
                 }
 
@@ -316,14 +317,29 @@ namespace NzbDrone.Core.MetadataSource.Sources
             return changed;
         }
 
-        private static Artist MergeAlbums(Artist first, Artist other)
+        private static Artist MergeAlbums(List<Artist> found)
         {
-            var albums = first.Albums.Value;
-            var known = new HashSet<string>(albums.SelectMany(a => (a.OldForeignAlbumIds ?? new List<string>()).Append(a.ForeignAlbumId)));
+            var albums = found[0].Albums.Value;
+            var known = albums.SelectMany(AlbumIds).ToHashSet();
 
-            albums.AddRange(other.Albums.Value.Where(a => !known.Contains(a.ForeignAlbumId)));
+            // A source that hasn't caught up with a merge may still list the album by an ID another one keeps as old
+            foreach (var album in found.Skip(1).SelectMany(other => other.Albums.Value))
+            {
+                if (!AlbumIds(album).Any(known.Contains))
+                {
+                    albums.Add(album);
+                }
 
-            return first;
+                // A skipped album's IDs count too, so a later album or source that lists it by one of them still matches
+                known.UnionWith(AlbumIds(album));
+            }
+
+            return found[0];
+        }
+
+        private static IEnumerable<string> AlbumIds(Album album)
+        {
+            return (album.OldForeignAlbumIds ?? new List<string>()).Append(album.ForeignAlbumId);
         }
 
         private static string EntityKey(object entity)

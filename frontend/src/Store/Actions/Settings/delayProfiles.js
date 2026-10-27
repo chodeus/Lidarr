@@ -70,7 +70,11 @@ export default {
     [FETCH_DELAY_PROFILE_SCHEMA]: createFetchSchemaHandler(section, '/delayprofile/schema'),
 
     [SAVE_DELAY_PROFILE]: createSaveProviderHandler(section, '/delayprofile'),
-    [DELETE_DELAY_PROFILE]: createRemoveItemHandler(section, '/delayprofile'),
+    [DELETE_DELAY_PROFILE]: (getState, payload, dispatch) => {
+      // The server renumbers the remaining profiles, so the stored orders are stale
+      return createRemoveItemHandler(section, '/delayprofile')(getState, payload, dispatch)
+        .done(() => dispatch(fetchDelayProfiles()));
+    },
 
     [REORDER_DELAY_PROFILE]: (getState, payload, dispatch) => {
       const { id, moveIndex } = payload;

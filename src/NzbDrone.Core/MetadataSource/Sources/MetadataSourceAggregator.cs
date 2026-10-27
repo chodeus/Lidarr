@@ -141,7 +141,7 @@ namespace NzbDrone.Core.MetadataSource.Sources
             _sourceCache.Clear();
         }
 
-        private T Lookup<T>(Route route, Func<IMetadataSource, T> call, Func<Exception> notFound, Func<T, T, T> merge, Func<T, bool> usable = null)
+        private T Lookup<T>(Route route, Func<IMetadataSource, T> call, Func<Exception> notFound, Func<List<T>, T> merge, Func<T, bool> usable = null)
         {
             Exception outage = null;
             var found = new List<T>();
@@ -188,7 +188,7 @@ namespace NzbDrone.Core.MetadataSource.Sources
 
             if (found.Any())
             {
-                return found.Aggregate(merge);
+                return merge(found);
             }
 
             // A supplementary source still answers for its own IDs when nothing else can
@@ -333,13 +333,19 @@ namespace NzbDrone.Core.MetadataSource.Sources
             return changed;
         }
 
-        private static Artist MergeAlbums(Artist first, Artist other)
+        private static Artist MergeAlbums(List<Artist> found)
         {
-            var albums = first.Albums.Value;
+            var albums = found[0].Albums.Value;
+            var listed = new List<Album>();
 
-            albums.AddRange(MissingAlbums.ById(albums, other.Albums.Value));
+            // An album skipped as one the artist has still counts, so a later source that lists it by one of its IDs matches too
+            foreach (var other in found.Skip(1))
+            {
+                albums.AddRange(MissingAlbums.ById(albums.Concat(listed), other.Albums.Value));
+                listed.AddRange(other.Albums.Value);
+            }
 
-            return first;
+            return found[0];
         }
 
         private static string EntityKey(object entity)

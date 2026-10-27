@@ -588,6 +588,23 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
         }
 
         [Test]
+        public void and_merge_should_not_add_an_album_a_later_source_lists_by_an_id_a_skipped_album_keeps_as_old()
+        {
+            _profile.PrimaryCombination = MetadataSourceCombination.And;
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(ArtistWith("old-id"));
+
+            var caughtUp = ArtistWith("new-id");
+            caughtUp.Albums.Value.Single().OldForeignAlbumIds.Add("old-id");
+            GivenSource(2, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(caughtUp);
+
+            var mergedAgain = ArtistWith("newer-id");
+            mergedAgain.Albums.Value.Single().OldForeignAlbumIds.Add("new-id");
+            GivenSource(3, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(mergedAgain);
+
+            Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("old-id");
+        }
+
+        [Test]
         public void and_should_fail_when_a_primary_is_down_even_if_a_fallback_has_the_artist()
         {
             _profile.PrimaryCombination = MetadataSourceCombination.And;

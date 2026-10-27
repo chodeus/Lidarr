@@ -67,6 +67,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Deezer
         private List<T> GetAll<T>(string resource)
         {
             var items = new List<T>();
+            var total = 0;
 
             for (var page = 0; page < MaxPages; page++)
             {
@@ -79,16 +80,17 @@ namespace NzbDrone.Core.MetadataSource.Sources.Deezer
                 }
 
                 items.AddRange(result.Data);
+                total = Math.Max(total, result.Total);
 
                 if (result.Next != null)
                 {
                     continue;
                 }
 
-                // Deezer counts the whole list, so fewer items than that is a short answer, not the end
-                if (items.Count < result.Total)
+                // Deezer counts the whole list on each page, so fewer items than any page's count is a short answer, not the end
+                if (items.Count < total)
                 {
-                    throw new MetadataSourceUnavailableException("Deezer listed {0} of {1} items for {2}", items.Count, result.Total, resource);
+                    throw new MetadataSourceUnavailableException("Deezer listed {0} of {1} items for {2}", items.Count, total, resource);
                 }
 
                 return items;

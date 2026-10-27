@@ -10,7 +10,7 @@ using NzbDrone.Core.Test.Framework;
 
 namespace NzbDrone.Core.Test.MetadataSource.Sources.Deezer
 {
-    // The real DeezerMetadataSource over the real DeezerApi; only IHttpClient is mocked
+    // The real DeezerMetadataSource over the real DeezerApi, fed canned HTTP replies
     [TestFixture]
     public class DeezerResponseShapeFixture : CoreTest<DeezerMetadataSource>
     {
@@ -62,6 +62,16 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Deezer
             GivenAlbumPages(r => r.Url.Query.Contains("index=0")
                 ? "{\"data\":[" + string.Join(",", Enumerable.Range(1, 100).Select(i => "{\"id\":" + i + ",\"record_type\":\"album\",\"title\":\"A\"}")) + "],\"total\":150,\"next\":\"https://api.deezer.com/artist/10/albums?index=100\"}"
                 : "{}");
+
+            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetArtistInfo("deezer:10", 1));
+        }
+
+        [Test]
+        public void a_short_last_page_without_its_total_is_an_outage()
+        {
+            GivenAlbumPages(r => r.Url.Query.Contains("index=0")
+                ? "{\"data\":[" + string.Join(",", Enumerable.Range(1, 100).Select(i => "{\"id\":" + i + ",\"record_type\":\"album\",\"title\":\"A\"}")) + "],\"total\":150,\"next\":\"https://api.deezer.com/artist/10/albums?index=100\"}"
+                : "{\"data\":[{\"id\":101,\"record_type\":\"album\",\"title\":\"A\"}]}");
 
             Assert.Throws<MetadataSourceUnavailableException>(() => Subject.GetArtistInfo("deezer:10", 1));
         }

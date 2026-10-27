@@ -460,11 +460,10 @@ namespace NzbDrone.Core.MetadataSource.Sources
             }
         }
 
+        // By every ID, old ones too; one another source lists gives it its IDs, so refresh merges the two
         private IEnumerable<Album> AlbumsAddedBy(IMetadataSource source, string foreignArtistId, List<Album> listed)
         {
-            var listedIds = listed.SelectMany(a => (a.OldForeignAlbumIds ?? new List<string>()).Append(a.ForeignAlbumId)).ToHashSet();
-
-            return StoredAlbumsOf(source, foreignArtistId).Where(a => !listedIds.Contains(a.ForeignAlbumId)).ToList();
+            return MissingAlbums.ById(listed, StoredAlbumsOf(source, foreignArtistId));
         }
 
         // The primary now lists an album the supplement added: its ID becomes an old ID of the primary's album, so refresh merges the two

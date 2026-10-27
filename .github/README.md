@@ -16,7 +16,8 @@ Tests: the client order (protocol, tags, indexer client, blocked clients, priori
 
 * **New Features**
   * Downloads can be routed through eligible clients in priority order, with rotation among clients at the same priority after a successful download.
-  * When a client encounters a connection or authentication failure before accepting a release, the next eligible client is tried. Release-specific failures and other non-retryable errors stop the process.
+  * qBittorrent and SABnzbd can pass a download to the next eligible client after a connection or authentication failure that occurs before accepting the release. Release-specific failures and other non-retryable errors stop the process.
   * Client selection can account for protocol, tags, indexer, and blocked-client status. An explicitly selected client remains the only one used.
 * **Bug Fixes**
   * Downloads are not retried after a client accepts the release, even if a later status update fails.
+  * An indexer that refuses the connection counts as an indexer failure, and a client that can't be reached after the indexer redirects still falls back.

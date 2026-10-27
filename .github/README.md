@@ -24,3 +24,8 @@ Tests: the reply shapes through the real client (an empty or null reply for an a
   * Search results can reuse artists and albums already in your library.
 * **Bug Fixes**
   * Discogs requests now handle rate limits with pauses and retries, and report unavailable or incomplete results clearly.
+  * An empty reply from Discogs (HTTP 200 with no body, or `null`) counts as Discogs being unavailable, not as a missing artist, master or release.
+  * A bootleg on page 1, before the run of bootlegs that ends the artist's list, is no longer dropped: the whole list is read.
+  * When an artist's list breaks its order, the full read reuses the pages already fetched instead of asking Discogs for them again.
+  * Lower-case vinyl sides (`a1`, `d`) pair into discs as upper-case ones do. Before, every lower-case side read as disc 1.
+  * Discogs IDs and vinyl sides are read the same under any system culture, Turkish included.

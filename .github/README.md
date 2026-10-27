@@ -26,3 +26,8 @@ Checked: Core and Host suites on this branch, with only the known AudioTagServic
   * Added configurable metadata sources, including support for custom server URLs, connection testing, and enable/disable controls.
   * Added metadata source profiles with tags, primary or fallback sources, configurable search behavior, and drag-and-drop reordering.
   * Search results now show the metadata source when that information is available.
+* **Bug Fixes**
+  * With And, an album a later source lists by an ID that an earlier album has as its current or old ID is not added again. This also holds when the merges chain across sources, or when one source lists the album twice.
+  * With And, a primary that is down fails the lookup, even when a fallback could answer.
+  * Scheduled refresh also counts Lidarr's server's changes when Lidarr's own source isn't enabled.
+  * A failed source, and a failed settings test, are logged with the source's name and the HTTP status, the connection error or the error's type, never the error's message, which can hold the request URL. The log rule that hides a token in the URL is in `fix/cleanse-metadata-url-tokens`.

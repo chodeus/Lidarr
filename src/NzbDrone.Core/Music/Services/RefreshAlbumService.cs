@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using NLog;
+using NzbDrone.Common.Cache;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.History;
@@ -14,6 +15,7 @@ using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Music.Commands;
 using NzbDrone.Core.Music.Events;
 using NzbDrone.Core.Profiles.Metadata;
+using NzbDrone.Core.Profiles.Releases;
 using NzbDrone.Core.RootFolders;
 
 namespace NzbDrone.Core.Music
@@ -40,6 +42,7 @@ namespace NzbDrone.Core.Music
         private readonly ICheckIfAlbumShouldBeRefreshed _checkIfAlbumShouldBeRefreshed;
         private readonly IMapCoversToLocal _mediaCoverService;
         private readonly IMetadataProfileService _metadataProfileService;
+        private readonly TermMatcherService _termMatcher;
         private readonly Logger _logger;
 
         public RefreshAlbumService(IAlbumService albumService,
@@ -57,7 +60,7 @@ namespace NzbDrone.Core.Music
                                    ICheckIfAlbumShouldBeRefreshed checkIfAlbumShouldBeRefreshed,
                                    IMapCoversToLocal mediaCoverService,
                                    Logger logger)
-        : this(albumService, artistService, rootFolderService, addArtistService, artistMetadataService, releaseService, albumInfo, refreshAlbumReleaseService, mediaFileService, historyService, eventAggregator, commandQueueManager, checkIfAlbumShouldBeRefreshed, mediaCoverService, null, logger)
+        : this(albumService, artistService, rootFolderService, addArtistService, artistMetadataService, releaseService, albumInfo, refreshAlbumReleaseService, mediaFileService, historyService, eventAggregator, commandQueueManager, checkIfAlbumShouldBeRefreshed, mediaCoverService, null, null, logger)
         {
         }
 
@@ -77,10 +80,14 @@ namespace NzbDrone.Core.Music
                                    ICheckIfAlbumShouldBeRefreshed checkIfAlbumShouldBeRefreshed,
                                    IMapCoversToLocal mediaCoverService,
                                    IMetadataProfileService metadataProfileService,
+                                   ICacheManager cacheManager,
                                    Logger logger)
         : base(logger, artistMetadataService)
         {
             _metadataProfileService = metadataProfileService;
+
+            // Built here, as in MetadataSourceAggregator, because the whole-word match isn't on ITermMatcherService
+            _termMatcher = cacheManager == null ? null : new TermMatcherService(cacheManager);
             _albumService = albumService;
             _artistService = artistService;
             _rootFolderService = rootFolderService;
@@ -150,25 +157,21 @@ namespace NzbDrone.Core.Music
             return localArtistId != null && sourceArtistId != localArtistId;
         }
 
-        // SkyHookProxy.FilterAlbums's rule, for the one album the artist's list left out
+        // The metadata sources' album filter, Must Not Contain included, for the one album the artist's list left out
         private bool ProfileAllows(Album remote, Album local)
         {
             var artist = local.Artist?.Value;
 
-            if (_metadataProfileService == null || artist == null)
+            if (_metadataProfileService == null || _termMatcher == null || artist == null)
             {
                 return true;
             }
 
-            var profile = _metadataProfileService.Exists(artist.MetadataProfileId) ? _metadataProfileService.Get(artist.MetadataProfileId) : _metadataProfileService.All().First();
-            var primaryTypes = profile.PrimaryAlbumTypes.Where(s => s.Allowed).Select(s => s.PrimaryAlbumType.Name).ToHashSet();
-            var secondaryTypes = profile.SecondaryAlbumTypes.Where(s => s.Allowed).Select(s => s.SecondaryAlbumType.Name).ToHashSet();
-            var releaseStatuses = profile.ReleaseStatuses.Where(s => s.Allowed).Select(s => s.ReleaseStatus.Name).ToHashSet();
-            var albumSecondaryTypes = remote.SecondaryTypes ?? new List<SecondaryAlbumType>();
+            var filter = MetadataProfileAlbumFilter.For(_metadataProfileService, artist.MetadataProfileId);
+            var secondaryTypes = (remote.SecondaryTypes ?? new List<SecondaryAlbumType>()).Select(t => t.Name).ToList();
 
-            return primaryTypes.Contains(remote.AlbumType) &&
-                   ((!albumSecondaryTypes.Any() && secondaryTypes.Contains("Studio")) || albumSecondaryTypes.Any(t => secondaryTypes.Contains(t.Name))) &&
-                   remote.AlbumReleases.Value.Any(r => releaseStatuses.Contains(r.Status));
+            return filter.Allows(remote.AlbumType, secondaryTypes, remote.AlbumReleases.Value.Select(r => r.Status)) &&
+                   filter.AllowsTitle(remote.Title, _termMatcher);
         }
 
         protected override void EnsureNewParent(Album local, Album remote)

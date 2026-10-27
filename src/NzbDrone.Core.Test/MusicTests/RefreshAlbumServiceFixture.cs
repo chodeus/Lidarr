@@ -6,6 +6,7 @@ using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
+using NzbDrone.Common.Cache;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Exceptions;
@@ -207,7 +208,7 @@ namespace NzbDrone.Core.Test.MusicTests
             ExceptionVerification.ExpectedErrors(1);
         }
 
-        private Album GivenUnlistedAlbumTheSourceStillHas(string sourceArtistId, bool profileAllowsIt)
+        private Album GivenUnlistedAlbumTheSourceStillHas(string sourceArtistId, bool profileAllowsIt, List<string> mustNotContain = null)
         {
             var album = _albums.First();
             album.ArtistMetadata.Value.ForeignArtistId = _fakeArtistForeignId;
@@ -236,7 +237,8 @@ namespace NzbDrone.Core.Test.MusicTests
                 {
                     PrimaryAlbumTypes = new List<ProfilePrimaryAlbumTypeItem> { new ProfilePrimaryAlbumTypeItem { PrimaryAlbumType = PrimaryAlbumType.Album, Allowed = profileAllowsIt } },
                     SecondaryAlbumTypes = new List<ProfileSecondaryAlbumTypeItem> { new ProfileSecondaryAlbumTypeItem { SecondaryAlbumType = SecondaryAlbumType.Studio, Allowed = true } },
-                    ReleaseStatuses = new List<ProfileReleaseStatusItem> { new ProfileReleaseStatusItem { ReleaseStatus = ReleaseStatus.Official, Allowed = true } }
+                    ReleaseStatuses = new List<ProfileReleaseStatusItem> { new ProfileReleaseStatusItem { ReleaseStatus = ReleaseStatus.Official, Allowed = true } },
+                    Ignored = mustNotContain
                 });
 
             return album;
@@ -259,6 +261,21 @@ namespace NzbDrone.Core.Test.MusicTests
         public void should_delete_unlisted_album_the_profile_now_excludes()
         {
             var album = GivenUnlistedAlbumTheSourceStillHas(_fakeArtistForeignId, false);
+
+            Subject.RefreshAlbumInfo(album, new List<Album>(), false);
+
+            Mocker.GetMock<IAlbumService>()
+                .Verify(x => x.DeleteAlbum(album.Id, true, false), Times.Once());
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_delete_unlisted_album_a_must_not_contain_term_now_excludes()
+        {
+            Mocker.SetConstant<ICacheManager>(new CacheManager());
+            _albums.First().Title = "Live at the Hall";
+            var album = GivenUnlistedAlbumTheSourceStillHas(_fakeArtistForeignId, true, new List<string> { "live" });
 
             Subject.RefreshAlbumInfo(album, new List<Album>(), false);
 

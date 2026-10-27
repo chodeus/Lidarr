@@ -108,7 +108,7 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Deezer
         public void a_compilation_is_an_album_with_the_compilation_type()
         {
             Mocker.GetMock<IDeezerApi>().Setup(a => a.GetAlbum(3)).Returns(Album(3, "compile"));
-            Mocker.GetMock<IDeezerApi>().Setup(a => a.GetAlbumTracks(3)).Returns(new List<DeezerTrackResource>());
+            Mocker.GetMock<IDeezerApi>().Setup(a => a.GetAlbumTracks(3)).Returns(new List<DeezerTrackResource> { Track(300, 1, 1, MainArtist), Track(301, 1, 2, MainArtist) });
 
             var album = Subject.GetAlbumInfo("deezer:3").Item2;
 

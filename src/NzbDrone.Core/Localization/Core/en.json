@@ -1092,6 +1092,8 @@
   "RemoveTagRemovingTag": "Removing tag",
   "RemoveTagsAutomatically": "Remove Tags Automatically",
   "RemoveTagsAutomaticallyHelpText": "Remove tags automatically if conditions are not met",
+  "RemovedAlbumMultipleRemovedHealthCheckMessage": "Albums {albums} are no longer available from the metadata source (not found, or no usable releases) and are kept until you delete them",
+  "RemovedAlbumSingleRemovedHealthCheckMessage": "Album {album} is no longer available from the metadata source (not found, or no usable releases) and is kept until you delete it",
   "RemovedArtistMultipleRemovedHealthCheckMessage": "Artists {artists} were removed from MusicBrainz",
   "RemovedArtistSingleRemovedHealthCheckMessage": "Artist {artist} was removed from MusicBrainz",
   "RemovedFromTaskQueue": "Removed from task queue",

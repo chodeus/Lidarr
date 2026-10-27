@@ -18,7 +18,8 @@ namespace NzbDrone.Core.MetadataSource.Sources.Deezer
 
     public class DeezerPageResource<T> : DeezerResource
     {
-        public List<T> Data { get; set; } = new List<T>();
+        // Left null when the answer has no list, which a broken page can't pass off as an empty one
+        public List<T> Data { get; set; }
         public int Total { get; set; }
         public string Next { get; set; }
     }

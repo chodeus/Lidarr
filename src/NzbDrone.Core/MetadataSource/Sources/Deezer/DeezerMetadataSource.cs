@@ -86,6 +86,12 @@ namespace NzbDrone.Core.MetadataSource.Sources.Deezer
             var resource = _api.GetAlbum(id) ?? throw new AlbumNotFoundException(foreignAlbumId);
             var tracks = _api.GetAlbumTracks(id);
 
+            // The album counts its own tracks, so a shorter track list is a short answer
+            if (tracks.Count < resource.TrackCount)
+            {
+                throw new MetadataSourceUnavailableException("Deezer listed {0} of {1} tracks for album {2}", tracks.Count, resource.TrackCount, id);
+            }
+
             var artists = tracks.Select(t => t.Artist)
                 .Prepend(resource.Artist)
                 .DistinctBy(a => a.Id)

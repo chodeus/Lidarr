@@ -27,6 +27,15 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
         }
 
         [Test]
+        public void should_describe_a_connection_failure_by_its_status_not_its_message()
+        {
+            var web = new WebException("Connection refused at " + Url, WebExceptionStatus.ConnectFailure);
+
+            MetadataSourceErrors.Describe(new SkyHookException("Search failed. {0}", web, web.Message))
+                .Should().Be("request failed (ConnectFailure)");
+        }
+
+        [Test]
         public void should_describe_an_unknown_failure_by_its_type_not_its_message()
         {
             var malformed = new ArgumentException("Uri didn't match expected pattern: " + Url);

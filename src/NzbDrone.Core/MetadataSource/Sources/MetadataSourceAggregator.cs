@@ -322,13 +322,15 @@ namespace NzbDrone.Core.MetadataSource.Sources
             var known = albums.SelectMany(AlbumIds).ToHashSet();
 
             // A source that hasn't caught up with a merge may still list the album by an ID another one keeps as old
-            foreach (var other in found.Skip(1))
+            foreach (var album in found.Skip(1).SelectMany(other => other.Albums.Value))
             {
-                var added = other.Albums.Value.Where(a => !AlbumIds(a).Any(known.Contains)).ToList();
+                if (!AlbumIds(album).Any(known.Contains))
+                {
+                    albums.Add(album);
+                }
 
-                // A skipped album's IDs count too, so a later source that lists it by one of them still matches
-                known.UnionWith(other.Albums.Value.SelectMany(AlbumIds));
-                albums.AddRange(added);
+                // A skipped album's IDs count too, so a later album or source that lists it by one of them still matches
+                known.UnionWith(AlbumIds(album));
             }
 
             return found[0];

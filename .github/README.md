@@ -1,6 +1,6 @@
 # Add Deezer as a built-in metadata source
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`feat/metadata-source-ids`](https://github.com/chodeus/Lidarr/tree/feat/metadata-source-ids). Reviewed in [#34](https://github.com/chodeus/Lidarr/pull/34).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`feat/metadata-source-ids`](https://github.com/chodeus/Lidarr/tree/feat/metadata-source-ids). Reviewed in [#34](https://github.com/chodeus/Lidarr/pull/34) and [#66](https://github.com/chodeus/Lidarr/pull/66).
 
 - Deezer as a built-in metadata source, written from Deezer's public API (no account needed). IDs are `deezer:<number>`; only numeric IDs are accepted, since Deezer answers `artist/abc` with some artist.
 - Deezer reports errors, including not-found, as HTTP 200 with an error object: code 800 is a genuine not-found, anything else (quota, server) counts as Deezer being down. So does an empty reply, a page without its list, an empty page that still points to a next one, and a list shorter than the total Deezer gives for it (checked live: the totals match what Deezer returns). Requests are spaced 110 ms apart to stay under Deezer's 50 per 5 seconds; lists are read 100 at a time.

@@ -83,6 +83,23 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
         }
 
         [Test]
+        public void an_album_listed_by_id_hides_its_editions_but_not_another_album_of_that_title()
+        {
+            var known = new List<Album> { WithIds(Album("First Album", 2001), "album-1", null) };
+
+            Missing(known, WithIds(Album("First Album", 2001), "album-1", null), Album("First Album (Deluxe Edition)", 2011), Album("First Album", 2002))
+                .Should().Equal("First Album 2002");
+        }
+
+        [Test]
+        public void a_known_album_matches_the_nearest_same_title_album_and_every_edition()
+        {
+            var matches = MissingAlbums.Matches(new List<Album> { Album("Live", 2005) }, new[] { Album("Live", 2004), Album("Live", 2005), Album("Live (Deluxe Edition)", 2012) });
+
+            matches.Select(m => m.Album.ForeignAlbumId).Should().Equal("Live2005", "Live (Deluxe Edition)2012");
+        }
+
+        [Test]
         public void keeps_only_the_first_of_two_albums_with_the_same_id()
         {
             Missing(new List<Album>(), WithIds(Album("Lost Album", 2001), "album-5", null), WithIds(Album("Renamed Album", 2005), "album-5", null)).Should().Equal("Lost Album 2001");

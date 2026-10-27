@@ -47,18 +47,57 @@ namespace NzbDrone.Core.MetadataSource.Sources
         public static List<Album> ByIdOrTitle(IEnumerable<Album> known, IEnumerable<Album> candidates)
         {
             var knownAlbums = known.ToList();
-            var keys = knownAlbums.Select(Key).ToList();
+            var candidateList = candidates.ToList();
+            var missing = ById(knownAlbums, candidateList);
+
+            // A known album the source lists by ID is that one, so the source's other same-title albums are other albums
+            var listedIds = candidateList.SelectMany(IdsOf).ToHashSet();
+            var keys = knownAlbums.Select(k => (Key: Key(k), ListedById: IdsOf(k).Any(listedIds.Contains))).ToList();
 
             // Only against the known albums: one source's own same-title albums are different albums
-            return ById(knownAlbums, candidates).Where(album => !keys.Any(k => SameAlbum(k, Key(album)))).ToList();
+            return missing.Where(album =>
+            {
+                var key = Key(album);
+
+                return !keys.Any(k => k.ListedById ? EditionOf(k.Key, key) : SameAlbum(k.Key, key));
+            }).ToList();
         }
 
-        // The known album that is this one by the title rule, if any
-        public static Album SameAlbumAs(IEnumerable<Album> known, Album album)
+        // The known album each candidate is by the title rule: one same-title candidate per known album, the nearest in year, and any edition
+        public static List<(Album Album, Album Match)> Matches(IEnumerable<Album> known, IEnumerable<Album> candidates)
+        {
+            var knownKeys = known.Select(k => (Album: k, Key: Key(k))).ToList();
+            var pairs = candidates.SelectMany(album => Pairs(knownKeys, album)).OrderBy(p => p.Edition).ThenBy(p => p.Gap).ToList();
+            var matched = Albums();
+            var taken = Albums();
+            var matches = new List<(Album Album, Album Match)>();
+
+            foreach (var pair in pairs)
+            {
+                if (matched.Contains(pair.Album) || (!pair.Edition && !taken.Add(pair.Match)))
+                {
+                    continue;
+                }
+
+                matched.Add(pair.Album);
+                matches.Add((pair.Album, pair.Match));
+            }
+
+            return matches;
+        }
+
+        private static IEnumerable<(Album Album, Album Match, bool Edition, int Gap)> Pairs(List<(Album Album, AlbumKey Key)> known, Album album)
         {
             var key = Key(album);
 
-            return known.FirstOrDefault(k => SameAlbum(Key(k), key));
+            return known.Where(k => SameAlbum(k.Key, key))
+                        .Select(k => k.Key.Title == key.Title ? (album, k.Album, false, Math.Abs(k.Key.Year.Value - key.Year.Value)) : (album, k.Album, true, 0));
+        }
+
+        // By reference: albums compare by value, so two equal albums would count as one
+        private static HashSet<Album> Albums()
+        {
+            return new HashSet<Album>(ReferenceEqualityComparer.Instance);
         }
 
         private static void Own(Dictionary<string, Album> owners, Album album, Album owner)
@@ -82,7 +121,12 @@ namespace NzbDrone.Core.MetadataSource.Sources
                 return a.Year != null && b.Year != null && Math.Abs(a.Year.Value - b.Year.Value) <= 1;
             }
 
-            return (a.IsEdition || b.IsEdition) && a.BaseTitle == b.BaseTitle;
+            return EditionOf(a, b);
+        }
+
+        private static bool EditionOf(AlbumKey a, AlbumKey b)
+        {
+            return a.Title != b.Title && (a.IsEdition || b.IsEdition) && a.BaseTitle == b.BaseTitle;
         }
 
         private static AlbumKey Key(Album album)

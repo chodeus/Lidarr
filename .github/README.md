@@ -23,7 +23,8 @@ Tests: 28 new cases across `UpgradeSpecificationFixture`, `UpgradeDiskSpecificat
 ## Summary by CodeRabbit
 
 * **New Features**
-  * Quality profiles now include a minimum custom format score increase required before a release is considered an upgrade. Set the threshold in the profile when upgrades and custom formats are enabled.
-  * Upgrade decisions now provide more specific reasons, including when a release misses a quality or custom format cutoff, does not improve the score enough, or upgrades are disabled.
+  * Added a quality-profile setting for the minimum custom-format score increase required before a release can upgrade an existing one.
+  * Upgrade decisions now account for quality and custom-format scores across individual files, with clearer reasons when an upgrade is not allowed.
 * **Bug Fixes**
-  * Upgrade and cutoff decisions now account for each existing file, avoiding acceptance based only on the best-scoring file.
+  * Improved cutoff decisions to consider custom formats across all existing files.
+  * New profiles default the minimum score increase to 1; saving a profile without a value preserves its existing setting.

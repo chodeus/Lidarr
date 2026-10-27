@@ -40,7 +40,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Deezer
 
         public List<DeezerAlbumResource> GetArtistAlbums(long id)
         {
-            return GetAll<DeezerAlbumResource>("artist/" + id + "/albums");
+            return GetAll<DeezerAlbumResource>("artist/" + id + "/albums", a => a.Id);
         }
 
         public DeezerAlbumResource GetAlbum(long id)
@@ -50,33 +50,43 @@ namespace NzbDrone.Core.MetadataSource.Sources.Deezer
 
         public List<DeezerTrackResource> GetAlbumTracks(long id)
         {
-            return GetAll<DeezerTrackResource>("album/" + id + "/tracks");
+            return GetAll<DeezerTrackResource>("album/" + id + "/tracks", t => t.Id);
         }
 
         public List<DeezerArtistResource> SearchArtists(string query, int limit)
         {
-            return Get<DeezerPageResource<DeezerArtistResource>>("search/artist", ("q", query), ("limit", limit.ToString()))?.Data ?? new List<DeezerArtistResource>();
+            return GetPage<DeezerArtistResource>("search/artist", ("q", query), ("limit", limit.ToString()))?.Data ?? new List<DeezerArtistResource>();
         }
 
         public List<DeezerAlbumResource> SearchAlbums(string query, int limit)
         {
-            return Get<DeezerPageResource<DeezerAlbumResource>>("search/album", ("q", query), ("limit", limit.ToString()))?.Data ?? new List<DeezerAlbumResource>();
+            return GetPage<DeezerAlbumResource>("search/album", ("q", query), ("limit", limit.ToString()))?.Data ?? new List<DeezerAlbumResource>();
         }
 
         // Never a partial list: refresh would take it as complete and drop what is missing
-        private List<T> GetAll<T>(string resource)
+        private List<T> GetAll<T>(string resource, Func<T, long> idOf)
         {
             var items = new List<T>();
+            var ids = new HashSet<long>();
             var total = 0;
 
             for (var page = 0; page < MaxPages; page++)
             {
-                var result = Get<DeezerPageResource<T>>(resource, ("index", (page * PageSize).ToString()), ("limit", PageSize.ToString()))
+                var result = GetPage<T>(resource, ("index", (page * PageSize).ToString()), ("limit", PageSize.ToString()))
                     ?? throw new MetadataSourceUnavailableException("Deezer request for {0} failed: page {1} was not found", resource, page + 1);
 
-                if (result.Data == null || (result.Data.Count == 0 && result.Next != null))
+                if (result.Data.Count == 0 && result.Next != null)
                 {
                     throw new MetadataSourceUnavailableException("Deezer returned page {0} of {1} without its items", page + 1, resource);
+                }
+
+                // A list that shifts between pages repeats one item where it skips another, and refresh drops the repeat
+                foreach (var item in result.Data)
+                {
+                    if (!ids.Add(idOf(item)))
+                    {
+                        throw new MetadataSourceUnavailableException("Deezer listed {0} twice in {1}", idOf(item), resource);
+                    }
                 }
 
                 items.AddRange(result.Data);
@@ -97,6 +107,19 @@ namespace NzbDrone.Core.MetadataSource.Sources.Deezer
             }
 
             throw new MetadataSourceUnavailableException("Deezer request for {0} failed: more than {1} pages", resource, MaxPages);
+        }
+
+        // Null for a genuine not-found; a page without its list means Deezer is unavailable
+        private DeezerPageResource<T> GetPage<T>(string resource, params (string Key, string Value)[] query)
+        {
+            var page = Get<DeezerPageResource<T>>(resource, query);
+
+            if (page != null && page.Data == null)
+            {
+                throw new MetadataSourceUnavailableException("Deezer returned {0} without its list", resource);
+            }
+
+            return page;
         }
 
         // Null for a genuine not-found; anything else that goes wrong means Deezer is unavailable

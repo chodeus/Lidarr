@@ -63,7 +63,8 @@ class Tag extends Component {
       autoTagIds,
       artistIds,
       taggingProfileIds,
-      metadataSourceProfileIds
+      metadataSourceProfileIds,
+      rootFolderIds
     } = this.props;
 
     const {
@@ -81,7 +82,8 @@ class Tag extends Component {
       autoTagIds.length ||
       artistIds.length ||
       taggingProfileIds.length ||
-      metadataSourceProfileIds.length
+      metadataSourceProfileIds.length ||
+      rootFolderIds.length
     );
 
     return (
@@ -155,6 +157,12 @@ class Tag extends Component {
                 labelPlural={translate('MetadataSourceProfiles')}
                 count={metadataSourceProfileIds.length}
               />
+
+              <TagInUse
+                label={translate('RootFolder')}
+                labelPlural={translate('RootFolders')}
+                count={rootFolderIds.length}
+              />
             </div> :
             null
         }
@@ -179,6 +187,7 @@ class Tag extends Component {
           autoTagIds={autoTagIds}
           taggingProfileIds={taggingProfileIds}
           metadataSourceProfileIds={metadataSourceProfileIds}
+          rootFolderIds={rootFolderIds}
           isOpen={isDetailsModalOpen}
           onModalClose={this.onDetailsModalClose}
           onDeleteTagPress={this.onDeleteTagPress}
@@ -211,6 +220,7 @@ Tag.propTypes = {
   artistIds: PropTypes.arrayOf(PropTypes.number).isRequired,
   taggingProfileIds: PropTypes.arrayOf(PropTypes.number).isRequired,
   metadataSourceProfileIds: PropTypes.arrayOf(PropTypes.number).isRequired,
+  rootFolderIds: PropTypes.arrayOf(PropTypes.number).isRequired,
   onConfirmDeleteTag: PropTypes.func.isRequired
 };
 
@@ -224,7 +234,8 @@ Tag.defaultProps = {
   autoTagIds: [],
   artistIds: [],
   taggingProfileIds: [],
-  metadataSourceProfileIds: []
+  metadataSourceProfileIds: [],
+  rootFolderIds: []
 };
 
 export default Tag;

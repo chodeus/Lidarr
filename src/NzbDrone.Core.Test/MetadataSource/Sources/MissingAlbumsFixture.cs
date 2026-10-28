@@ -51,9 +51,9 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
         }
 
         [Test]
-        public void keeps_only_the_first_of_two_editions_it_adds()
+        public void adds_both_editions_one_source_lists_since_only_the_library_is_matched()
         {
-            Missing(new List<Album>(), Album("Lost Album (Deluxe Edition)", 2011), Album("Lost Album (Remastered)", 2016)).Should().Equal("Lost Album (Deluxe Edition) 2011");
+            Missing(new List<Album>(), Album("Lost Album (Deluxe Edition)", 2011), Album("Lost Album (Remastered)", 2016)).Should().Equal("Lost Album (Deluxe Edition) 2011", "Lost Album (Remastered) 2016");
         }
 
         private static Album WithIds(Album album, string id, string oldId)
@@ -80,6 +80,23 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
             var known = new List<Album> { WithIds(Album("First Album", 2001), "album-1", null) };
 
             MissingAlbums.ById(known, new[] { WithIds(Album("First Album", 2001), "album-2", null) }).Select(a => a.ForeignAlbumId).Should().Equal("album-2");
+        }
+
+        [Test]
+        public void an_album_listed_by_id_hides_its_editions_but_not_another_album_of_that_title()
+        {
+            var known = new List<Album> { WithIds(Album("First Album", 2001), "album-1", null) };
+
+            Missing(known, WithIds(Album("First Album", 2001), "album-1", null), Album("First Album (Deluxe Edition)", 2011), Album("First Album", 2002))
+                .Should().Equal("First Album 2002");
+        }
+
+        [Test]
+        public void a_known_album_matches_the_nearest_same_title_album_and_every_edition()
+        {
+            var matches = MissingAlbums.Matches(new List<Album> { Album("Live", 2005) }, new[] { Album("Live", 2004), Album("Live", 2005), Album("Live (Deluxe Edition)", 2012) });
+
+            matches.Select(m => m.Album.ForeignAlbumId).Should().Equal("Live2005", "Live (Deluxe Edition)2012");
         }
 
         [Test]

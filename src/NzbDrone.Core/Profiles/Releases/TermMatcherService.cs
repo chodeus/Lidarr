@@ -1,5 +1,4 @@
 using System;
-using System.Text;
 using System.Text.RegularExpressions;
 using NLog;
 using NzbDrone.Common.Cache;
@@ -17,7 +16,6 @@ namespace NzbDrone.Core.Profiles.Releases
     public class TermMatcherService : ITermMatcherService
     {
         private static readonly Logger Logger = NzbDroneLogger.GetLogger(typeof(TermMatcherService));
-        private static readonly Regex WordCharacter = new Regex(@"^\w$", RegexOptions.Compiled);
 
         private ICached<ITermMatcher> _matcherCache;
         private ICached<ITermMatcher> _wholeWordMatcherCache;
@@ -33,14 +31,13 @@ namespace NzbDrone.Core.Profiles.Releases
             return GetMatcher(term).IsMatch(value);
         }
 
-        // A title or term can arrive composed or decomposed (Discogs and Deezer send either), so both are compared composed
         public bool IsWholeWordMatch(string term, string value)
         {
             var matcher = _wholeWordMatcherCache.Get(term, () => CreateWholeWordMatcher(term), TimeSpan.FromHours(24));
 
             try
             {
-                return matcher.IsMatch(value?.Normalize(NormalizationForm.FormC));
+                return matcher.IsMatch(value);
             }
             catch (RegexMatchTimeoutException)
             {
@@ -72,6 +69,7 @@ namespace NzbDrone.Core.Profiles.Releases
             }
         }
 
+        // A regex term sees the title as sent, matched as written
         private ITermMatcher CreateWholeWordMatcher(string term)
         {
             if (PerlRegexFactory.TryCreateTermRegex(term, out var regex))
@@ -79,12 +77,7 @@ namespace NzbDrone.Core.Profiles.Releases
                 return new RegexTermMatcher(regex);
             }
 
-            // A boundary only where the term has a word character, so "(live)" also matches right after a letter, as in "Album(Live)"
-            var composed = term.Normalize(NormalizationForm.FormC);
-            var start = composed.Length > 0 && WordCharacter.IsMatch(composed.AsSpan(0, 1)) ? @"(?<!\w)" : string.Empty;
-            var end = composed.Length > 0 && WordCharacter.IsMatch(composed.AsSpan(composed.Length - 1)) ? @"(?!\w)" : string.Empty;
-
-            return new RegexTermMatcher(new Regex(start + Regex.Escape(composed) + end, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled));
+            return new WholeWordTermMatcher(term);
         }
     }
 }

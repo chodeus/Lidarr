@@ -69,7 +69,9 @@ namespace NzbDrone.App.Test
         public void should_be_able_to_resolve_the_extra_file_services_that_relink_extras()
         {
             _container.GetRequiredService<IEnumerable<IRelinkExtraFiles>>().Select(r => r.GetType().Name).Should().BeEquivalentTo("LyricFileService", "MetadataFileService", "OtherExtraFileService");
-            _container.GetRequiredService<IExtraService>().Should().NotBeNull();
+            var extraService = _container.GetRequiredService<IExtraService>();
+            var relinkers = typeof(ExtraService).GetField("_extraFileRelinkers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(extraService) as List<IRelinkExtraFiles>;
+            relinkers.Should().HaveCount(3, "the container should pick the constructor that takes the relinkers");
         }
 
         [Test]

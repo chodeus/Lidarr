@@ -33,7 +33,7 @@ namespace NzbDrone.Core.Extras.Files
     public abstract class ExtraFileService<TExtraFile> : IExtraFileService<TExtraFile>,
                                                          IRelinkExtraFiles,
                                                          IHandleAsync<ArtistsDeletedEvent>,
-                                                         IHandleAsync<AlbumDeletedEvent>,
+                                                         IHandle<AlbumDeletedEvent>,
                                                          IHandle<TrackFileDeletedEvent>
         where TExtraFile : ExtraFile, new()
     {
@@ -107,8 +107,9 @@ namespace NzbDrone.Core.Extras.Files
             _repository.DeleteForArtists(message.Artists.Select(x => x.Id).ToList());
         }
 
-        // Its track files go to the recycle bin with no events of their own, so their extras go here
-        public void HandleAsync(AlbumDeletedEvent message)
+        // Its track files go to the recycle bin with no events of their own, so their extras go here; synchronous, so before the
+        // asynchronous MediaFileDeletionService looks for the album folder to be empty
+        public void Handle(AlbumDeletedEvent message)
         {
             if (!message.DeleteFiles)
             {

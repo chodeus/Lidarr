@@ -14,3 +14,17 @@ With Import Extra Files on, Lidarr imports only extra files named after a track,
 - The Import Extra Files help text says so, and its examples now name lyrics, cue sheets and rip logs instead of subtitles and nfo. The Extra File Extensions setting's examples keep develop's text: another image branch adds a key on the next line, and the image's union merge of `en.json` would keep both versions of the line.
 
 Tests, over the real services and test database: release files imported once into the album folder under their names (a UTF-16 cue sheet byte for byte, `.LOG` for `log`), with the track's lyrics still linked to the track; a track that didn't import keeps its lyrics out; a split image's cue sheet and rip log imported, whatever their case; no release files from a folder holding another album's audio or beside a single-file download; a replacing import recycles the previous release's files, also with Import Extra Files off, and one that doesn't replace keeps them; a release file that can't be recycled keeps its row; an import from inside the artist's folder keeps the album's release files; the import still published when the download client's path isn't valid here; nothing written over an existing file; a file whose row can't be saved taken back out; extension matching by case and after a dot; the migration keeping rows and storing one without a track file; a release file moved with its album's tracks across disc folders, another album's left alone; only the album's own release files recycled, kept when the album's last track file is removed, and recycled when the album is deleted with its files but not without; housekeeping keeping an album's release file and dropping one whose album is gone. Each was broken on purpose and caught by a test.
+
+Full Core suite in Release: 3,333 pass. Merged after the custom build's 51 other branches and `fix/extras-link-track-files`, it merges cleanly and builds, `en.json` has no repeated keys, migration 915 is the only one with its number, and the Core suite there passes 4,686. In Debug, only the three tests that also fail without these branches fail: `should_remove_missing_import_lists_on_startup` and two `UpgradeMediaFileServiceFixture` tests for a file gone from disk.
+
+## Summary by CodeRabbit
+
+- **New Features**
+  - A release's own files, such as its cue sheet and rip log, are imported once into the album's folder under their own names. A split image's cue sheet and rip log are the release's too, whatever their case.
+  - A replacing import first sends the previous release's files to the recycle bin, unless its tracks come from inside the artist's folder. One that can't be recycled keeps its row for the next replacing import.
+  - Release files move with their album's tracks on rename, and are recycled when the album is deleted with its files. They stay when the album's last track file is removed.
+- **Bug Fixes**
+  - Extra file extensions match regardless of case and only after a dot.
+  - A release file is never written over an existing file, and one whose row can't be saved is taken back out of the library. The release-file step can't stop an import's events, even when the download client's path isn't valid on this machine.
+- **Documentation**
+  - The Import Extra Files help text names lyrics, cue sheets and rip logs, and says a release's own files are imported once into the album's folder.

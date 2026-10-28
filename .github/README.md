@@ -24,3 +24,7 @@ Tests: tag filtering with excluded tags, the indexer filter, tag details and the
 * **Bug Fixes**
   * Tags used by excluded release profiles are retained and can’t be deleted while still in use.
   * Release profile settings reject overlapping included and excluded tags.
+  * A profile an older build added or changed is read with that build's indexer, every indexer (`0`) included. Before, it kept this build's list, and one an older build added applied to every indexer.
+  * A client that sends back only `indexerId`, equal to the first listed indexer, keeps the stored list. Before, saving cut the list to that one indexer.
+  * A negative indexer ID is rejected in `indexerIds` or `indexerId`. Before, it was dropped, so `indexerId: -1` saved a profile for every indexer.
+  * Deleting an indexer takes it out of every release profile. A profile left with no indexer is disabled with a warning rather than widened to every indexer. Before, a profile limited to that indexer applied to no release.

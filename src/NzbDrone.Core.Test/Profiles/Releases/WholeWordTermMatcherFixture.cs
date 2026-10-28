@@ -48,6 +48,32 @@ namespace NzbDrone.Core.Test.Profiles.Releases
             Subject.IsWholeWordMatch(term, "Live at the Venue").Should().Be(matches);
         }
 
+        [TestCase("\U00020000", "x \U00020000 y", true)]
+        [TestCase("\U00020000", "x\U00020000 y", false)]
+        [TestCase("\U00020000", "x \U00020000y", false)]
+        [TestCase("live", "\U0001D400live", false)]
+        [TestCase("live", "live\U0001D400", false)]
+        [TestCase("live", "\U0001F3B5live\U0001F3B5", true)]
+        public void a_letter_past_u_ffff_is_a_word_character_but_an_emoji_is_not(string term, string title, bool matches)
+        {
+            Subject.IsWholeWordMatch(term, title).Should().Be(matches);
+        }
+
+        [TestCase("live", "live2", false)]
+        [TestCase("live", "live̲", false)]
+        [TestCase("live", "live_", false)]
+        [TestCase("live", "live-", true)]
+        public void a_word_character_is_a_letter_digit_mark_or_connector(string term, string title, bool matches)
+        {
+            Subject.IsWholeWordMatch(term, title).Should().Be(matches);
+        }
+
+        [Test]
+        public void an_occurrence_overlapping_a_rejected_one_still_matches()
+        {
+            Subject.IsWholeWordMatch("a-a", "xa-a-a").Should().BeTrue();
+        }
+
         [TestCase("live", "Album (Live)", true)]
         [TestCase("live", "Alive", false)]
         [TestCase("live", "Livestream", false)]

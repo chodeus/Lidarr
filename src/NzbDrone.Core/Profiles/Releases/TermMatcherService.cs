@@ -42,7 +42,7 @@ namespace NzbDrone.Core.Profiles.Releases
             catch (RegexMatchTimeoutException)
             {
                 // Not a match: a term that can't decide must never take an album away
-                Logger.Warn("Must Not Contain term '{0}' took too long on '{1}', keeping the album", term, value);
+                Logger.Warn("Must Not Contain term '{0}' took too long on '{1}', counted as no match", term, value);
                 return false;
             }
         }

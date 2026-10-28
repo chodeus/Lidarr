@@ -78,7 +78,7 @@ namespace NzbDrone.Core.Extras
             {
                 try
                 {
-                    relinker.Relink(previousTrackFileId, trackFile.Id);
+                    relinker.Relink(previousTrackFileId, trackFile);
                 }
                 catch (Exception e)
                 {

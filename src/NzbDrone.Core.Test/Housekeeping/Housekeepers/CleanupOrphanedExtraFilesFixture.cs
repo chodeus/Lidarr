@@ -94,8 +94,10 @@ namespace NzbDrone.Core.Test.Housekeeping.Housekeepers
             var song = GivenTrackFile(Path.Combine(artist.Path, "Album", "01 - Song.flac"));
             GivenTrackFile(Path.Combine(artist.Path, "Album", "Mr.flac"));
             var blueSky = GivenTrackFile(Path.Combine(artist.Path, "Album", "Mr. Blue Sky.flac"));
+            GivenTrackFile(Path.Combine(artist.Path, "Album", "Twice.flac"));
+            GivenTrackFile(Path.Combine(artist.Path, "Album", "Twice.wav"));
 
-            foreach (var name in new[] { "01 - Song.lrc", "Mr. Blue Sky.lrc", "01 - Songs Intro.lrc", "Old Name.lrc" })
+            foreach (var name in new[] { "01 - Song.lrc", "Mr. Blue Sky.lrc", "01 - Songs Intro.lrc", "Twice.lrc", "Old Name.lrc" })
             {
                 Db.Insert(Builder<OtherExtraFile>.CreateNew()
                                                   .With(m => m.ArtistId = artist.Id)
@@ -112,6 +114,7 @@ namespace NzbDrone.Core.Test.Housekeeping.Housekeepers
                 ("01 - Song.lrc", (int?)song.Id, (int?)song.AlbumId),
                 ("Mr. Blue Sky.lrc", (int?)blueSky.Id, (int?)blueSky.AlbumId),
                 ("01 - Songs Intro.lrc", (int?)0, (int?)1),
+                ("Twice.lrc", (int?)0, (int?)1),
                 ("Old Name.lrc", (int?)0, (int?)1)
             });
         }

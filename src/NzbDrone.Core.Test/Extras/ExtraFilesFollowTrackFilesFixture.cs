@@ -21,6 +21,7 @@ using NzbDrone.Core.Music.Events;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.RootFolders;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.Extras
 {
@@ -142,6 +143,42 @@ namespace NzbDrone.Core.Test.Extras
         {
             typeof(OtherExtraFileService).Should().Implement<IHandle<AlbumDeletedEvent>>();
             typeof(IHandleAsync<AlbumDeletedEvent>).IsAssignableFrom(typeof(OtherExtraFileService)).Should().BeFalse();
+        }
+
+        // A file on an unmonitored release isn't among the files the album deletion removes, so its extras stay with it
+        [Test]
+        public void should_recycle_only_the_extras_of_the_track_files_being_deleted()
+        {
+            var deleted = new AlbumDeletedEvent(_album, true, false) { TrackFilesToDelete = new List<TrackFile> { _trackFiles[0] } };
+
+            _lyricFileService.Handle(deleted);
+            _otherExtraFileService.Handle(deleted);
+
+            _recycled.Should().BeEquivalentTo("01 - Song.lrc", "01 - Song.log");
+            ExtraRows.Should().Be(2);
+        }
+
+        [Test]
+        public void should_recycle_the_other_extras_when_one_cannot_be()
+        {
+            Mocker.GetMock<IRecycleBinProvider>()
+                  .Setup(s => s.DeleteFile(It.Is<string>(p => p.EndsWith("01 - Song.lrc")), It.IsAny<string>()))
+                  .Throws(new IOException("in use"));
+            var deleted = new AlbumDeletedEvent(_album, true, false) { TrackFilesToDelete = Subject.GetFilesByAlbum(_album.Id) };
+
+            _lyricFileService.Handle(deleted);
+            _otherExtraFileService.Handle(deleted);
+
+            _recycled.Should().BeEquivalentTo("02 - Song.lrc", "01 - Song.log", "02 - Song.log");
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_move_the_album_with_the_track_file_when_relinking()
+        {
+            _otherExtraFileService.Relink(_trackFiles[0].Id, new TrackFile { Id = 99, AlbumId = 42 });
+
+            Db.All<OtherExtraFile>().Where(e => e.TrackFileId == 99).Select(e => e.AlbumId).Should().Equal(42);
         }
 
         [TestCase(true, 0)]

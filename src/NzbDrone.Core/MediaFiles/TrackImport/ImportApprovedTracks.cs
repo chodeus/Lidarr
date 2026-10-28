@@ -183,6 +183,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             var filesToAdd = new List<TrackFile>(qualifiedImports.Count);
             var albumReleasesDict = new Dictionary<int, List<AlbumRelease>>(albumDecisions.Count);
             var trackImportedEvents = new List<TrackImportedEvent>(qualifiedImports.Count);
+            var extrasToImport = new List<(LocalTrack LocalTrack, TrackFile TrackFile, bool CopyOnly)>(qualifiedImports.Count);
 
             foreach (var importDecision in qualifiedImports.OrderBy(e => e.Item.Tracks.Select(track => track.AbsoluteTrackNumber).MinOrDefault())
                                                            .ThenByDescending(e => e.Item.Size))
@@ -313,7 +314,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
 
                     if (!localTrack.ExistingFile)
                     {
-                        _extraService.ImportTrack(localTrack, trackFile, copyOnly);
+                        extrasToImport.Add((localTrack, trackFile, copyOnly));
                     }
 
                     allImportedTrackFiles.Add(trackFile);
@@ -379,6 +380,19 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             foreach (var (album, release) in releaseSwitches)
             {
                 FinishAlbum(album, release, replacements.SingleOrDefault(r => r.Album.Id == album.Id), importResults, filesToAdd);
+            }
+
+            // Only once AddMany has given the track files their ids, or each extra file is stored without its track file
+            foreach (var (localTrack, trackFile, copyOnly) in extrasToImport)
+            {
+                try
+                {
+                    _extraService.ImportTrack(localTrack, trackFile, copyOnly);
+                }
+                catch (Exception e)
+                {
+                    _logger.Warn(e, "Couldn't import extra files for " + localTrack);
+                }
             }
 
             if (replaceExisting)

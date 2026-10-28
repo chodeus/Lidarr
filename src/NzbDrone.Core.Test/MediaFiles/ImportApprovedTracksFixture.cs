@@ -10,6 +10,7 @@ using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
+using NzbDrone.Core.Extras;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.MediaFiles.TrackImport;
@@ -157,6 +158,20 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             Mocker.GetMock<IEventAggregator>()
                 .Verify(v => v.PublishEvent(It.IsAny<TrackImportedEvent>()), Times.Once());
+        }
+
+        [Test]
+        public void should_still_import_a_track_whose_extra_files_fail()
+        {
+            Mocker.GetMock<IExtraService>()
+                  .Setup(s => s.ImportTrack(It.IsAny<LocalTrack>(), It.IsAny<TrackFile>(), It.IsAny<bool>()))
+                  .Throws(new IOException("disk full"));
+
+            var results = Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, true);
+
+            results.Should().ContainSingle(r => r.Result == ImportResultType.Imported);
+            Mocker.GetMock<IEventAggregator>().Verify(v => v.PublishEvent(It.IsAny<TrackImportedEvent>()), Times.Once());
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]

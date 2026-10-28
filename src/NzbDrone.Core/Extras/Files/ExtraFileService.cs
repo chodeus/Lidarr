@@ -140,9 +140,10 @@ namespace NzbDrone.Core.Extras.Files
                 return;
             }
 
-            if (message.Reason == DeleteMediaFileReason.NoLinkedEpisodes)
+            // A file gone from disk may only have been renamed outside Lidarr: what came with it stays beside it
+            if (message.Reason is DeleteMediaFileReason.NoLinkedEpisodes or DeleteMediaFileReason.MissingFromDisk)
             {
-                _logger.Debug("Removing track file from DB as part of cleanup routine, not deleting extra files from disk.");
+                _logger.Debug("Removing track file from DB ({0}), not deleting extra files from disk.", message.Reason);
             }
             else
             {

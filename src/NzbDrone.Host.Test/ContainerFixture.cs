@@ -72,6 +72,10 @@ namespace NzbDrone.App.Test
             var extraService = _container.GetRequiredService<IExtraService>();
             var relinkers = typeof(ExtraService).GetField("_extraFileRelinkers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(extraService) as List<IRelinkExtraFiles>;
             relinkers.Should().HaveCount(3, "the container should pick the constructor that takes the relinkers");
+
+            _container.GetRequiredService<IEnumerable<IRelinkExtraFiles>>()
+                      .Select(r => r.GetType().BaseType.GetField("_mediaFileService", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(r))
+                      .Should().OnlyContain(m => m != null, "the container should pick the constructor that takes the media file service");
         }
 
         [Test]

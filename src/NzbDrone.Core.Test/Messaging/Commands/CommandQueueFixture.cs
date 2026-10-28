@@ -2,6 +2,7 @@ using FizzWare.NBuilder;
 using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Core.Download;
+using NzbDrone.Core.Housekeeping;
 using NzbDrone.Core.ImportLists;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.Messaging.Commands;
@@ -71,6 +72,24 @@ namespace NzbDrone.Core.Test.Messaging.Commands
                 .CreateNew()
                 .With(c => c.Name = "ProcessMonitoredDownloads")
                 .With(c => c.Body = new ProcessMonitoredDownloadsCommand())
+                .Build();
+
+            Subject.Add(newCommandModel);
+
+            Subject.TryGet(out var command);
+
+            command.Should().BeNull();
+        }
+
+        [Test]
+        public void should_not_return_housekeeping_while_an_import_runs()
+        {
+            GivenStartedDiskCommand();
+
+            var newCommandModel = Builder<CommandModel>
+                .CreateNew()
+                .With(c => c.Name = "Housekeeping")
+                .With(c => c.Body = new HousekeepingCommand())
                 .Build();
 
             Subject.Add(newCommandModel);

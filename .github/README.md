@@ -1,6 +1,6 @@
 # New: Must Not Contain terms for metadata profiles
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`feat/metadata-supplementary-sources`](https://github.com/chodeus/Lidarr/tree/feat/metadata-supplementary-sources), the top of the metadata sources stack. Reviewed in [#3](https://github.com/chodeus/Lidarr/pull/3).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`feat/metadata-supplementary-sources`](https://github.com/chodeus/Lidarr/tree/feat/metadata-supplementary-sources), the top of the metadata sources stack. Reviewed in [#3](https://github.com/chodeus/Lidarr/pull/3) and [#69](https://github.com/chodeus/Lidarr/pull/69).
 
 Adds Must Not Contain terms to metadata profiles (upstream request #4923):
 - A refresh leaves out albums whose title contains a term as a whole word, case-insensitively. Albums with files, or added by hand, are kept.

@@ -120,29 +120,60 @@ namespace NzbDrone.Core.Extras.Others
                     continue;
                 }
 
+                OtherExtraFile stale;
+                OtherExtraFile releaseFile;
+
                 try
                 {
-                    var releaseFile = ImportReleaseFile(artist, albumId, path, folder, readOnly);
-                    var stale = _otherExtraFileService.FindByPath(artist.Id, releaseFile.RelativePath);
-
-                    if (stale != null)
-                    {
-                        releaseFile.Id = stale.Id;
-                        releaseFile.Added = stale.Added;
-                    }
-
-                    _mediaFileAttributeService.SetFilePermissions(destination);
-                    imported.Add(releaseFile);
+                    stale = _otherExtraFileService.FindByPath(artist.Id, artist.Path.GetRelativePath(destination));
+                    releaseFile = ImportReleaseFile(artist, albumId, path, folder, readOnly);
                 }
                 catch (Exception ex)
                 {
                     _logger.Warn(ex, "Failed to import release file: {0}", path);
+                    continue;
+                }
+
+                if (stale != null)
+                {
+                    releaseFile.Id = stale.Id;
+                    releaseFile.Added = stale.Added;
+                }
+
+                try
+                {
+                    _mediaFileAttributeService.SetFilePermissions(destination);
+                    _otherExtraFileService.Upsert(releaseFile);
+                    imported.Add(releaseFile);
+                }
+                catch (Exception ex)
+                {
+                    // An unrecorded file would block every later import of this name, and no replacing import would recycle it
+                    _logger.Warn(ex, "Failed to record release file {0}, taking it back out", destination);
+                    TakeBack(path, destination, readOnly);
                 }
             }
 
-            _otherExtraFileService.Upsert(imported);
-
             return imported;
+        }
+
+        private void TakeBack(string path, string destination, bool readOnly)
+        {
+            try
+            {
+                if (readOnly)
+                {
+                    _diskProvider.DeleteFile(destination);
+                }
+                else
+                {
+                    _diskProvider.MoveFile(destination, path);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "Couldn't take release file {0} back out", destination);
+            }
         }
     }
 }

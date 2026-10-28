@@ -20,7 +20,7 @@ namespace NzbDrone.Core.Extras
     public interface IExtraService
     {
         void ImportTrack(LocalTrack localTrack, TrackFile trackFile, bool isReadOnly);
-        void ImportAlbum(List<LocalTrack> localTracks, List<TrackFile> trackFiles, bool isReadOnly, bool replacePrevious);
+        void ImportAlbum(Artist artist, List<string> sourceFolders, List<TrackFile> trackFiles, ISet<string> albumAudio, bool isReadOnly, bool replacePrevious);
         void RelinkTrackFile(int previousTrackFileId, TrackFile trackFile);
     }
 
@@ -131,28 +131,36 @@ namespace NzbDrone.Core.Extras
             }
         }
 
-        // Files whose names start with no track's, such as a release's .cue or rip log, go once into the album's folder
-        public void ImportAlbum(List<LocalTrack> localTracks, List<TrackFile> trackFiles, bool isReadOnly, bool replacePrevious)
+        // A release's own files, such as its .cue or rip log, go once into the album's folder; albumAudio holds every file this album's decisions came from
+        public void ImportAlbum(Artist artist, List<string> sourceFolders, List<TrackFile> trackFiles, ISet<string> albumAudio, bool isReadOnly, bool replacePrevious)
         {
-            if (!_configService.ImportExtraFiles)
+            var releaseFiles = new List<string>();
+
+            if (_configService.ImportExtraFiles)
             {
-                return;
+                var wantedExtensions = WantedExtensions();
+
+                releaseFiles = sourceFolders.SelectMany(folder => ReleaseFiles(folder, albumAudio, wantedExtensions)).ToList();
             }
 
-            var wantedExtensions = WantedExtensions();
-            var releaseFiles = localTracks.Select(t => _diskProvider.GetParentFolder(t.Path))
-                                          .Distinct(PathEqualityComparer.Instance)
-                                          .SelectMany(folder => ReleaseFiles(folder, wantedExtensions))
-                                          .ToList();
-
-            _extraFileManagers.OfType<OtherExtraService>().SingleOrDefault()?.ImportReleaseFiles(localTracks.First().Artist, trackFiles, releaseFiles, isReadOnly, replacePrevious);
+            // Even with Import Extra Files off, as a replaced track's own extras go whatever the setting
+            _extraFileManagers.OfType<OtherExtraService>().SingleOrDefault()?.ImportReleaseFiles(artist, trackFiles, releaseFiles, isReadOnly, replacePrevious);
         }
 
-        // Every audio file counts, so a file of a track that didn't import isn't taken for the release's
-        private IEnumerable<string> ReleaseFiles(string folder, List<string> wantedExtensions)
+        // Only from a folder holding no other album's audio, and every audio file counts, so a track that didn't import keeps its lyrics out
+        private IEnumerable<string> ReleaseFiles(string folder, ISet<string> albumAudio, List<string> wantedExtensions)
         {
             var files = _diskProvider.GetFiles(folder, false).ToList();
-            var trackNames = files.Where(f => MediaFileExtensions.Extensions.Contains(Path.GetExtension(f)))
+            var audio = files.Where(f => MediaFileExtensions.Extensions.Contains(Path.GetExtension(f))).ToList();
+
+            if (!audio.All(albumAudio.Contains))
+            {
+                _logger.Debug("Not importing release files from {0}: it holds audio of other albums", folder);
+                return Enumerable.Empty<string>();
+            }
+
+            // An image with its cue sheet beside it isn't a track, so its "Album.cue" and "Album.log" are the release's
+            var trackNames = audio.Where(f => !files.Contains(Path.ChangeExtension(f, ".cue"), PathEqualityComparer.Instance))
                                   .Select(Path.GetFileNameWithoutExtension)
                                   .ToList();
 

@@ -9,6 +9,7 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Extras;
 using NzbDrone.Core.Extras.Files;
@@ -122,7 +123,7 @@ namespace NzbDrone.Core.Test.MediaFiles
                   });
         }
 
-        private List<ImportResult> Import(string fileName, bool replaceExisting = false)
+        private List<ImportResult> Import(string fileName, bool replaceExisting = false, List<ImportDecision<LocalTrack>> others = null, DownloadClientItem item = null)
         {
             var path = Path.Combine(_download, fileName);
             File.WriteAllText(path, "audio");
@@ -140,7 +141,30 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             // Resolved here, so it gets the services each test sets
             Mocker.SetConstant<IReplaceTrackFiles>(Mocker.Resolve<TrackFileReplacementService>());
-            return Subject.Import(new List<ImportDecision<LocalTrack>> { decision }, replaceExisting, new DownloadClientItem { DownloadId = "dl-1", CanMoveFiles = false });
+            var decisions = new List<ImportDecision<LocalTrack>> { decision };
+            decisions.AddRange(others ?? new List<ImportDecision<LocalTrack>>());
+
+            return Subject.Import(decisions, replaceExisting, item ?? new DownloadClientItem { DownloadId = "dl-1", CanMoveFiles = false });
+        }
+
+        // A file of this album that matched no track, such as the image beside the tracks unpackerr split from it
+        private ImportDecision<LocalTrack> Rejected(string fileName)
+        {
+            var path = Path.Combine(_download, fileName);
+            File.WriteAllText(path, "audio");
+
+            var localTrack = new LocalTrack
+            {
+                Artist = _artist,
+                Album = _album,
+                Release = _release,
+                Tracks = new List<Track>(),
+                Path = path,
+                Quality = new QualityModel(Quality.FLAC),
+                FileTrackInfo = new ParsedTrackInfo()
+            };
+
+            return new ImportDecision<LocalTrack>(localTrack, new Rejection("Couldn't find similar track"));
         }
 
         [Test]
@@ -189,11 +213,10 @@ namespace NzbDrone.Core.Test.MediaFiles
         [Test]
         public void should_not_take_the_lyrics_of_a_track_that_did_not_import_for_a_release_file()
         {
-            File.WriteAllText(Path.Combine(_download, "02 - Other.flac"), "audio");
             File.WriteAllText(Path.Combine(_download, "02 - Other.lrc"), "[00:01.00] lyric");
             File.WriteAllText(Path.Combine(_download, "Album.log"), "rip log");
 
-            Import("01 - Song.flac");
+            Import("01 - Song.flac", others: new List<ImportDecision<LocalTrack>> { Rejected("02 - Other.flac") });
 
             Db.All<OtherExtraFile>().Select(o => Path.GetFileName(o.RelativePath)).Should().Equal("Album.log");
         }
@@ -236,6 +259,69 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             File.ReadAllText(Path.Combine(_albumFolder, "Album.log")).Should().Be("mine");
             Db.All<OtherExtraFile>().Should().BeEmpty();
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_not_take_release_files_from_a_folder_holding_another_albums_audio()
+        {
+            File.WriteAllText(Path.Combine(_download, "05 - Another Album Song.flac"), "audio");
+            File.WriteAllText(Path.Combine(_download, "Another Album.cue"), "cue");
+
+            Import("01 - Song.flac");
+
+            Db.All<OtherExtraFile>().Should().BeEmpty();
+        }
+
+        [Test]
+        public void should_import_the_cue_and_log_of_a_split_image()
+        {
+            File.WriteAllText(Path.Combine(_download, "Artist - Album.cue"), "FILE \"Artist - Album.flac\" WAVE");
+            File.WriteAllText(Path.Combine(_download, "Artist - Album.log"), "rip log");
+
+            Import("01 - Song.flac", others: new List<ImportDecision<LocalTrack>> { Rejected("Artist - Album.flac") });
+
+            Db.All<OtherExtraFile>().Select(o => Path.GetFileName(o.RelativePath)).Should().BeEquivalentTo("Artist - Album.cue", "Artist - Album.log");
+        }
+
+        [Test]
+        public void should_take_no_release_files_beside_a_single_file_download_but_still_replace_the_previous_ones()
+        {
+            GivenReleaseFileFromAnEarlierImport("Old.log");
+            File.WriteAllText(Path.Combine(_download, "Someone Else.log"), "another download's log");
+
+            Import("01 - Song.flac", true, item: new DownloadClientItem { DownloadId = "dl-1", CanMoveFiles = false, OutputPath = new OsPath(Path.Combine(_download, "01 - Song.flac")) });
+
+            new { Recycled = _recycled, Rows = Db.All<OtherExtraFile>().Count }.Should().BeEquivalentTo(new { Recycled = new[] { "Old.log" }, Rows = 0 });
+        }
+
+        [Test]
+        public void should_recycle_the_previous_release_files_on_a_replacing_import_with_import_extra_files_off()
+        {
+            Mocker.GetMock<IConfigService>().SetupGet(c => c.ImportExtraFiles).Returns(false);
+            GivenReleaseFileFromAnEarlierImport("Old.log");
+            File.WriteAllText(Path.Combine(_download, "Album.log"), "rip log");
+
+            Import("01 - Song.flac", true);
+
+            new { Recycled = _recycled, Rows = Db.All<OtherExtraFile>().Count }.Should().BeEquivalentTo(new { Recycled = new[] { "Old.log" }, Rows = 0 });
+        }
+
+        [Test]
+        public void should_take_a_release_file_back_out_when_its_row_cannot_be_saved()
+        {
+            var failing = new Mock<IOtherExtraFileService>();
+            failing.Setup(s => s.Upsert(It.IsAny<OtherExtraFile>())).Throws(new InvalidOperationException("database is locked"));
+            Mocker.SetConstant(failing.Object);
+            var otherExtraService = new OtherExtraService(Mocker.Resolve<IConfigService>(), Mocker.Resolve<IDiskProvider>(), Mocker.Resolve<IDiskTransferService>(), failing.Object, Mocker.Resolve<IMediaFileAttributeService>(), TestLogger);
+            var managers = new List<IManageExtraFiles> { Mocker.Resolve<LyricService>(), otherExtraService };
+            Mocker.SetConstant<IExtraService>(new ExtraService(Mocker.Resolve<IMediaFileService>(), Mocker.Resolve<IAlbumService>(), Mocker.Resolve<ITrackService>(), Mocker.Resolve<IDiskProvider>(), Mocker.Resolve<IConfigService>(), managers, new List<IRelinkExtraFiles>(), TestLogger));
+            File.WriteAllText(Path.Combine(_download, "Album.log"), "rip log");
+
+            Import("01 - Song.flac");
+
+            new { InLibrary = File.Exists(Path.Combine(_albumFolder, "Album.log")), InDownload = File.Exists(Path.Combine(_download, "Album.log")) }
+                .Should().BeEquivalentTo(new { InLibrary = false, InDownload = true });
             ExceptionVerification.ExpectedWarns(1);
         }
 

@@ -583,7 +583,7 @@
   "Import": "Import",
   "ImportCompleteFailed": "Import Failed",
   "ImportExtraFiles": "Import Extra Files",
-  "ImportExtraFilesHelpText": "Import matching extra files (lyrics, cue sheets, rip logs, etc) after importing a track file. A file named after no track, such as a release's cue sheet or rip log, is imported once into the album's folder under its own name",
+  "ImportExtraFilesHelpText": "Import matching extra files (lyrics, cue sheets, rip logs, etc) after importing a track file. A release's own files, such as its cue sheet or rip log, are imported once into the album's folder under their own names",
   "ImportFailed": "Import Failed: {sourceTitle}",
   "ImportFailedInterp": "Import failed: {0}",
   "ImportFailures": "Import failures",

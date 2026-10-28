@@ -66,36 +66,39 @@ namespace NzbDrone.Core.Test.Extras.Others
             Subject.Handle(new TrackFileDeletedEvent(trackFile, reason));
         }
 
-        [TestCase(DeleteMediaFileReason.Manual)]
-        [TestCase(DeleteMediaFileReason.MissingFromDisk)]
-        public void should_recycle_the_release_files_once_the_albums_last_track_file_goes(DeleteMediaFileReason reason)
+        [Test]
+        public void should_recycle_only_the_albums_own_release_files()
         {
-            _trackFiles.ForEach(f => Delete(f, reason));
+            File.WriteAllText(Path.Combine(_artist.Path, "Album", "01 - Song.lrc"), "lyric");
+            Db.Insert(new OtherExtraFile { ArtistId = _artist.Id, AlbumId = 7, TrackFileId = _trackFiles[0].Id, RelativePath = Path.Combine("Album", "01 - Song.lrc"), Extension = ".lrc", Added = DateTime.UtcNow, LastUpdated = DateTime.UtcNow });
+            Db.Insert(new OtherExtraFile { ArtistId = _artist.Id, AlbumId = 8, TrackFileId = null, RelativePath = Path.Combine("Other", "Other.log"), Extension = ".log", Added = DateTime.UtcNow, LastUpdated = DateTime.UtcNow });
+
+            Subject.DeleteReleaseFiles(_artist, 7);
 
             _recycled.Should().Equal("Album.log");
-            AllStoredModels.Should().BeEmpty();
+            AllStoredModels.Select(f => Path.GetFileName(f.RelativePath)).Should().BeEquivalentTo("01 - Song.lrc", "Other.log");
         }
 
+        // Only a replacing import or the album's own deletion takes a release's files away
         [Test]
-        public void should_keep_the_release_files_while_the_album_has_a_track_file()
+        public void should_keep_the_release_files_when_a_user_removes_the_albums_last_track_file()
         {
-            Delete(_trackFiles[0], DeleteMediaFileReason.Manual);
-
-            _recycled.Should().BeEmpty();
-            AllStoredModels.Should().HaveCount(1);
-        }
-
-        // An import deletes and adds the album's files and replaces its release files itself; a cleanup leaves the files on disk
-        [TestCase(DeleteMediaFileReason.Upgrade)]
-        [TestCase(DeleteMediaFileReason.ManualOverride)]
-        [TestCase(DeleteMediaFileReason.NoLinkedEpisodes)]
-        public void should_leave_the_release_files_when_the_album_loses_its_files_another_way(DeleteMediaFileReason reason)
-        {
-            _trackFiles.ForEach(f => Delete(f, reason));
+            _trackFiles.ForEach(f => Delete(f, DeleteMediaFileReason.Manual));
 
             _recycled.Should().BeEmpty();
             File.Exists(_releaseFile).Should().BeTrue();
             AllStoredModels.Should().HaveCount(1);
+        }
+
+        [TestCase(true, 0)]
+        [TestCase(false, 1)]
+        public void should_recycle_the_release_files_only_when_the_album_is_deleted_with_its_files(bool deleteFiles, int left)
+        {
+            var album = new Album { Id = 7, Artist = new LazyLoaded<Artist>(_artist) };
+
+            Subject.HandleAsync(new NzbDrone.Core.Music.Events.AlbumDeletedEvent(album, deleteFiles, false));
+
+            new { OnDisk = File.Exists(_releaseFile), Rows = AllStoredModels.Count }.Should().BeEquivalentTo(new { OnDisk = left == 1, Rows = left });
         }
     }
 }

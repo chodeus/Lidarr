@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NLog;
+using NzbDrone.Common;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
@@ -409,11 +410,17 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                 }
             }
 
+            // A single-file download sits in the client's shared folder, so nothing beside it is its release's
+            var sharedFolder = downloadClientItem != null && !downloadClientItem.OutputPath.IsEmpty && _diskProvider.FileExists(downloadClientItem.OutputPath.FullPath);
+
             foreach (var album in extrasToImport.GroupBy(e => e.TrackFile.AlbumId))
             {
                 try
                 {
-                    _extraService.ImportAlbum(album.Select(e => e.LocalTrack).ToList(), album.Select(e => e.TrackFile).ToList(), album.First().CopyOnly, replaceExisting);
+                    var albumAudio = new HashSet<string>(decisions.Where(d => d.Item.Album?.Id == album.Key).Select(d => d.Item.Path), PathEqualityComparer.Instance);
+                    var sourceFolders = sharedFolder ? new List<string>() : album.Select(e => _diskProvider.GetParentFolder(e.LocalTrack.Path)).Distinct(PathEqualityComparer.Instance).ToList();
+
+                    _extraService.ImportAlbum(album.First().LocalTrack.Artist, sourceFolders, album.Select(e => e.TrackFile).ToList(), albumAudio, album.First().CopyOnly, replaceExisting);
                 }
                 catch (Exception e)
                 {

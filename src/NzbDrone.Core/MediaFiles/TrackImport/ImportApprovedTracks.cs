@@ -417,8 +417,8 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             {
                 try
                 {
-                    var albumAudio = new HashSet<string>(decisions.Where(d => d.Item.Album?.Id == album.Key).Select(d => d.Item.Path), PathEqualityComparer.Instance);
-                    var sourceFolders = sharedFolder ? new List<string>() : album.Select(e => _diskProvider.GetParentFolder(e.LocalTrack.Path)).Distinct(PathEqualityComparer.Instance).ToList();
+                    var albumAudio = new HashSet<string>(decisions.Where(d => d.Item.Album?.Id == album.Key && d.Item.Path != null).Select(d => d.Item.Path), PathEqualityComparer.Instance);
+                    var sourceFolders = sharedFolder ? new List<string>() : album.Select(e => _diskProvider.GetParentFolder(e.LocalTrack.Path)).Where(f => f != null).Distinct(PathEqualityComparer.Instance).ToList();
 
                     _extraService.ImportAlbum(album.First().LocalTrack.Artist, sourceFolders, album.Select(e => e.TrackFile).ToList(), albumAudio, album.First().CopyOnly, replaceExisting);
                 }

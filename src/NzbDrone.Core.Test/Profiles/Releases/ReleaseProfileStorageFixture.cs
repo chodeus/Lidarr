@@ -34,6 +34,12 @@ namespace NzbDrone.Core.Test.Profiles.Releases
             connection.Execute(sql);
         }
 
+        private List<T> Query<T>(string sql)
+        {
+            using var connection = Mocker.Resolve<IDatabase>().OpenConnection();
+            return connection.Query<T>(sql).ToList();
+        }
+
         [Test]
         public void should_keep_the_indexer_of_a_profile_an_older_build_added()
         {
@@ -82,6 +88,29 @@ namespace NzbDrone.Core.Test.Profiles.Releases
             Subject.Get(fiveAndSeven.Id).Should().Match<ReleaseProfile>(p => p.IndexerIds.SequenceEqual(new[] { 7 }) && p.Enabled);
             Subject.Get(every.Id).Should().Match<ReleaseProfile>(p => p.IndexerIds.Count == 0 && p.Enabled);
             Subject.Get(onlyEight.Id).Should().Match<ReleaseProfile>(p => p.IndexerIds.SequenceEqual(new[] { 8 }) && p.Enabled);
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_keep_every_indexer_an_update_saved()
+        {
+            var profile = Add(5);
+
+            Subject.Update(new ReleaseProfile { Id = profile.Id, Enabled = true, Required = new List<string> { "flac" }, IndexerIds = new List<int> { 5, 7 } });
+
+            Subject.Get(profile.Id).IndexerIds.Should().Equal(5, 7);
+            Query<int>($"SELECT \"IndexerId\" FROM \"ReleaseProfiles\" WHERE \"Id\" = {profile.Id}").Should().Equal(5);
+        }
+
+        [Test]
+        public void should_disable_a_profile_that_lists_the_deleted_indexer_twice()
+        {
+            var profile = Add(5, 5);
+
+            Subject.Handle(new ProviderDeletedEvent<IIndexer>(5));
+
+            Subject.Get(profile.Id).Should().Match<ReleaseProfile>(p => p.IndexerIds.Count == 0 && !p.Enabled);
 
             ExceptionVerification.ExpectedWarns(1);
         }

@@ -84,7 +84,7 @@ namespace NzbDrone.Core.Profiles.Releases
         // A profile limited to a deleted indexer would match nothing, and dropping its last indexer would widen it to all, so it is disabled
         public void Handle(ProviderDeletedEvent<IIndexer> message)
         {
-            var changed = _repo.All().Where(p => p.IndexerIds.Remove(message.ProviderId)).ToList();
+            var changed = _repo.All().Where(p => p.IndexerIds.RemoveAll(id => id == message.ProviderId) > 0).ToList();
             var emptied = changed.Where(p => p.IndexerIds.Empty()).ToList();
 
             foreach (var profile in emptied.Where(p => p.Enabled))

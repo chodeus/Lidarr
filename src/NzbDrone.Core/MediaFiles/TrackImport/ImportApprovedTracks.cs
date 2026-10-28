@@ -793,6 +793,9 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                 catch (Exception e)
                 {
                     _logger.Error(e, "Couldn't put back the row of {0}; a rescan imports it again", previousFile.Path);
+
+                    // Unlinked, its extras wait for housekeeping to link them by name to the row the rescan gives the file
+                    RelinkExtras(previousFile.Id, new TrackFile { AlbumId = previousFile.AlbumId });
                 }
             }
         }

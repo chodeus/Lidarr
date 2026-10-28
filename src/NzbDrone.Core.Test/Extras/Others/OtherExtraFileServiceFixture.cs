@@ -96,7 +96,7 @@ namespace NzbDrone.Core.Test.Extras.Others
         {
             var album = new Album { Id = 7, Artist = new LazyLoaded<Artist>(_artist) };
 
-            Subject.HandleAsync(new NzbDrone.Core.Music.Events.AlbumDeletedEvent(album, deleteFiles, false));
+            Subject.Handle(new NzbDrone.Core.Music.Events.AlbumDeletedEvent(album, deleteFiles, false));
 
             new { OnDisk = File.Exists(_releaseFile), Rows = AllStoredModels.Count }.Should().BeEquivalentTo(new { OnDisk = left == 1, Rows = left });
         }

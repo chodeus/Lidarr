@@ -34,6 +34,13 @@ namespace NzbDrone.Core.Test.Profiles.Releases
             Subject.IsWholeWordMatch("Café", "Café Sessions").Should().BeTrue();
         }
 
+        [TestCase("/^....$/", false)]
+        [TestCase("/Cafe\u0301/", true)]
+        public void a_regex_term_sees_a_decomposed_title_as_sent(string term, bool matches)
+        {
+            Subject.IsWholeWordMatch(term, "Cafe\u0301").Should().Be(matches);
+        }
+
         [TestCase("/live/", false)]
         [TestCase("/live/i", true)]
         public void a_regex_term_is_matched_as_written(string term, bool matches)

@@ -10,6 +10,7 @@ Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom)
 - The settings card shows excluded tags in red and every listed indexer.
 - Deleting an indexer takes it out of every release profile; a profile left with no indexer is disabled with a warning, rather than widened to every indexer. Only the indexer columns are written, and `Enabled` for a profile it disables, in the same statement, so a profile edit saved meanwhile keeps its other fields.
 - The new `IReleaseProfileService.AllExcludedForTag` has a default body, and `TagDetails.ExcludedReleaseProfileIds` starts empty. The unused `IndexerIdHelpText` string is removed.
+- Test setup: the first test in a test process now sees logged warnings. `NzbDroneLogger`'s static constructor replaced the logging configuration after `LoggingTest` registered its warning check, so a lone test's `ExpectedWarns` failed and an unexpected warning went unnoticed. The constructor now runs first.
 
 Tests: tag filtering with excluded tags, the indexer filter, tag details and the delete guard, the cleanup, the repository round trip (the full list read back, the first indexer in the legacy column), develop's `IndexerId`, a new `TagDetails` list, the migration, the API mapping (including `indexerId` 0) and validation (including null excluded tags and negative indexer ids), a client sending back only the first indexer, rows an older build added or changed (real database), and a deleted indexer, also with a profile edit saved meanwhile. Each rule was broken on purpose and caught by a test.
 

@@ -275,6 +275,47 @@ namespace NzbDrone.Core.Test.MediaFiles
         }
 
         [Test]
+        public void should_leave_the_extras_of_a_row_that_could_not_be_deleted()
+        {
+            var localTrack = GivenExistingFile();
+            GivenLinkedFile(localTrack, localTrack.Size + 1, localTrack.Tracks.ToList());
+            Mocker.GetMock<IMediaFileService>()
+                  .Setup(s => s.Delete(It.IsAny<TrackFile>(), DeleteMediaFileReason.ManualOverride))
+                  .Throws(new InvalidOperationException("database is locked"));
+
+            var results = Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, false);
+
+            results.Should().ContainSingle(r => r.Result == ImportResultType.Skipped);
+            Mocker.GetMock<IExtraService>().Verify(v => v.RelinkTrackFile(It.IsAny<int>(), It.IsAny<TrackFile>()), Times.Never());
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_put_back_the_previous_row_once_the_new_row_on_its_path_is_gone()
+        {
+            var localTrack = GivenExistingFile();
+            GivenLinkedFile(localTrack, localTrack.Size + 1, localTrack.Tracks.ToList());
+            var calls = new List<string>();
+            Mocker.GetMock<ITrackService>()
+                  .Setup(s => s.SetFileIds(It.IsAny<List<Track>>()))
+                  .Throws(new InvalidOperationException("database is locked"));
+            Mocker.GetMock<IMediaFileService>()
+                  .Setup(s => s.AddMany(It.IsAny<List<TrackFile>>()))
+                  .Callback<List<TrackFile>>(files => files.ForEach(f => f.Id = 8));
+            Mocker.GetMock<IMediaFileService>()
+                  .Setup(s => s.DeleteMany(It.IsAny<List<TrackFile>>(), DeleteMediaFileReason.ManualOverride))
+                  .Callback(() => calls.Add("new row deleted"));
+            Mocker.GetMock<IReplaceTrackFiles>()
+                  .Setup(s => s.PutBack(It.Is<TrackFile>(f => f.Id == 7)))
+                  .Callback(() => calls.Add("previous row put back"))
+                  .Returns(new TrackFile { Id = 9 });
+
+            Assert.Throws<InvalidOperationException>(() => Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, false));
+
+            calls.Should().Equal("new row deleted", "previous row put back");
+        }
+
+        [Test]
         public void should_skip_an_unchanged_file_already_linked_to_its_tracks()
         {
             var localTrack = GivenExistingFile();

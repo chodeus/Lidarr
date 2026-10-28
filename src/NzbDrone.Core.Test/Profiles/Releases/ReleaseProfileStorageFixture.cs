@@ -5,6 +5,7 @@ using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Indexers;
+using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Profiles.Releases;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Core.ThingiProvider.Events;
@@ -73,14 +74,53 @@ namespace NzbDrone.Core.Test.Profiles.Releases
             var onlyFive = Add(5);
             var fiveAndSeven = Add(5, 7);
             var every = Add();
+            var onlyEight = Add(8);
 
             Subject.Handle(new ProviderDeletedEvent<IIndexer>(5));
 
             Subject.Get(onlyFive.Id).Should().Match<ReleaseProfile>(p => p.IndexerIds.Count == 0 && !p.Enabled);
             Subject.Get(fiveAndSeven.Id).Should().Match<ReleaseProfile>(p => p.IndexerIds.SequenceEqual(new[] { 7 }) && p.Enabled);
             Subject.Get(every.Id).Should().Match<ReleaseProfile>(p => p.IndexerIds.Count == 0 && p.Enabled);
+            Subject.Get(onlyEight.Id).Should().Match<ReleaseProfile>(p => p.IndexerIds.SequenceEqual(new[] { 8 }) && p.Enabled);
 
             ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_keep_an_edit_saved_while_a_deleted_indexer_is_taken_out()
+        {
+            Mocker.SetConstant<IRestrictionRepository>(new EditedAfterRead(Mocker.Resolve<IMainDatabase>(), Mocker.Resolve<IEventAggregator>()));
+            var onlyFive = Add(5);
+            var fiveAndSeven = Add(5, 7);
+
+            Subject.Handle(new ProviderDeletedEvent<IIndexer>(5));
+
+            Subject.Get(onlyFive.Id).Should().Match<ReleaseProfile>(p => p.Required.SequenceEqual(new[] { "edited" }) && p.IndexerIds.Count == 0 && !p.Enabled);
+            Subject.Get(fiveAndSeven.Id).Should().Match<ReleaseProfile>(p => p.Required.SequenceEqual(new[] { "edited" }) && p.IndexerIds.SequenceEqual(new[] { 7 }));
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        // Saves an edit to every profile right after a read, as a settings save between the handler's read and write would
+        private class EditedAfterRead : ReleaseProfileRepository
+        {
+            public EditedAfterRead(IMainDatabase database, IEventAggregator eventAggregator)
+                : base(database, eventAggregator)
+            {
+            }
+
+            public override IEnumerable<ReleaseProfile> All()
+            {
+                var read = base.All().ToList();
+
+                foreach (var profile in base.All())
+                {
+                    profile.Required = new List<string> { "edited" };
+                    Update(profile);
+                }
+
+                return read;
+            }
         }
     }
 }

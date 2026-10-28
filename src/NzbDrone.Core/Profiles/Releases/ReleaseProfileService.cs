@@ -85,14 +85,17 @@ namespace NzbDrone.Core.Profiles.Releases
         public void Handle(ProviderDeletedEvent<IIndexer> message)
         {
             var changed = _repo.All().Where(p => p.IndexerIds.Remove(message.ProviderId)).ToList();
+            var emptied = changed.Where(p => p.IndexerIds.Empty()).ToList();
 
-            foreach (var profile in changed.Where(p => p.IndexerIds.Empty() && p.Enabled))
+            foreach (var profile in emptied.Where(p => p.Enabled))
             {
                 profile.Enabled = false;
                 _logger.Warn("Release profile {0} was limited to a deleted indexer and has been disabled", profile.Id);
             }
 
-            _repo.UpdateMany(changed);
+            // Only these columns, so a profile edit saved meanwhile keeps its other fields; an emptied profile is disabled in the same write
+            _repo.SetFields(changed.Where(p => p.IndexerIds.Any()).ToList(), p => p.IndexerIds, p => p.IndexerId);
+            _repo.SetFields(emptied, p => p.IndexerIds, p => p.IndexerId, p => p.Enabled);
         }
     }
 }

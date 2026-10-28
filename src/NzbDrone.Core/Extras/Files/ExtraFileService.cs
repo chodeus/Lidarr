@@ -27,7 +27,7 @@ namespace NzbDrone.Core.Extras.Files
 
     public interface IRelinkExtraFiles
     {
-        void Relink(int fromTrackFileId, int toTrackFileId);
+        void Relink(int fromTrackFileId, TrackFile toTrackFile);
     }
 
     public abstract class ExtraFileService<TExtraFile> : IExtraFileService<TExtraFile>,
@@ -116,18 +116,28 @@ namespace NzbDrone.Core.Extras.Files
                 return;
             }
 
+            // Only the extras of the files being deleted, and the album's own: a file on an unmonitored release stays, with its extras
             var artist = message.Album.Artist.Value;
+            var deletedTrackFileIds = (message.TrackFilesToDelete ?? new List<TrackFile>()).Select(f => f.Id).ToHashSet();
+            var extraFiles = _repository.GetFilesByAlbum(artist.Id, message.Album.Id)
+                                        .Where(e => e.TrackFileId == null || deletedTrackFileIds.Contains(e.TrackFileId.Value))
+                                        .ToList();
 
-            Recycle(artist, _repository.GetFilesByAlbum(artist.Id, message.Album.Id));
-            _repository.DeleteForAlbum(artist.Id, message.Album.Id);
+            Recycle(artist, extraFiles);
+            _repository.DeleteMany(extraFiles);
         }
 
-        public void Relink(int fromTrackFileId, int toTrackFileId)
+        // The file may now belong to another album, so the album moves with the track file
+        public void Relink(int fromTrackFileId, TrackFile toTrackFile)
         {
             var extraFiles = _repository.GetFilesByTrackFile(fromTrackFileId);
 
-            extraFiles.ForEach(e => e.TrackFileId = toTrackFileId);
-            _repository.SetFields(extraFiles, e => e.TrackFileId);
+            extraFiles.ForEach(e =>
+            {
+                e.TrackFileId = toTrackFile.Id;
+                e.AlbumId = toTrackFile.AlbumId;
+            });
+            _repository.SetFields(extraFiles, e => e.TrackFileId, e => e.AlbumId);
         }
 
         public void Handle(TrackFileDeletedEvent message)
@@ -154,17 +164,25 @@ namespace NzbDrone.Core.Extras.Files
             _repository.DeleteForTrackFile(trackFile.Id);
         }
 
+        // Each file on its own, so one that can't be recycled leaves the others to go
         protected void Recycle(Artist artist, IEnumerable<TExtraFile> extraFiles)
         {
             foreach (var extra in extraFiles)
             {
                 var path = Path.Combine(artist.Path, extra.RelativePath);
 
-                if (_diskProvider.FileExists(path))
+                try
                 {
-                    // Send to the recycling bin so they can be recovered if necessary
-                    var subfolder = _diskProvider.GetParentFolder(artist.Path).GetRelativePath(_diskProvider.GetParentFolder(path));
-                    _recycleBinProvider.DeleteFile(path, subfolder);
+                    if (_diskProvider.FileExists(path))
+                    {
+                        // Send to the recycling bin so they can be recovered if necessary
+                        var subfolder = _diskProvider.GetParentFolder(artist.Path).GetRelativePath(_diskProvider.GetParentFolder(path));
+                        _recycleBinProvider.DeleteFile(path, subfolder);
+                    }
+                }
+                catch (Exception e)
+                {
+                    _logger.Warn(e, "Couldn't recycle extra file {0}, it stays on disk", path);
                 }
             }
         }

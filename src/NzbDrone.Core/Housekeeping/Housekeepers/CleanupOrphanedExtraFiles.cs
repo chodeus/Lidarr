@@ -17,7 +17,7 @@ namespace NzbDrone.Core.Housekeeping.Housekeepers
             DeleteOrphanedByArtist();
             DeleteOrphanedByAlbum();
             DeleteOrphanedByTrackFile();
-            DeleteWhereTrackFileIsZero();
+            RelinkWhereTrackFileIsZero();
         }
 
         private void DeleteOrphanedByArtist()
@@ -57,14 +57,10 @@ namespace NzbDrone.Core.Housekeeping.Housekeepers
                              AND ""TrackFiles"".""Id"" IS NULL)");
         }
 
-        // Rows an import stored before its track file had an id; the next artist scan imports their files again, linked
-        private void DeleteWhereTrackFileIsZero()
+        private void RelinkWhereTrackFileIsZero()
         {
             using var mapper = _database.OpenConnection();
-            mapper.Execute(@"DELETE FROM ""ExtraFiles""
-                             WHERE ""Id"" IN (
-                             SELECT ""Id"" FROM ""ExtraFiles""
-                             WHERE ""TrackFileId"" = 0)");
+            UnlinkedExtraFiles.Relink(mapper, "ExtraFiles");
         }
     }
 }

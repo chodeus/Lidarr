@@ -19,6 +19,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
         ReplacedAlbum BackUp(Artist artist, Album album);
         void Restore(ReplacedAlbum replacement);
         void Recycle(ReplacedAlbum replacement, IEnumerable<TrackFile> importedFiles);
+        TrackFile PutBack(TrackFile deletedFile);
     }
 
     // Moves an album's files aside before an import replaces them, then puts them back or recycles them once the import's outcome is known
@@ -121,6 +122,18 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
 
                 DeleteIfEmpty(backupFolder);
             }
+        }
+
+        // A file imported again at its own path loses its row before AddMany; a failed import gives it back, linked to the same tracks
+        public TrackFile PutBack(TrackFile deletedFile)
+        {
+            var row = _mediaFileService.Add(CopyWithoutId(deletedFile));
+            var tracks = deletedFile.Tracks.Value;
+
+            tracks.ForEach(t => t.TrackFileId = row.Id);
+            _trackService.SetFileIds(tracks);
+
+            return row;
         }
 
         private void BackUpExtras<TExtraFile>(IExtraFileService<TExtraFile> service, ReplacedAlbum replacement, TrackFile trackFile)

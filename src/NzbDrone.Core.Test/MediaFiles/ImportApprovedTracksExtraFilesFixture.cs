@@ -69,6 +69,7 @@ namespace NzbDrone.Core.Test.MediaFiles
                       File.Delete(path);
                   });
 
+            var trackService = (TrackService)Mocker.Resolve<ITrackService>();
             var lyricFileService = (LyricFileService)Mocker.Resolve<ILyricFileService>();
             var otherExtraFileService = (OtherExtraFileService)Mocker.Resolve<IOtherExtraFileService>();
             var managers = new List<IManageExtraFiles> { Mocker.Resolve<LyricService>(), Mocker.Resolve<OtherExtraService>() };
@@ -80,6 +81,7 @@ namespace NzbDrone.Core.Test.MediaFiles
                   .Setup(s => s.PublishEvent(It.IsAny<TrackFileDeletedEvent>()))
                   .Callback<TrackFileDeletedEvent>(e =>
                   {
+                      trackService.Handle(e);
                       lyricFileService.Handle(e);
                       otherExtraFileService.Handle(e);
                   });
@@ -155,17 +157,61 @@ namespace NzbDrone.Core.Test.MediaFiles
             }.Should().BeEquivalentTo(new { Lyrics = new int?[] { trackFile.Id }, Others = new int?[] { trackFile.Id } });
         }
 
+        private TrackFile GivenExistingFileWithExtras(string folder)
+        {
+            Directory.CreateDirectory(folder);
+            var path = Path.Combine(folder, "01 - Song.flac");
+            File.WriteAllText(path, "audio");
+            var existing = Db.Insert(new TrackFile { AlbumId = _album.Id, Path = path, Size = 5, Modified = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), DateAdded = DateTime.UtcNow, Quality = new QualityModel(Quality.FLAC) });
+
+            File.WriteAllText(Path.Combine(folder, "01 - Song.lrc"), "[00:01.00] lyric");
+            File.WriteAllText(Path.Combine(folder, "01 - Song.log"), "rip log");
+            Db.Insert(new LyricFile { ArtistId = _artist.Id, AlbumId = _album.Id, TrackFileId = existing.Id, RelativePath = Path.Combine("Album", "01 - Song.lrc"), Extension = ".lrc", Added = DateTime.UtcNow, LastUpdated = DateTime.UtcNow });
+            Db.Insert(new OtherExtraFile { ArtistId = _artist.Id, AlbumId = _album.Id, TrackFileId = existing.Id, RelativePath = Path.Combine("Album", "01 - Song.log"), Extension = ".log", Added = DateTime.UtcNow, LastUpdated = DateTime.UtcNow });
+
+            return existing;
+        }
+
+        [Test]
+        public void should_put_back_the_row_of_a_file_imported_again_when_the_import_fails()
+        {
+            var folder = Path.Combine(_artist.Path, "Album");
+            var existing = GivenExistingFileWithExtras(folder);
+            _track.TrackFileId = existing.Id;
+            Db.Update(_track);
+
+            // A row whose file is gone holds the path the new track lands on, so AddMany fails
+            var other = Builder<Track>.CreateNew().With(t => t.Id = 0).With(t => t.ForeignTrackId = "track-2").With(t => t.AlbumReleaseId = _release.Id).With(t => t.TrackFileId = 0).Build();
+            Db.Insert(other);
+            Db.Insert(new TrackFile { AlbumId = _album.Id, Path = Path.Combine(folder, "02 - Other.flac"), Size = 5, Modified = DateTime.UtcNow, DateAdded = DateTime.UtcNow, Quality = new QualityModel(Quality.FLAC) });
+            File.WriteAllText(Path.Combine(_download, "02 - Other.flac"), "audio");
+
+            var decisions = new List<ImportDecision<LocalTrack>>
+            {
+                new ImportDecision<LocalTrack>(new LocalTrack { Artist = _artist, Album = _album, Release = _release, Tracks = new List<Track> { _track }, Path = existing.Path, ExistingFile = true, Size = 14, Modified = existing.Modified.AddHours(1), Quality = new QualityModel(Quality.FLAC), FileTrackInfo = new ParsedTrackInfo() }),
+                new ImportDecision<LocalTrack>(new LocalTrack { Artist = _artist, Album = _album, Release = _release, Tracks = new List<Track> { other }, Path = Path.Combine(_download, "02 - Other.flac"), Quality = new QualityModel(Quality.FLAC), FileTrackInfo = new ParsedTrackInfo() })
+            };
+
+            Mocker.SetConstant<IReplaceTrackFiles>(Mocker.Resolve<TrackFileReplacementService>());
+            Assert.Catch(() => Subject.Import(decisions, false));
+
+            var putBack = Db.All<TrackFile>().Single(f => f.Path == existing.Path);
+            new
+            {
+                Track = Db.All<Track>().Single(t => t.Id == _track.Id).TrackFileId,
+                Recycled = _recycled,
+                Lyrics = Db.All<LyricFile>().Select(l => l.TrackFileId).ToArray(),
+                Others = Db.All<OtherExtraFile>().Select(o => o.TrackFileId).ToArray()
+            }.Should().BeEquivalentTo(new { Track = putBack.Id, Recycled = new List<string>(), Lyrics = new int?[] { putBack.Id }, Others = new int?[] { putBack.Id } });
+        }
+
         // A rescan imports an existing file again: changed, a tagger rewrote it; switched, a release switch unlinked its track
         [TestCase("changed")]
         [TestCase("switched")]
         public void should_move_the_extras_of_a_file_imported_again_to_its_new_row(string reason)
         {
-            var folder = Path.Combine(_artist.Path, "Album");
-            Directory.CreateDirectory(folder);
-            var path = Path.Combine(folder, "01 - Song.flac");
-            File.WriteAllText(path, "audio");
-            var modified = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-            var existing = Db.Insert(new TrackFile { AlbumId = _album.Id, Path = path, Size = 5, Modified = modified, DateAdded = DateTime.UtcNow, Quality = new QualityModel(Quality.FLAC) });
+            var existing = GivenExistingFileWithExtras(Path.Combine(_artist.Path, "Album"));
+            var modified = existing.Modified;
 
             if (reason == "changed")
             {
@@ -173,18 +219,13 @@ namespace NzbDrone.Core.Test.MediaFiles
                 Db.Update(_track);
             }
 
-            File.WriteAllText(Path.Combine(folder, "01 - Song.lrc"), "[00:01.00] lyric");
-            File.WriteAllText(Path.Combine(folder, "01 - Song.log"), "rip log");
-            Db.Insert(new LyricFile { ArtistId = _artist.Id, AlbumId = _album.Id, TrackFileId = existing.Id, RelativePath = Path.Combine("Album", "01 - Song.lrc"), Extension = ".lrc", Added = DateTime.UtcNow, LastUpdated = DateTime.UtcNow });
-            Db.Insert(new OtherExtraFile { ArtistId = _artist.Id, AlbumId = _album.Id, TrackFileId = existing.Id, RelativePath = Path.Combine("Album", "01 - Song.log"), Extension = ".log", Added = DateTime.UtcNow, LastUpdated = DateTime.UtcNow });
-
             var decision = new ImportDecision<LocalTrack>(new LocalTrack
             {
                 Artist = _artist,
                 Album = _album,
                 Release = _release,
                 Tracks = new List<Track> { _track },
-                Path = path,
+                Path = existing.Path,
                 ExistingFile = true,
                 Size = reason == "changed" ? 14 : 5,
                 Modified = reason == "changed" ? modified.AddHours(1) : modified,

@@ -184,7 +184,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             var albumReleasesDict = new Dictionary<int, List<AlbumRelease>>(albumDecisions.Count);
             var trackImportedEvents = new List<TrackImportedEvent>(qualifiedImports.Count);
             var extrasToImport = new List<(LocalTrack LocalTrack, TrackFile TrackFile, bool CopyOnly)>(qualifiedImports.Count);
-            var extrasToRelink = new List<(int PreviousTrackFileId, TrackFile TrackFile)>();
+            var reimported = new List<(TrackFile PreviousFile, TrackFile TrackFile)>();
 
             foreach (var importDecision in qualifiedImports.OrderBy(e => e.Item.Tracks.Select(track => track.AbsoluteTrackNumber).MinOrDefault())
                                                            .ThenByDescending(e => e.Item.Size))
@@ -293,8 +293,8 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
 
                         if (previousFile != null)
                         {
-                            extrasToRelink.Add((previousFile.Id, trackFile));
                             _mediaFileService.Delete(previousFile, DeleteMediaFileReason.ManualOverride);
+                            reimported.Add((previousFile, trackFile));
                         }
 
                         try
@@ -374,6 +374,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                 // Rows saved before the failure never linked; they go, and any that can't still count as this album's own
                 DeleteUnlinkedRows(filesToAdd);
                 replacements.ForEach(_trackFileReplacer.Restore);
+                PutBackPreviousRows(reimported.Select(r => r.PreviousFile));
                 throw;
             }
 
@@ -384,16 +385,9 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                 FinishAlbum(album, release, replacements.SingleOrDefault(r => r.Album.Id == album.Id), importResults, filesToAdd);
             }
 
-            foreach (var (previousTrackFileId, trackFile) in extrasToRelink)
+            foreach (var (previousFile, trackFile) in reimported)
             {
-                try
-                {
-                    _extraService.RelinkTrackFile(previousTrackFileId, trackFile);
-                }
-                catch (Exception e)
-                {
-                    _logger.Warn(e, "Couldn't move the extra files of {0} to its new row", trackFile);
-                }
+                RelinkExtras(previousFile.Id, trackFile);
             }
 
             // Only once AddMany has given the track files their ids, or each extra file is stored without its track file
@@ -765,6 +759,34 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             {
                 // Logged, not thrown: the album has imported
                 _logger.Error(e, "Couldn't recycle the replaced files of {0}; they are in {1}", album, string.Join(", ", replacement.BackupFolders(_diskProvider)));
+            }
+        }
+
+        // After DeleteUnlinkedRows, which frees the paths and the ids a rolled-back AddMany handed out
+        private void PutBackPreviousRows(IEnumerable<TrackFile> previousFiles)
+        {
+            foreach (var previousFile in previousFiles)
+            {
+                try
+                {
+                    RelinkExtras(previousFile.Id, _trackFileReplacer.PutBack(previousFile));
+                }
+                catch (Exception e)
+                {
+                    _logger.Error(e, "Couldn't put back the row of {0}; a rescan imports it again", previousFile.Path);
+                }
+            }
+        }
+
+        private void RelinkExtras(int previousTrackFileId, TrackFile trackFile)
+        {
+            try
+            {
+                _extraService.RelinkTrackFile(previousTrackFileId, trackFile);
+            }
+            catch (Exception e)
+            {
+                _logger.Warn(e, "Couldn't move the extra files of {0} to its new row", trackFile);
             }
         }
 

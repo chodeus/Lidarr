@@ -3,6 +3,7 @@ using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using NUnit.Framework;
+using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Core.Extras.Others;
 using NzbDrone.Core.Housekeeping.Housekeepers;
 using NzbDrone.Core.MediaFiles;
@@ -131,7 +132,7 @@ namespace NzbDrone.Core.Test.Housekeeping.Housekeepers
             GivenTrackFile(Path.Combine(artist.Path, "Album", "Twice.flac"));
             GivenTrackFile(Path.Combine(artist.Path, "Album", "Twice.wav"));
 
-            foreach (var name in new[] { "01 - Song.lrc", "Mr. Blue Sky.lrc", "01 - Songs Intro.lrc", "Twice.lrc", "Old Name.lrc" })
+            foreach (var name in new[] { "01 - Song.lrc", "Mr. Blue Sky.lrc", "mr. blue sky.lrc", "01 - Songs Intro.lrc", "Twice.lrc", "Old Name.lrc" })
             {
                 Db.Insert(Builder<OtherExtraFile>.CreateNew()
                                                   .With(m => m.ArtistId = artist.Id)
@@ -147,6 +148,7 @@ namespace NzbDrone.Core.Test.Housekeeping.Housekeepers
             {
                 ("01 - Song.lrc", (int?)song.Id, (int?)song.AlbumId),
                 ("Mr. Blue Sky.lrc", (int?)blueSky.Id, (int?)blueSky.AlbumId),
+                ("mr. blue sky.lrc", OsInfo.IsWindows ? blueSky.Id : 0, OsInfo.IsWindows ? blueSky.AlbumId : 1),
                 ("01 - Songs Intro.lrc", (int?)0, (int?)1),
                 ("Twice.lrc", (int?)0, (int?)1),
                 ("Old Name.lrc", (int?)0, (int?)1)

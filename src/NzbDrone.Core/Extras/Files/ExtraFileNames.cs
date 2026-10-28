@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NzbDrone.Common;
+using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Core.MediaFiles;
 
 namespace NzbDrone.Core.Extras.Files
@@ -22,11 +23,12 @@ namespace NzbDrone.Core.Extras.Files
             return matches?.Count == 1 ? matches[0] : null;
         }
 
-        // ExtraFileManager names an extra after its track file: beside it, the track file's name, a dot, then the rest
+        // ExtraFileManager names an extra after its track file: beside it, the track file's name, a dot, then the rest; case counts
+        // as PathEqualityComparer counts it
         private static bool IsNamedAfter(string extraPath, string trackFilePath)
         {
             return PathEqualityComparer.Instance.Equals(Path.GetDirectoryName(extraPath), Path.GetDirectoryName(trackFilePath)) &&
-                   Path.GetFileName(extraPath).StartsWith(Path.GetFileNameWithoutExtension(trackFilePath) + ".", StringComparison.InvariantCultureIgnoreCase);
+                   Path.GetFileName(extraPath).StartsWith(Path.GetFileNameWithoutExtension(trackFilePath) + ".", OsInfo.IsWindows ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
         }
     }
 }

@@ -15,6 +15,7 @@ namespace NzbDrone.Core.Housekeeping.Housekeepers
         public void Clean()
         {
             DeleteOrphanedByArtist();
+            DeleteOrphanedByAlbum();
             DeleteOrphanedByTrackFile();
             DeleteWhereTrackFileIsZero();
         }
@@ -28,6 +29,20 @@ namespace NzbDrone.Core.Housekeeping.Housekeepers
                              LEFT OUTER JOIN ""Artists""
                              ON ""ExtraFiles"".""ArtistId"" = ""Artists"".""Id""
                              WHERE ""Artists"".""Id"" IS NULL)");
+        }
+
+        // A release file has no track file, so it goes with its album
+        private void DeleteOrphanedByAlbum()
+        {
+            using var mapper = _database.OpenConnection();
+            mapper.Execute(@"DELETE FROM ""ExtraFiles""
+                             WHERE ""Id"" IN (
+                             SELECT ""ExtraFiles"".""Id"" FROM ""ExtraFiles""
+                             LEFT OUTER JOIN ""Albums""
+                             ON ""ExtraFiles"".""AlbumId"" = ""Albums"".""Id""
+                             WHERE ""ExtraFiles"".""TrackFileId"" IS NULL
+                             AND ""ExtraFiles"".""AlbumId"" > 0
+                             AND ""Albums"".""Id"" IS NULL)");
         }
 
         private void DeleteOrphanedByTrackFile()

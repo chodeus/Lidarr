@@ -395,6 +395,18 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                 }
             }
 
+            foreach (var album in extrasToImport.GroupBy(e => e.TrackFile.AlbumId))
+            {
+                try
+                {
+                    _extraService.ImportAlbum(album.Select(e => e.LocalTrack).ToList(), album.Select(e => e.TrackFile).ToList(), album.First().CopyOnly, replaceExisting);
+                }
+                catch (Exception e)
+                {
+                    _logger.Warn(e, "Couldn't import the release files of album {0}", album.Key);
+                }
+            }
+
             if (replaceExisting)
             {
                 try

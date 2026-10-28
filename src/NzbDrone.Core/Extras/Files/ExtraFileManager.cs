@@ -62,14 +62,8 @@ namespace NzbDrone.Core.Extras.Files
             filenameBuilder.Append(extension);
 
             var newFileName = Path.Combine(newFolder, filenameBuilder.ToString());
-            var transferMode = TransferMode.Move;
 
-            if (readOnly)
-            {
-                transferMode = _configService.CopyUsingHardlinks ? TransferMode.HardLinkOrCopy : TransferMode.Copy;
-            }
-
-            _diskTransferService.TransferFile(path, newFileName, transferMode, true);
+            Transfer(path, newFileName, readOnly, true);
 
             return new TExtraFile
             {
@@ -79,6 +73,35 @@ namespace NzbDrone.Core.Extras.Files
                 RelativePath = artist.Path.GetRelativePath(newFileName),
                 Extension = extension
             };
+        }
+
+        // A release's own file, such as its .cue or rip log: no track file, and it keeps its name
+        protected TExtraFile ImportReleaseFile(Artist artist, int albumId, string path, string folder, bool readOnly)
+        {
+            var newFileName = Path.Combine(folder, Path.GetFileName(path));
+
+            Transfer(path, newFileName, readOnly, false);
+
+            return new TExtraFile
+            {
+                ArtistId = artist.Id,
+                AlbumId = albumId,
+                TrackFileId = null,
+                RelativePath = artist.Path.GetRelativePath(newFileName),
+                Extension = Path.GetExtension(path)
+            };
+        }
+
+        private void Transfer(string path, string newFileName, bool readOnly, bool overwrite)
+        {
+            var transferMode = TransferMode.Move;
+
+            if (readOnly)
+            {
+                transferMode = _configService.CopyUsingHardlinks ? TransferMode.HardLinkOrCopy : TransferMode.Copy;
+            }
+
+            _diskTransferService.TransferFile(path, newFileName, transferMode, overwrite);
         }
 
         protected TExtraFile MoveFile(Artist artist, TrackFile trackFile, TExtraFile extraFile, string fileNameSuffix = null)
@@ -95,8 +118,19 @@ namespace NzbDrone.Core.Extras.Files
 
             filenameBuilder.Append(extraFile.Extension);
 
+            return MoveTo(artist, extraFile, Path.Combine(newFolder, filenameBuilder.ToString()));
+        }
+
+        protected TExtraFile MoveReleaseFile(Artist artist, TExtraFile extraFile, string folder)
+        {
+            _logger.Trace("Moving release file: {0}", extraFile);
+
+            return MoveTo(artist, extraFile, Path.Combine(folder, Path.GetFileName(extraFile.RelativePath)));
+        }
+
+        private TExtraFile MoveTo(Artist artist, TExtraFile extraFile, string newFileName)
+        {
             var existingFileName = Path.Combine(artist.Path, extraFile.RelativePath);
-            var newFileName = Path.Combine(newFolder, filenameBuilder.ToString());
 
             if (newFileName.PathNotEquals(existingFileName))
             {

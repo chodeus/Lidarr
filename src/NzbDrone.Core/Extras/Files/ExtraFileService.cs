@@ -100,7 +100,7 @@ namespace NzbDrone.Core.Extras.Files
             _repository.DeleteForArtists(message.Artists.Select(x => x.Id).ToList());
         }
 
-        public void Handle(TrackFileDeletedEvent message)
+        public virtual void Handle(TrackFileDeletedEvent message)
         {
             var trackFile = message.TrackFile;
 
@@ -110,23 +110,26 @@ namespace NzbDrone.Core.Extras.Files
             }
             else
             {
-                var artist = trackFile.Artist.Value;
-
-                foreach (var extra in _repository.GetFilesByTrackFile(trackFile.Id))
-                {
-                    var path = Path.Combine(artist.Path, extra.RelativePath);
-
-                    if (_diskProvider.FileExists(path))
-                    {
-                        // Send to the recycling bin so they can be recovered if necessary
-                        var subfolder = _diskProvider.GetParentFolder(artist.Path).GetRelativePath(_diskProvider.GetParentFolder(path));
-                        _recycleBinProvider.DeleteFile(path, subfolder);
-                    }
-                }
+                Recycle(trackFile.Artist.Value, _repository.GetFilesByTrackFile(trackFile.Id));
             }
 
             _logger.Debug("Deleting Extra from database for track file: {0}", trackFile);
             _repository.DeleteForTrackFile(trackFile.Id);
+        }
+
+        protected void Recycle(Artist artist, IEnumerable<TExtraFile> extraFiles)
+        {
+            foreach (var extra in extraFiles)
+            {
+                var path = Path.Combine(artist.Path, extra.RelativePath);
+
+                if (_diskProvider.FileExists(path))
+                {
+                    // Send to the recycling bin so they can be recovered if necessary
+                    var subfolder = _diskProvider.GetParentFolder(artist.Path).GetRelativePath(_diskProvider.GetParentFolder(path));
+                    _recycleBinProvider.DeleteFile(path, subfolder);
+                }
+            }
         }
     }
 }

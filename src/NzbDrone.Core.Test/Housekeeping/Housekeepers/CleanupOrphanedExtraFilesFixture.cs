@@ -78,6 +78,40 @@ namespace NzbDrone.Core.Test.Housekeeping.Housekeepers
         }
 
         [Test]
+        public void should_not_delete_a_release_file_of_an_album_still_there()
+        {
+            var artist = GivenArtist();
+            var album = Builder<Album>.CreateNew().BuildNew();
+            Db.Insert(album);
+
+            var extraFile = Builder<OtherExtraFile>.CreateNew()
+                                                  .With(m => m.ArtistId = artist.Id)
+                                                  .With(m => m.AlbumId = album.Id)
+                                                  .With(m => m.TrackFileId = null)
+                                                  .BuildNew();
+
+            Db.Insert(extraFile);
+            Subject.Clean();
+            AllStoredModels.Should().HaveCount(1);
+        }
+
+        [Test]
+        public void should_delete_a_release_file_whose_album_is_gone()
+        {
+            var artist = GivenArtist();
+
+            var extraFile = Builder<OtherExtraFile>.CreateNew()
+                                                  .With(m => m.ArtistId = artist.Id)
+                                                  .With(m => m.AlbumId = 99)
+                                                  .With(m => m.TrackFileId = null)
+                                                  .BuildNew();
+
+            Db.Insert(extraFile);
+            Subject.Clean();
+            AllStoredModels.Should().BeEmpty();
+        }
+
+        [Test]
         public void should_delete_extra_files_that_have_trackfileid_of_zero()
         {
             var artist = GivenArtist();

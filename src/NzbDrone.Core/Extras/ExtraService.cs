@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NLog;
+using NzbDrone.Common;
 using NzbDrone.Common.Disk;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Extras.Files;
+using NzbDrone.Core.Extras.Others;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.Events;
@@ -18,6 +20,7 @@ namespace NzbDrone.Core.Extras
     public interface IExtraService
     {
         void ImportTrack(LocalTrack localTrack, TrackFile trackFile, bool isReadOnly);
+        void ImportAlbum(List<LocalTrack> localTracks, List<TrackFile> trackFiles, bool isReadOnly, bool replacePrevious);
     }
 
     public class ExtraService : IExtraService,
@@ -70,9 +73,7 @@ namespace NzbDrone.Core.Extras
             var sourceFileName = Path.GetFileNameWithoutExtension(sourcePath);
             var files = _diskProvider.GetFiles(sourceFolder, false);
 
-            var wantedExtensions = _configService.ExtraFileExtensions.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
-                                                                     .Select(e => e.Trim(' ', '.'))
-                                                                     .ToList();
+            var wantedExtensions = WantedExtensions();
 
             var matchingFilenames = files.Where(f => Path.GetFileNameWithoutExtension(f).StartsWith(sourceFileName, StringComparison.InvariantCultureIgnoreCase)).ToList();
             var filteredFilenames = new List<string>();
@@ -96,9 +97,7 @@ namespace NzbDrone.Core.Extras
 
             foreach (var matchingFilename in filteredFilenames)
             {
-                var matchingExtension = wantedExtensions.FirstOrDefault(e => matchingFilename.EndsWith(e));
-
-                if (matchingExtension == null)
+                if (!IsWanted(matchingFilename, wantedExtensions))
                 {
                     continue;
                 }
@@ -121,6 +120,48 @@ namespace NzbDrone.Core.Extras
                     _logger.Warn(ex, "Failed to import extra file: {0}", matchingFilename);
                 }
             }
+        }
+
+        // Files whose names start with no track's, such as a release's .cue or rip log, go once into the album's folder
+        public void ImportAlbum(List<LocalTrack> localTracks, List<TrackFile> trackFiles, bool isReadOnly, bool replacePrevious)
+        {
+            if (!_configService.ImportExtraFiles)
+            {
+                return;
+            }
+
+            var wantedExtensions = WantedExtensions();
+            var releaseFiles = localTracks.Select(t => _diskProvider.GetParentFolder(t.Path))
+                                          .Distinct(PathEqualityComparer.Instance)
+                                          .SelectMany(folder => ReleaseFiles(folder, wantedExtensions))
+                                          .ToList();
+
+            _extraFileManagers.OfType<OtherExtraService>().SingleOrDefault()?.ImportReleaseFiles(localTracks.First().Artist, trackFiles, releaseFiles, isReadOnly, replacePrevious);
+        }
+
+        // Every audio file counts, so a file of a track that didn't import isn't taken for the release's
+        private IEnumerable<string> ReleaseFiles(string folder, List<string> wantedExtensions)
+        {
+            var files = _diskProvider.GetFiles(folder, false).ToList();
+            var trackNames = files.Where(f => MediaFileExtensions.Extensions.Contains(Path.GetExtension(f)))
+                                  .Select(Path.GetFileNameWithoutExtension)
+                                  .ToList();
+
+            return files.Where(f => IsWanted(f, wantedExtensions) &&
+                                    !trackNames.Any(n => Path.GetFileNameWithoutExtension(f).StartsWith(n, StringComparison.InvariantCultureIgnoreCase)));
+        }
+
+        private List<string> WantedExtensions()
+        {
+            return _configService.ExtraFileExtensions.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                                                     .Select(e => e.Trim(' ', '.'))
+                                                     .ToList();
+        }
+
+        // ".LOG" matches "log", and "log" doesn't match "backlog"
+        private static bool IsWanted(string path, List<string> wantedExtensions)
+        {
+            return wantedExtensions.Any(e => path.EndsWith("." + e, StringComparison.OrdinalIgnoreCase));
         }
 
         private void CreateAfterTrackImport(Artist artist, TrackFile trackFile)

@@ -184,9 +184,11 @@ namespace NzbDrone.Core.Extras.Files
             _repository.DeleteForTrackFile(trackFile.Id);
         }
 
-        // Each file on its own, so one that can't be recycled leaves the others to go
-        protected void Recycle(Artist artist, IEnumerable<TExtraFile> extraFiles)
+        // Each file on its own, so one that can't be recycled leaves the others to go; returns those no longer on disk
+        protected List<TExtraFile> Recycle(Artist artist, IEnumerable<TExtraFile> extraFiles)
         {
+            var gone = new List<TExtraFile>();
+
             foreach (var extra in extraFiles)
             {
                 var path = Path.Combine(artist.Path, extra.RelativePath);
@@ -199,12 +201,16 @@ namespace NzbDrone.Core.Extras.Files
                         var subfolder = _diskProvider.GetParentFolder(artist.Path).GetRelativePath(_diskProvider.GetParentFolder(path));
                         _recycleBinProvider.DeleteFile(path, subfolder);
                     }
+
+                    gone.Add(extra);
                 }
                 catch (Exception e)
                 {
                     _logger.Warn(e, "Couldn't recycle extra file {0}, it stays on disk", path);
                 }
             }
+
+            return gone;
         }
     }
 }

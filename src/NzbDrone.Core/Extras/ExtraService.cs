@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NLog;
-using NzbDrone.Common;
 using NzbDrone.Common.Disk;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Extras.Files;
@@ -189,9 +188,12 @@ namespace NzbDrone.Core.Extras
                 return Enumerable.Empty<string>();
             }
 
-            // An image with its cue sheet beside it isn't a track, so its "Album.cue" and "Album.log" are the release's
-            var trackNames = audio.Where(f => !files.Contains(Path.ChangeExtension(f, ".cue"), PathEqualityComparer.Instance))
-                                  .Select(Path.GetFileNameWithoutExtension)
+            // An image with its cue sheet beside it, whatever the case, isn't a track, so its "Album.cue" and "Album.log" are the release's
+            var cueSheets = files.Where(f => Path.GetExtension(f).Equals(".cue", StringComparison.OrdinalIgnoreCase))
+                                 .Select(Path.GetFileNameWithoutExtension)
+                                 .ToHashSet(StringComparer.InvariantCultureIgnoreCase);
+            var trackNames = audio.Select(Path.GetFileNameWithoutExtension)
+                                  .Where(n => !cueSheets.Contains(n))
                                   .ToList();
 
             return files.Where(f => IsWanted(f, wantedExtensions) &&

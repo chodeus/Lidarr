@@ -36,8 +36,8 @@ namespace NzbDrone.Core.Extras.Others
         {
             var releaseFiles = _repository.GetFilesByAlbum(artist.Id, albumId).Where(f => f.TrackFileId == null).ToList();
 
-            Recycle(artist, releaseFiles);
-            DeleteMany(releaseFiles.Select(f => f.Id));
+            // One that couldn't be recycled keeps its row, so the next replacing import tries it again
+            DeleteMany(Recycle(artist, releaseFiles).Select(f => f.Id));
         }
     }
 }

@@ -404,13 +404,13 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                 }
             }
 
-            // A single-file download sits in the client's shared folder, so nothing beside it is its release's
-            var sharedFolder = downloadClientItem != null && !downloadClientItem.OutputPath.IsEmpty && _diskProvider.FileExists(downloadClientItem.OutputPath.FullPath);
-
             foreach (var album in extrasToImport.GroupBy(e => e.TrackFile.AlbumId))
             {
                 try
                 {
+                    // A single-file download sits in the client's shared folder, so nothing beside it is its release's. In the try:
+                    // a client path that isn't valid here throws, and the tracks' rows are saved already
+                    var sharedFolder = downloadClientItem != null && !downloadClientItem.OutputPath.IsEmpty && _diskProvider.FileExists(downloadClientItem.OutputPath.FullPath);
                     var albumAudio = new HashSet<string>(decisions.Where(d => d.Item.Album?.Id == album.Key && d.Item.Path != null).Select(d => d.Item.Path), PathEqualityComparer.Instance);
                     var sourceFolders = sharedFolder ? new List<string>() : album.Select(e => _diskProvider.GetParentFolder(e.LocalTrack.Path)).Where(f => f != null).Distinct(PathEqualityComparer.Instance).ToList();
 

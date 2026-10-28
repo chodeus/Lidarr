@@ -16,6 +16,7 @@ using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.Extras.Others
 {
@@ -77,6 +78,22 @@ namespace NzbDrone.Core.Test.Extras.Others
 
             _recycled.Should().Equal("Album.log");
             AllStoredModels.Select(f => Path.GetFileName(f.RelativePath)).Should().BeEquivalentTo("01 - Song.lrc", "Other.log");
+        }
+
+        [Test]
+        public void should_keep_the_row_of_a_release_file_that_cannot_be_recycled()
+        {
+            File.WriteAllText(Path.Combine(_artist.Path, "Album", "Album.cue"), "cue");
+            Db.Insert(new OtherExtraFile { ArtistId = _artist.Id, AlbumId = 7, TrackFileId = null, RelativePath = Path.Combine("Album", "Album.cue"), Extension = ".cue", Added = DateTime.UtcNow, LastUpdated = DateTime.UtcNow });
+            Mocker.GetMock<IRecycleBinProvider>()
+                  .Setup(s => s.DeleteFile(_releaseFile, It.IsAny<string>()))
+                  .Throws(new IOException("file is in use"));
+
+            Subject.DeleteReleaseFiles(_artist, 7);
+
+            new { Recycled = _recycled, Rows = AllStoredModels.Select(f => Path.GetFileName(f.RelativePath)) }
+                .Should().BeEquivalentTo(new { Recycled = new[] { "Album.cue" }, Rows = new[] { "Album.log" } });
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         // Only a replacing import or the album's own deletion takes a release's files away

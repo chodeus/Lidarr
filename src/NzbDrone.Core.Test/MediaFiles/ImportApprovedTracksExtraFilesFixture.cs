@@ -275,15 +275,17 @@ namespace NzbDrone.Core.Test.MediaFiles
             Db.All<OtherExtraFile>().Should().BeEmpty();
         }
 
-        [Test]
-        public void should_import_the_cue_and_log_of_a_split_image()
+        [TestCase("Artist - Album.cue", "Artist - Album.log")]
+        [TestCase("Artist - Album.CUE", "Artist - Album.LOG")]
+        [TestCase("artist - album.cue", "artist - album.log")]
+        public void should_import_the_cue_and_log_of_a_split_image(string cue, string log)
         {
-            File.WriteAllText(Path.Combine(_download, "Artist - Album.cue"), "FILE \"Artist - Album.flac\" WAVE");
-            File.WriteAllText(Path.Combine(_download, "Artist - Album.log"), "rip log");
+            File.WriteAllText(Path.Combine(_download, cue), "FILE \"Artist - Album.flac\" WAVE");
+            File.WriteAllText(Path.Combine(_download, log), "rip log");
 
             Import("01 - Song.flac", others: new List<ImportDecision<LocalTrack>> { Rejected("Artist - Album.flac") });
 
-            Db.All<OtherExtraFile>().Select(o => Path.GetFileName(o.RelativePath)).Should().BeEquivalentTo("Artist - Album.cue", "Artist - Album.log");
+            Db.All<OtherExtraFile>().Select(o => Path.GetFileName(o.RelativePath)).Should().BeEquivalentTo(cue, log);
         }
 
         [Test]
@@ -295,6 +297,20 @@ namespace NzbDrone.Core.Test.MediaFiles
             Import("01 - Song.flac", true, item: new DownloadClientItem { DownloadId = "dl-1", CanMoveFiles = false, OutputPath = new OsPath(Path.Combine(_download, "01 - Song.flac")) });
 
             new { Recycled = _recycled, Rows = Db.All<OtherExtraFile>().Count }.Should().BeEquivalentTo(new { Recycled = new[] { "Old.log" }, Rows = 0 });
+        }
+
+        // Such as a Windows client's path with no remote path mapping, on a manual import from a local folder
+        [Test]
+        public void should_still_publish_the_import_when_the_client_path_is_not_valid_here()
+        {
+            var item = new DownloadClientItem { DownloadId = "dl-1", CanMoveFiles = false, OutputPath = new OsPath(@"C:\Downloads\Album [FLAC]") };
+
+            Import("01 - Song.flac", item: item).Should().ContainSingle(r => r.Result == ImportResultType.Imported);
+
+            Mocker.GetMock<IEventAggregator>().Verify(v => v.PublishEvent(It.IsAny<TrackImportedEvent>()), Times.Once());
+
+            // Ensure logs the path too
+            ExceptionVerification.ExpectedWarns(2);
         }
 
         [Test]

@@ -44,6 +44,16 @@ namespace NzbDrone.Core.Extras.Files
         private readonly IRecycleBinProvider _recycleBinProvider;
         private readonly Logger _logger;
 
+        // Develop's constructor, kept for plugins built against it; an album deleted with its files then leaves its unlinked extras on disk
+        public ExtraFileService(IExtraFileRepository<TExtraFile> repository,
+                                IArtistService artistService,
+                                IDiskProvider diskProvider,
+                                IRecycleBinProvider recycleBinProvider,
+                                Logger logger)
+            : this(repository, artistService, null, diskProvider, recycleBinProvider, logger)
+        {
+        }
+
         public ExtraFileService(IExtraFileRepository<TExtraFile> repository,
                                 IArtistService artistService,
                                 IMediaFileService mediaFileService,
@@ -128,7 +138,7 @@ namespace NzbDrone.Core.Extras.Files
             // A row stored unlinked goes with the album, and its file too when the one track file it's named after is being deleted;
             // MediaFileService drops the album's rows only after this, so the files it keeps are still there to tie with
             var unlinked = albumExtras.Where(e => e.TrackFileId == 0).ToList();
-            var artistFiles = unlinked.Any() ? _mediaFileService.GetFilesWithBasePath(artist.Path) : new List<TrackFile>();
+            var artistFiles = unlinked.Any() && _mediaFileService != null ? _mediaFileService.GetFilesWithBasePath(artist.Path) : new List<TrackFile>();
             var extraFiles = albumExtras.Where(e => e.TrackFileId == null || deletedTrackFileIds.Contains(e.TrackFileId.Value) ||
                                                     (e.TrackFileId == 0 && deletedTrackFileIds.Contains(ExtraFileNames.FindTrackFile(Path.Combine(artist.Path, e.RelativePath), artistFiles)?.Id ?? 0)))
                                         .ToList();

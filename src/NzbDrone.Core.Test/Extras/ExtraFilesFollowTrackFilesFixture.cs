@@ -245,5 +245,20 @@ namespace NzbDrone.Core.Test.Extras
 
             new { Recycled = _recycled, KeptOnDisk = File.Exists(Path.Combine(_artist.Path, lyric)) }.Should().BeEquivalentTo(new { Recycled = new[] { "01 - Song.log" }, KeptOnDisk = true });
         }
+
+        // Develop's constructor gives no track files to tell an unlinked extra's owner by
+        [Test]
+        public void should_keep_an_unlinked_extra_on_disk_and_drop_its_row_without_the_media_file_service()
+        {
+            var lyric = Path.Combine("Album", "01 - Song.txt");
+            File.WriteAllText(Path.Combine(_artist.Path, lyric), "lyric");
+            Db.Insert(new OtherExtraFile { ArtistId = _artist.Id, AlbumId = _album.Id, TrackFileId = 0, RelativePath = lyric, Extension = ".txt", Added = DateTime.UtcNow, LastUpdated = DateTime.UtcNow });
+            var service = new OtherExtraFileService(Mocker.Resolve<IExtraFileRepository<OtherExtraFile>>(), Mocker.Resolve<IArtistService>(), Mocker.Resolve<IDiskProvider>(), Mocker.Resolve<IRecycleBinProvider>(), TestLogger);
+
+            service.Handle(new AlbumDeletedEvent(_album, true, false) { TrackFilesToDelete = new List<TrackFile> { _trackFiles[0] } });
+
+            new { Recycled = _recycled, KeptOnDisk = File.Exists(Path.Combine(_artist.Path, lyric)), Unlinked = Db.All<OtherExtraFile>().Count(e => e.TrackFileId == 0) }
+                .Should().BeEquivalentTo(new { Recycled = new[] { "01 - Song.log" }, KeptOnDisk = true, Unlinked = 0 });
+        }
     }
 }

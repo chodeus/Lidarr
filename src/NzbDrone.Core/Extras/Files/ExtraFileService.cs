@@ -39,18 +39,21 @@ namespace NzbDrone.Core.Extras.Files
     {
         private readonly IExtraFileRepository<TExtraFile> _repository;
         private readonly IArtistService _artistService;
+        private readonly IMediaFileService _mediaFileService;
         private readonly IDiskProvider _diskProvider;
         private readonly IRecycleBinProvider _recycleBinProvider;
         private readonly Logger _logger;
 
         public ExtraFileService(IExtraFileRepository<TExtraFile> repository,
                                 IArtistService artistService,
+                                IMediaFileService mediaFileService,
                                 IDiskProvider diskProvider,
                                 IRecycleBinProvider recycleBinProvider,
                                 Logger logger)
         {
             _repository = repository;
             _artistService = artistService;
+            _mediaFileService = mediaFileService;
             _diskProvider = diskProvider;
             _recycleBinProvider = recycleBinProvider;
             _logger = logger;
@@ -122,10 +125,12 @@ namespace NzbDrone.Core.Extras.Files
             var deletedTrackFileIds = deletedFiles.Select(f => f.Id).ToHashSet();
             var albumExtras = _repository.GetFilesByAlbum(artist.Id, message.Album.Id);
 
-            // A row stored unlinked goes with the album, and its file too when it's named after one being deleted
+            // A row stored unlinked goes with the album, and its file too when the one track file it's named after is being deleted;
+            // MediaFileService drops the album's rows only after this, so the files it keeps are still there to tie with
             var unlinked = albumExtras.Where(e => e.TrackFileId == 0).ToList();
+            var artistFiles = unlinked.Any() ? _mediaFileService.GetFilesWithBasePath(artist.Path) : new List<TrackFile>();
             var extraFiles = albumExtras.Where(e => e.TrackFileId == null || deletedTrackFileIds.Contains(e.TrackFileId.Value) ||
-                                                    (e.TrackFileId == 0 && deletedFiles.Any(f => ExtraFileNames.IsNamedAfter(Path.Combine(artist.Path, e.RelativePath), f.Path))))
+                                                    (e.TrackFileId == 0 && deletedTrackFileIds.Contains(ExtraFileNames.FindTrackFile(Path.Combine(artist.Path, e.RelativePath), artistFiles)?.Id ?? 0)))
                                         .ToList();
 
             Recycle(artist, extraFiles);

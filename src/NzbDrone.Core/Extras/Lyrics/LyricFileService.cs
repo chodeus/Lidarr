@@ -12,8 +12,8 @@ namespace NzbDrone.Core.Extras.Lyrics
 
     public class LyricFileService : ExtraFileService<LyricFile>, ILyricFileService
     {
-        public LyricFileService(IExtraFileRepository<LyricFile> repository, IArtistService artistService, IDiskProvider diskProvider, IRecycleBinProvider recycleBinProvider, Logger logger)
-            : base(repository, artistService, diskProvider, recycleBinProvider, logger)
+        public LyricFileService(IExtraFileRepository<LyricFile> repository, IArtistService artistService, IMediaFileService mediaFileService, IDiskProvider diskProvider, IRecycleBinProvider recycleBinProvider, Logger logger)
+            : base(repository, artistService, mediaFileService, diskProvider, recycleBinProvider, logger)
         {
         }
     }

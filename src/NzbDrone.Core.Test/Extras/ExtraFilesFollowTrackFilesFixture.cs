@@ -230,5 +230,20 @@ namespace NzbDrone.Core.Test.Extras
                 Rows = Db.All<OtherExtraFile>().Select(e => Path.GetFileName(e.RelativePath)).ToList()
             }.Should().BeEquivalentTo(new { Recycled = new[] { "01 - Song.log", "01 - Song.txt" }, KeptOnDisk = true, Rows = new[] { "02 - Song.log" } });
         }
+
+        [Test]
+        public void should_keep_an_unlinked_extra_on_disk_when_its_name_also_fits_a_track_file_the_album_keeps()
+        {
+            var kept = Path.Combine(_artist.Path, "Album", "01 - Song.wav");
+            File.WriteAllText(kept, "audio");
+            Db.Insert(new TrackFile { AlbumId = _album.Id, Path = kept, Quality = new QualityModel(Quality.FLAC), DateAdded = DateTime.UtcNow, Modified = DateTime.UtcNow });
+            var lyric = Path.Combine("Album", "01 - Song.txt");
+            File.WriteAllText(Path.Combine(_artist.Path, lyric), "lyric");
+            Db.Insert(new OtherExtraFile { ArtistId = _artist.Id, AlbumId = _album.Id, TrackFileId = 0, RelativePath = lyric, Extension = ".txt", Added = DateTime.UtcNow, LastUpdated = DateTime.UtcNow });
+
+            _otherExtraFileService.Handle(new AlbumDeletedEvent(_album, true, false) { TrackFilesToDelete = new List<TrackFile> { _trackFiles[0] } });
+
+            new { Recycled = _recycled, KeptOnDisk = File.Exists(Path.Combine(_artist.Path, lyric)) }.Should().BeEquivalentTo(new { Recycled = new[] { "01 - Song.log" }, KeptOnDisk = true });
+        }
     }
 }

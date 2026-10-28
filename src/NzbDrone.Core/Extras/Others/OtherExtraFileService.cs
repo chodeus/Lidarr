@@ -19,8 +19,8 @@ namespace NzbDrone.Core.Extras.Others
     {
         private readonly IExtraFileRepository<OtherExtraFile> _repository;
 
-        public OtherExtraFileService(IExtraFileRepository<OtherExtraFile> repository, IArtistService artistService, IDiskProvider diskProvider, IRecycleBinProvider recycleBinProvider, Logger logger)
-            : base(repository, artistService, diskProvider, recycleBinProvider, logger)
+        public OtherExtraFileService(IExtraFileRepository<OtherExtraFile> repository, IArtistService artistService, IMediaFileService mediaFileService, IDiskProvider diskProvider, IRecycleBinProvider recycleBinProvider, Logger logger)
+            : base(repository, artistService, mediaFileService, diskProvider, recycleBinProvider, logger)
         {
             _repository = repository;
         }

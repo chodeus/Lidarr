@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
@@ -6,6 +5,7 @@ using System.Linq;
 using Dapper;
 using NzbDrone.Common;
 using NzbDrone.Core.Datastore;
+using NzbDrone.Core.Extras.Files;
 using NzbDrone.Core.MediaFiles;
 
 namespace NzbDrone.Core.Housekeeping.Housekeepers
@@ -45,12 +45,11 @@ namespace NzbDrone.Core.Housekeeping.Housekeepers
             foreach (var row in unlinked)
             {
                 var path = Path.Combine(row.ArtistPath, row.RelativePath);
-                var name = Path.GetFileName(path);
 
                 // The longest name wins, so "Mr. Blue Sky.lrc" goes to "Mr. Blue Sky.flac", not "Mr.flac"; a tie ("Song.flac" and
                 // "Song.wav" for "Song.lrc") can't say which, so the row stays unlinked
                 var matches = trackFilesByFolder[Path.GetDirectoryName(path)]
-                    .Where(f => name.StartsWith(Path.GetFileNameWithoutExtension(f.Path) + ".", StringComparison.InvariantCultureIgnoreCase))
+                    .Where(f => ExtraFileNames.IsNamedAfter(path, f.Path))
                     .GroupBy(f => Path.GetFileNameWithoutExtension(f.Path).Length)
                     .OrderByDescending(g => g.Key)
                     .FirstOrDefault()?

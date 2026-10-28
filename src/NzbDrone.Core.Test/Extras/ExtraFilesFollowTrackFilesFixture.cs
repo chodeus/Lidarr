@@ -12,6 +12,8 @@ using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Datastore.Events;
 using NzbDrone.Core.Extras.Files;
 using NzbDrone.Core.Extras.Lyrics;
+using NzbDrone.Core.Extras.Metadata;
+using NzbDrone.Core.Extras.Metadata.Files;
 using NzbDrone.Core.Extras.Others;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.Events;
@@ -191,6 +193,42 @@ namespace NzbDrone.Core.Test.Extras
             _otherExtraFileService.Handle(deleted);
 
             new { OnDisk = _extras.Count(File.Exists), Rows = ExtraRows }.Should().BeEquivalentTo(new { OnDisk = left, Rows = left });
+        }
+
+        // An album's own file, such as its cover, has no track file; nothing says which files the album deletes
+        [Test]
+        public void should_recycle_the_albums_own_extras_when_it_is_deleted_with_its_files()
+        {
+            Mocker.SetConstant<IExtraFileRepository<MetadataFile>>(Mocker.Resolve<MetadataFileRepository>());
+            var cover = Path.Combine("Album", "cover.jpg");
+            File.WriteAllText(Path.Combine(_artist.Path, cover), "image");
+            Db.Insert(new MetadataFile { ArtistId = _artist.Id, AlbumId = _album.Id, TrackFileId = null, RelativePath = cover, Extension = ".jpg", Consumer = "XbmcMetadata", Type = MetadataType.AlbumImage, Added = DateTime.UtcNow, LastUpdated = DateTime.UtcNow });
+
+            Mocker.Resolve<MetadataFileService>().Handle(new AlbumDeletedEvent(_album, true, false));
+
+            new { Recycled = _recycled, Rows = Db.All<MetadataFile>().Count }.Should().BeEquivalentTo(new { Recycled = new[] { "cover.jpg" }, Rows = 0 });
+        }
+
+        // Rows develop stored before their track files had ids; a name only counts beside its track file
+        [Test]
+        public void should_recycle_an_unlinked_extra_only_when_it_is_named_after_a_track_file_being_deleted()
+        {
+            Directory.CreateDirectory(Path.Combine(_artist.Path, "Album", "Scans"));
+
+            foreach (var relativePath in new[] { Path.Combine("Album", "01 - Song.txt"), Path.Combine("Album", "02 - Song.txt"), Path.Combine("Album", "Scans", "01 - Song.txt") })
+            {
+                File.WriteAllText(Path.Combine(_artist.Path, relativePath), "lyric");
+                Db.Insert(new OtherExtraFile { ArtistId = _artist.Id, AlbumId = _album.Id, TrackFileId = 0, RelativePath = relativePath, Extension = ".txt", Added = DateTime.UtcNow, LastUpdated = DateTime.UtcNow });
+            }
+
+            _otherExtraFileService.Handle(new AlbumDeletedEvent(_album, true, false) { TrackFilesToDelete = new List<TrackFile> { _trackFiles[0] } });
+
+            new
+            {
+                Recycled = _recycled,
+                KeptOnDisk = File.Exists(Path.Combine(_artist.Path, "Album", "02 - Song.txt")) && File.Exists(Path.Combine(_artist.Path, "Album", "Scans", "01 - Song.txt")),
+                Rows = Db.All<OtherExtraFile>().Select(e => Path.GetFileName(e.RelativePath)).ToList()
+            }.Should().BeEquivalentTo(new { Recycled = new[] { "01 - Song.log", "01 - Song.txt" }, KeptOnDisk = true, Rows = new[] { "02 - Song.log" } });
         }
     }
 }

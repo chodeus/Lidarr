@@ -118,13 +118,18 @@ namespace NzbDrone.Core.Extras.Files
 
             // Only the extras of the files being deleted, and the album's own: a file on an unmonitored release stays, with its extras
             var artist = message.Album.Artist.Value;
-            var deletedTrackFileIds = (message.TrackFilesToDelete ?? new List<TrackFile>()).Select(f => f.Id).ToHashSet();
-            var extraFiles = _repository.GetFilesByAlbum(artist.Id, message.Album.Id)
-                                        .Where(e => e.TrackFileId == null || deletedTrackFileIds.Contains(e.TrackFileId.Value))
+            var deletedFiles = message.TrackFilesToDelete ?? new List<TrackFile>();
+            var deletedTrackFileIds = deletedFiles.Select(f => f.Id).ToHashSet();
+            var albumExtras = _repository.GetFilesByAlbum(artist.Id, message.Album.Id);
+
+            // A row stored unlinked goes with the album, and its file too when it's named after one being deleted
+            var unlinked = albumExtras.Where(e => e.TrackFileId == 0).ToList();
+            var extraFiles = albumExtras.Where(e => e.TrackFileId == null || deletedTrackFileIds.Contains(e.TrackFileId.Value) ||
+                                                    (e.TrackFileId == 0 && deletedFiles.Any(f => ExtraFileNames.IsNamedAfter(Path.Combine(artist.Path, e.RelativePath), f.Path))))
                                         .ToList();
 
             Recycle(artist, extraFiles);
-            _repository.DeleteMany(extraFiles);
+            _repository.DeleteMany(extraFiles.Union(unlinked).ToList());
         }
 
         // The file may now belong to another album, so the album moves with the track file

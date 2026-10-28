@@ -130,8 +130,17 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             var row = _mediaFileService.Add(CopyWithoutId(deletedFile));
             var tracks = deletedFile.Tracks.Value;
 
-            tracks.ForEach(t => t.TrackFileId = row.Id);
-            _trackService.SetFileIds(tracks);
+            try
+            {
+                tracks.ForEach(t => t.TrackFileId = row.Id);
+                _trackService.SetFileIds(tracks);
+            }
+            catch
+            {
+                // Left without its tracks, the row would hide the unchanged file from a default rescan
+                _mediaFileService.Delete(row, DeleteMediaFileReason.ManualOverride);
+                throw;
+            }
 
             return row;
         }

@@ -44,6 +44,8 @@
   - Refreshing selected artists rescans only their folders, not every root folder. A full refresh, or a selected artist that was merged away, still scans the root folders.
 - **Artist aliases in import matching** — branch [`feat/artist-alias-distance`](https://github.com/chodeus/Lidarr/tree/feat/artist-alias-distance), not submitted
   - Import matching scores a file's artist against the artist's name and every MusicBrainz alias, keeping the closest, so files tagged "Kanye West" match Ye.
+- **Artist tags crediting several artists** — branch [`fix/tagged-artist-lists`](https://github.com/chodeus/Lidarr/tree/fix/tagged-artist-lists), builds on `feat/artist-alias-distance`, not submitted
+  - Import matching scores an artist tag that lists several artists, such as "Artist A;Artist B" or "Artist A feat. Artist B", against each credited artist as well as the whole credit, so a correct release isn't pushed under the import threshold. A tag that is only a web address, as some download sites write, isn't scored.
 - **Featured credit keeps the rest of a track title** — branch [`fix/feat-credit-keeps-version`](https://github.com/chodeus/Lidarr/tree/fix/feat-credit-keeps-version), not submitted
   - Import matching removes a bracketed "(feat. …)" up to its own closing bracket, so "Song (feat. Guest) (Remixer Remix)" is compared as "Song (Remixer Remix)" instead of "Song".
 - **qBittorrent duplicate torrents** — branch [`fix/qbittorrent-existing-torrent`](https://github.com/chodeus/Lidarr/tree/fix/qbittorrent-existing-torrent), not submitted
@@ -57,6 +59,8 @@
 - **Unmapped duplicate files** — branch [`fix/unmapped-duplicates`](https://github.com/chodeus/Lidarr/tree/fix/unmapped-duplicates), not submitted
   - A rescan no longer re-imports a file that is unchanged on disk and already linked to the tracks it matched, so it keeps its date added and tags, and a duplicate copy can't take its place each day.
   - After a download import, an unmapped copy of an imported track in the same folder is removed (to the recycle bin when one is set), unless its quality beats the import (FLAC 24bit beats FLAC in the Lossless group).
+- **Keep an album's files until the replacing import is in** — branch [`fix/replace-import-rollback`](https://github.com/chodeus/Lidarr/tree/fix/replace-import-rollback), builds on `fix/unmapped-duplicates`, not submitted
+  - A download import moves the album's old files and their extras to a hidden `.lidarr-replaced` folder beside them, instead of recycling them first. Once a new track imports, the old files go to the recycle bin and the release switches; when none imports, they move back with their rows, track links and extras.
 - **Faster library, Wanted and history queries** — branch [`perf/database-queries`](https://github.com/chodeus/Lidarr/tree/perf/database-queries), not submitted
   - Artist, album and track lists load their releases, artists and statistics in batches instead of one query per row, the Wanted pages use `EXISTS` subqueries, and history counts skip the Tracks join unless a filter needs it. API output is unchanged. Migration 907 adds missing indexes and drops `IX_AlbumReleases_Monitored`.
 - **Artist track file lookup** — branch [`perf/files-by-artist`](https://github.com/chodeus/Lidarr/tree/perf/files-by-artist), not submitted
@@ -85,6 +89,10 @@
   - An artist the metadata source no longer has is kept and marked instead of deleted. An album it no longer has (not found, or no usable releases) is kept and marked when it has files, was added by hand or was synced before; one the source never had a usable copy of is deleted, as develop does. A health check lists the marked albums. An album without files that drops out of its artist's list is still removed when the source still has it (excluded by the metadata profile, or moved to another artist). Migration 908.
 - **New albums left empty by a scheduled refresh** — branch [`fix/refresh-never-synced-albums`](https://github.com/chodeus/Lidarr/tree/fix/refresh-never-synced-albums), not submitted
   - A scheduled artist refresh refreshes only the albums on the source's changed list, so an album new to the artist's list but not on that list was added with no releases or tracks and stayed empty. An album that has never synced is now always refreshed; synced albums still follow the list.
+- **Refresh keeps changes saved while it runs** — branch [`fix/refresh-keeps-concurrent-changes`](https://github.com/chodeus/Lidarr/tree/fix/refresh-keeps-concurrent-changes), builds on `fix/keep-unlisted-metadata`, not submitted
+  - An artist or album refresh no longer undoes a monitoring, profile or tag change, a folder move, or a search saved while it ran.
+- **Removed artists stay marked** — branch [`fix/store-removed-artist-status`](https://github.com/chodeus/Lidarr/tree/fix/store-removed-artist-status), builds on `fix/refresh-keeps-concurrent-changes`, not submitted
+  - An artist the metadata source reports as not found is now stored as Deleted, so the removed-artist health check lists it. A later refresh that finds the artist again clears the mark.
 - **Metadata source profiles** — branch [`feat/metadata-source-profiles`](https://github.com/chodeus/Lidarr/tree/feat/metadata-source-profiles), builds on `fix/profile-order-and-tags`, not submitted
   - Settings → Metadata gets a Metadata Sources section: Lidarr's own server and other SkyHook-compatible servers by URL. Settings → Profiles gets metadata source profiles, applied to artists by tag, that set which sources answer first (combined with Or or And) and which are fallbacks. Search uses the default profile and labels each result with its source. A source that is down fails the lookup instead of counting as not found. An album answer without releases counts as not found, so the next source is asked. A tag a profile uses counts as in use. Migration 909.
 - **Other metadata sources' IDs** — branch [`feat/metadata-source-ids`](https://github.com/chodeus/Lidarr/tree/feat/metadata-source-ids), builds on `feat/metadata-source-profiles`, not submitted
@@ -102,6 +110,20 @@
   - Migration 900.
 - **Excluded tags and multiple indexers on release profiles** — branch [`feat/release-profile-tags-indexers`](https://github.com/chodeus/Lidarr/tree/feat/release-profile-tags-indexers), builds on `metadata-profile-must-not-contain`, not submitted
   - Release profiles get Excluded Tags: a profile doesn't apply to an artist with any of them, and a tag used only that way still counts as in use. A profile can list several indexers instead of one (none means every indexer); the API keeps `indexerId` for older clients. Migrations 911 and 912.
+- **Rescans with a deleted artist** — branch [`fix/scan-skips-deleted-artists`](https://github.com/chodeus/Lidarr/tree/fix/scan-skips-deleted-artists), not submitted
+  - A queued rescan no longer fails for every artist on it when one was deleted before or during the scan. It skips the deleted artist, and creates no folder and writes no extra or metadata files for it.
+- **Manual import of an unfinished download** — branch [`fix/manual-import-unprocessed-download`](https://github.com/chodeus/Lidarr/tree/fix/manual-import-unprocessed-download), not submitted
+  - A manual import tied to a download that completed-download handling never processed no longer fails after importing. The download's folder is cleaned up and the download marked imported only once its client reports it completed; an unfinished one stays in the queue. An unknown download id imports the files without a download, copying them unless the import asks to move.
+- **AcoustID and recordings of the same song** — branch [`fix/acoustid-same-song`](https://github.com/chodeus/Lidarr/tree/fix/acoustid-same-song), builds on `feat/metadata-source-ids`, not submitted
+  - Fingerprints go to AcoustID at most 10 to a request, so a large release is no longer refused as too large and left unchecked. A file AcoustID files under another recording of the same song (same title and artist, within 3 seconds) costs a small penalty instead of the full one, so its album is no longer rejected as "Worst track match".
+- **Track file relative path in the API** — branch [`feat/track-file-relative-path`](https://github.com/chodeus/Lidarr/tree/feat/track-file-relative-path), not submitted
+  - `/api/v1/trackfile` gives each file's `relativePath` inside the artist's folder, as Sonarr and Radarr do. `path` stays the absolute path.
+- **Extra files linked to their track files** — branch [`fix/extras-link-track-files`](https://github.com/chodeus/Lidarr/tree/fix/extras-link-track-files), builds on `fix/replace-import-rollback`, not submitted
+  - Lyrics and other extra files imported with a track are linked to its track file, so they're renamed, moved and recycled with it instead of left behind. Housekeeping links old unlinked rows by name, and removes rows whose artist or track file is gone.
+  - Removing a root folder, or a scan finding a file gone, leaves its extras on disk, and a file imported again at the same path keeps them.
+- **A release's own files, such as its cue sheet and rip log** — branch [`feat/release-extra-files`](https://github.com/chodeus/Lidarr/tree/feat/release-extra-files), builds on `fix/extras-link-track-files`, not submitted
+  - With Import Extra Files on, a release's own files with a wanted extension, such as its `.cue` and `.log`, are imported once into the album's folder under their own names, including the cue sheet and rip log of a split image. They move with the album's tracks on rename.
+  - A replacing import sends the previous release's files to the recycle bin first, unless its tracks come from inside the artist's folder, and deleting the album with its files recycles them too. Migration 915.
 
 ## How the build works
 

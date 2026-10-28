@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using NLog;
 using NzbDrone.Common.Disk;
+using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Extras.Files;
 using NzbDrone.Core.Extras.Others;
@@ -172,8 +173,11 @@ namespace NzbDrone.Core.Extras
                 releaseFiles = sourceFolders.SelectMany(folder => ReleaseFiles(folder, albumAudio, wantedExtensions)).ToList();
             }
 
-            // Even with Import Extra Files off, as a replaced track's own extras go whatever the setting
-            _extraFileManagers.OfType<OtherExtraService>().SingleOrDefault()?.ImportReleaseFiles(artist, trackFiles, releaseFiles, isReadOnly, replacePrevious);
+            // Even with Import Extra Files off, as a replaced track's own extras go whatever the setting. Not from inside the artist's
+            // folder, as a client saving into the album's folder: the album's release files there are this release's own
+            var recyclePrevious = replacePrevious && !albumAudio.Any(artist.Path.IsParentPath);
+
+            _extraFileManagers.OfType<OtherExtraService>().SingleOrDefault()?.ImportReleaseFiles(artist, trackFiles, releaseFiles, isReadOnly, recyclePrevious);
         }
 
         // Only from a folder holding no other album's audio, and every audio file counts, so a track that didn't import keeps its lyrics out

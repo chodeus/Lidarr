@@ -301,6 +301,7 @@ namespace NzbDrone.Core.Test.MediaFiles
 
         // Such as a Windows client's path with no remote path mapping, on a manual import from a local folder
         [Test]
+        [Platform(Exclude = "Win")]
         public void should_still_publish_the_import_when_the_client_path_is_not_valid_here()
         {
             var item = new DownloadClientItem { DownloadId = "dl-1", CanMoveFiles = false, OutputPath = new OsPath(@"C:\Downloads\Album [FLAC]") };
@@ -311,6 +312,27 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             // Ensure logs the path too
             ExceptionVerification.ExpectedWarns(2);
+        }
+
+        // Such as a client saving into the album's folder, its tracks renamed where they are
+        [Test]
+        public void should_keep_the_albums_release_files_on_a_replacing_import_from_inside_the_artist_folder()
+        {
+            GivenReleaseFileFromAnEarlierImport("Album.log");
+            _download = _albumFolder;
+            Mocker.GetMock<IUpgradeMediaFiles>()
+                  .Setup(s => s.UpgradeTrackFile(It.IsAny<TrackFile>(), It.IsAny<LocalTrack>(), It.IsAny<bool>()))
+                  .Returns<TrackFile, LocalTrack, bool>((f, l, c) =>
+                  {
+                      f.Path = Path.Combine(_albumFolder, "01 - Song.flac");
+                      File.Move(l.Path, f.Path);
+                      return new TrackFileMoveResult { TrackFile = f };
+                  });
+
+            Import("track01.flac", true).Should().ContainSingle(r => r.Result == ImportResultType.Imported);
+
+            new { Recycled = _recycled, OnDisk = File.Exists(Path.Combine(_albumFolder, "Album.log")), Rows = Db.All<OtherExtraFile>().Count }
+                .Should().BeEquivalentTo(new { Recycled = Array.Empty<string>(), OnDisk = true, Rows = 1 });
         }
 
         [Test]

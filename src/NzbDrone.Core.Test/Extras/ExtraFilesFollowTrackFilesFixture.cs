@@ -110,6 +110,23 @@ namespace NzbDrone.Core.Test.Extras
                 .Should().BeEquivalentTo(new { Recycled = new List<string>(), OnDisk = 4, Rows = 0 });
         }
 
+        // A tagger renamed the audio outside Lidarr; the scan drops the old rows, and what came with the files stays beside them
+        [Test]
+        public void should_keep_the_extra_files_on_disk_when_a_scan_finds_their_track_files_gone()
+        {
+            var renamed = _trackFiles.Select(f =>
+            {
+                var path = Path.Combine(Path.GetDirectoryName(f.Path), "Artist - " + Path.GetFileName(f.Path));
+                File.Move(f.Path, path);
+                return path;
+            }).ToList();
+
+            Mocker.Resolve<MediaFileTableCleanupService>().Clean(_artist.Path, renamed);
+
+            new { Recycled = _recycled, OnDisk = _extras.Count(File.Exists), Rows = ExtraRows }
+                .Should().BeEquivalentTo(new { Recycled = new List<string>(), OnDisk = 4, Rows = 0 });
+        }
+
         [Test]
         public void should_recycle_a_track_files_extras_when_a_user_deletes_it()
         {

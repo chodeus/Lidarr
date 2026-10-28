@@ -226,13 +226,13 @@ namespace NzbDrone.Core.Test.MediaFiles
 
         [TestCase("01 - Song.LRC", 1)]
         [TestCase("01 - Song.backlrc", 0)]
-        public void should_match_a_wanted_extension_regardless_of_case_and_only_after_a_dot(string name, int lyrics)
+        public void should_match_a_wanted_extension_regardless_of_case_and_only_after_a_dot(string name, int extras)
         {
             File.WriteAllText(Path.Combine(_download, name), "[00:01.00] lyric");
 
             Import("01 - Song.flac");
 
-            Db.All<LyricFile>().Should().HaveCount(lyrics);
+            (Db.All<LyricFile>().Count + Db.All<OtherExtraFile>().Count).Should().Be(extras);
         }
     }
 }

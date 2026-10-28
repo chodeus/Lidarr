@@ -51,6 +51,15 @@ namespace NzbDrone.Core.Test.Profiles.Releases
         }
 
         [Test]
+        public void should_take_every_indexer_when_an_older_build_changed_it_to_any()
+        {
+            var profile = Add(5, 7);
+            Execute($"UPDATE \"ReleaseProfiles\" SET \"IndexerId\" = 0 WHERE \"Id\" = {profile.Id}");
+
+            Subject.Get(profile.Id).IndexerIds.Should().BeEmpty();
+        }
+
+        [Test]
         public void should_keep_every_indexer_this_build_saved()
         {
             var profile = Add(5, 7);

@@ -27,12 +27,12 @@ namespace NzbDrone.Core.Profiles.Releases
             }
         }
 
-        // After a read: an older build saves only IndexerId, so a list that is empty or starts with another indexer is older than it
+        // After a read: this build stores its first indexer as IndexerId, so any other IndexerId, 0 (every indexer) too, is an older build's
         public void TakeIndexerSavedByAnOlderBuild()
         {
-            if (_storedIndexerId > 0 && IndexerIds.FirstOrDefault() != _storedIndexerId)
+            if (IndexerIds.FirstOrDefault() != _storedIndexerId)
             {
-                IndexerIds = new List<int> { _storedIndexerId };
+                IndexerId = _storedIndexerId;
             }
         }
 

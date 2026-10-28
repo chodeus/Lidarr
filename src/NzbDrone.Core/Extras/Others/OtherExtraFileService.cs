@@ -9,7 +9,10 @@ namespace NzbDrone.Core.Extras.Others
 {
     public interface IOtherExtraFileService : IExtraFileService<OtherExtraFile>
     {
-        void DeleteReleaseFiles(Artist artist, int albumId);
+        // A default body, so an implementation built against develop still loads
+        void DeleteReleaseFiles(Artist artist, int albumId)
+        {
+        }
     }
 
     public class OtherExtraFileService : ExtraFileService<OtherExtraFile>, IOtherExtraFileService

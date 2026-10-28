@@ -59,8 +59,7 @@ namespace NzbDrone.Core.Housekeeping.Housekeepers
 
         private void RelinkWhereTrackFileIsZero()
         {
-            using var mapper = _database.OpenConnection();
-            UnlinkedExtraFiles.Relink(mapper, "ExtraFiles");
+            UnlinkedExtraFiles.Relink(_database, "ExtraFiles");
         }
     }
 }

@@ -119,14 +119,22 @@ namespace NzbDrone.Core.Test.Extras
             ExtraRows.Should().Be(2);
         }
 
+        // The event aggregator runs synchronous handlers first, so the extras are gone before the asynchronous empty-folder check
+        [Test]
+        public void should_take_an_albums_extras_away_synchronously()
+        {
+            typeof(OtherExtraFileService).Should().Implement<IHandle<AlbumDeletedEvent>>();
+            typeof(IHandleAsync<AlbumDeletedEvent>).IsAssignableFrom(typeof(OtherExtraFileService)).Should().BeFalse();
+        }
+
         [TestCase(true, 0)]
         [TestCase(false, 4)]
         public void should_recycle_the_albums_extras_only_when_the_album_is_deleted_with_its_files(bool deleteFiles, int left)
         {
             var deleted = new AlbumDeletedEvent(_album, deleteFiles, false) { TrackFilesToDelete = Subject.GetFilesByAlbum(_album.Id) };
 
-            _lyricFileService.HandleAsync(deleted);
-            _otherExtraFileService.HandleAsync(deleted);
+            _lyricFileService.Handle(deleted);
+            _otherExtraFileService.Handle(deleted);
 
             new { OnDisk = _extras.Count(File.Exists), Rows = ExtraRows }.Should().BeEquivalentTo(new { OnDisk = left, Rows = left });
         }

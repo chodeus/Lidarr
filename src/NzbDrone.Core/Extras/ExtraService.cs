@@ -20,8 +20,15 @@ namespace NzbDrone.Core.Extras
     public interface IExtraService
     {
         void ImportTrack(LocalTrack localTrack, TrackFile trackFile, bool isReadOnly);
-        void ImportAlbum(Artist artist, List<string> sourceFolders, List<TrackFile> trackFiles, ISet<string> albumAudio, bool isReadOnly, bool replacePrevious);
-        void RelinkTrackFile(int previousTrackFileId, TrackFile trackFile);
+
+        // Default bodies, so an implementation built against develop still loads
+        void ImportAlbum(Artist artist, List<string> sourceFolders, List<TrackFile> trackFiles, ISet<string> albumAudio, bool isReadOnly, bool replacePrevious)
+        {
+        }
+
+        void RelinkTrackFile(int previousTrackFileId, TrackFile trackFile)
+        {
+        }
     }
 
     public class ExtraService : IExtraService,
@@ -38,6 +45,18 @@ namespace NzbDrone.Core.Extras
         private readonly List<IManageExtraFiles> _extraFileManagers;
         private readonly List<IRelinkExtraFiles> _extraFileRelinkers;
         private readonly Logger _logger;
+
+        // Develop's constructor, kept for plugins built against it; a file imported again then loses its extras' links, as in develop
+        public ExtraService(IMediaFileService mediaFileService,
+                            IAlbumService albumService,
+                            ITrackService trackService,
+                            IDiskProvider diskProvider,
+                            IConfigService configService,
+                            IEnumerable<IManageExtraFiles> extraFileManagers,
+                            Logger logger)
+            : this(mediaFileService, albumService, trackService, diskProvider, configService, extraFileManagers, Enumerable.Empty<IRelinkExtraFiles>(), logger)
+        {
+        }
 
         public ExtraService(IMediaFileService mediaFileService,
                             IAlbumService albumService,
@@ -58,9 +77,20 @@ namespace NzbDrone.Core.Extras
             _logger = logger;
         }
 
+        // Each kind on its own, so one that fails leaves the others linked
         public void RelinkTrackFile(int previousTrackFileId, TrackFile trackFile)
         {
-            _extraFileRelinkers.ForEach(r => r.Relink(previousTrackFileId, trackFile.Id));
+            foreach (var relinker in _extraFileRelinkers)
+            {
+                try
+                {
+                    relinker.Relink(previousTrackFileId, trackFile.Id);
+                }
+                catch (Exception e)
+                {
+                    _logger.Warn(e, "Couldn't move the {0} of {1} to its new row", relinker.GetType().Name, trackFile);
+                }
+            }
         }
 
         public void ImportTrack(LocalTrack localTrack, TrackFile trackFile, bool isReadOnly)

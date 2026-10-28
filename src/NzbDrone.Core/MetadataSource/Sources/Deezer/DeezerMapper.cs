@@ -61,7 +61,7 @@ namespace NzbDrone.Core.MetadataSource.Sources.Deezer
                 ReleaseDate = ParseDate(resource.ReleaseDate),
                 AlbumType = PrimaryType(resource.RecordType),
                 SecondaryTypes = resource.RecordType == "compile" ? new List<SecondaryAlbumType> { SecondaryAlbumType.Compilation } : new List<SecondaryAlbumType>(),
-                Genres = resource.Genres?.Data.Select(g => g.Name).ToList() ?? new List<string>(),
+                Genres = resource.Genres?.Data?.Select(g => g.Name).ToList() ?? new List<string>(),
                 Ratings = new Ratings(),
                 Images = Images(MediaCoverTypes.Cover, resource.CoverXl),
                 Links = Links(resource.Link),

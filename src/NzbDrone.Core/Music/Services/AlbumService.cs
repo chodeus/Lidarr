@@ -34,6 +34,17 @@ namespace NzbDrone.Core.Music
         void SetAlbumMonitored(int albumId, bool monitored);
         void SetMonitored(IEnumerable<int> ids, bool monitored);
         void UpdateLastSearchTime(List<Album> albums);
+
+        // Default bodies keep implementations built against develop working.
+        void UpdateMetadataMissingSince(List<Album> albums)
+        {
+        }
+
+        List<Album> GetAlbumsMissingFromMetadata()
+        {
+            return new List<Album>();
+        }
+
         PagingSpec<Album> AlbumsWithoutFiles(PagingSpec<Album> pagingSpec);
         List<Album> AlbumsBetweenDates(DateTime start, DateTime end, bool includeUnmonitored);
         List<Album> ArtistAlbumsBetweenDates(Artist artist, DateTime start, DateTime end, bool includeUnmonitored);
@@ -412,6 +423,16 @@ namespace NzbDrone.Core.Music
         public void UpdateLastSearchTime(List<Album> albums)
         {
             _albumRepository.SetFields(albums, a => a.LastSearchTime);
+        }
+
+        public void UpdateMetadataMissingSince(List<Album> albums)
+        {
+            _albumRepository.SetFields(albums, a => a.MetadataMissingSince);
+        }
+
+        public List<Album> GetAlbumsMissingFromMetadata()
+        {
+            return _albumRepository.GetAlbumsMissingFromMetadata();
         }
 
         public void Handle(ArtistsDeletedEvent message)

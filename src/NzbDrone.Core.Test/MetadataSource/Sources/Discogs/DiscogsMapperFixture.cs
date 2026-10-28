@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using FluentAssertions;
 using NUnit.Framework;
@@ -124,6 +125,23 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources.Discogs
         public void reads_the_disc_from_the_position(string position, int medium)
         {
             DiscogsMapper.MediumNumber(position).Should().Be(medium);
+        }
+
+        [Test]
+        public void reads_ids_and_vinyl_sides_regardless_of_culture()
+        {
+            var current = CultureInfo.CurrentCulture;
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("tr-TR");
+            try
+            {
+                DiscogsMapper.TryParseId("DISCOGS:ARTIST:3", out var kind, out _).Should().BeTrue();
+                kind.Should().Be("artist");
+                DiscogsMapper.MediumNumber("i1").Should().Be(5);
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = current;
+            }
         }
 
         [TestCase("4:44", 284000)]

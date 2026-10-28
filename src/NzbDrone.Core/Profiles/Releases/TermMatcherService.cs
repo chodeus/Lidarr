@@ -1,6 +1,8 @@
 using System;
 using System.Text.RegularExpressions;
+using NLog;
 using NzbDrone.Common.Cache;
+using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.Profiles.Releases.TermMatchers;
 
 namespace NzbDrone.Core.Profiles.Releases
@@ -13,6 +15,8 @@ namespace NzbDrone.Core.Profiles.Releases
 
     public class TermMatcherService : ITermMatcherService
     {
+        private static readonly Logger Logger = NzbDroneLogger.GetLogger(typeof(TermMatcherService));
+
         private ICached<ITermMatcher> _matcherCache;
         private ICached<ITermMatcher> _wholeWordMatcherCache;
 
@@ -29,7 +33,18 @@ namespace NzbDrone.Core.Profiles.Releases
 
         public bool IsWholeWordMatch(string term, string value)
         {
-            return _wholeWordMatcherCache.Get(term, () => CreateWholeWordMatcher(term), TimeSpan.FromHours(24)).IsMatch(value);
+            var matcher = _wholeWordMatcherCache.Get(term, () => CreateWholeWordMatcher(term), TimeSpan.FromHours(24));
+
+            try
+            {
+                return matcher.IsMatch(value);
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                // Not a match: a term that can't decide must never take an album away
+                Logger.Warn("Must Not Contain term '{0}' took too long on '{1}', counted as no match", term, value);
+                return false;
+            }
         }
 
         public string MatchingTerm(string term, string value)
@@ -54,6 +69,7 @@ namespace NzbDrone.Core.Profiles.Releases
             }
         }
 
+        // A regex term sees the title as sent, matched as written
         private ITermMatcher CreateWholeWordMatcher(string term)
         {
             if (PerlRegexFactory.TryCreateTermRegex(term, out var regex))
@@ -61,8 +77,7 @@ namespace NzbDrone.Core.Profiles.Releases
                 return new RegexTermMatcher(regex);
             }
 
-            // Not \b, which fails when the term starts or ends with punctuation, such as "(live)"
-            return new RegexTermMatcher(new Regex(@"(?<!\w)" + Regex.Escape(term) + @"(?!\w)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled));
+            return new WholeWordTermMatcher(term);
         }
     }
 }

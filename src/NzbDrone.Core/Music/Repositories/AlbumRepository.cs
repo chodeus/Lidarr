@@ -24,6 +24,13 @@ namespace NzbDrone.Core.Music
         List<Album> ArtistAlbumsBetweenDates(Artist artist, DateTime startDate, DateTime endDate, bool includeUnmonitored);
         void SetMonitoredFlat(Album album, bool monitored);
         void SetMonitored(IEnumerable<int> ids, bool monitored);
+
+        // A default body keeps implementations built against develop working.
+        List<Album> GetAlbumsMissingFromMetadata()
+        {
+            return new List<Album>();
+        }
+
         Album FindAlbumByRelease(string albumReleaseId);
         Album FindAlbumByTrack(int trackId);
         List<Album> GetArtistAlbumsWithFiles(Artist artist);
@@ -199,6 +206,11 @@ namespace NzbDrone.Core.Music
         {
             var albums = ids.Select(x => new Album { Id = x, Monitored = monitored }).ToList();
             SetFields(albums, p => p.Monitored);
+        }
+
+        public List<Album> GetAlbumsMissingFromMetadata()
+        {
+            return Query(a => a.MetadataMissingSince != null);
         }
 
         public Album FindByTitle(int artistMetadataId, string title)

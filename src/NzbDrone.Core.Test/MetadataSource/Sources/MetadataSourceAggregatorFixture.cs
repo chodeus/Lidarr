@@ -1,11 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using FluentAssertions;
 using Moq;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Common.Cache;
+using NzbDrone.Common.Http;
 using NzbDrone.Core.Exceptions;
+using NzbDrone.Core.MetadataSource.SkyHook;
 using NzbDrone.Core.MetadataSource.Sources;
 using NzbDrone.Core.MetadataSource.Sources.Lidarr;
 using NzbDrone.Core.Music;
@@ -245,6 +251,42 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
         }
 
         [Test]
+        public void supplements_should_not_add_an_album_twice_through_a_chain_of_merges()
+        {
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(ArtistWith("old-id"));
+
+            var caughtUp = ArtistWith("new-id");
+            caughtUp.Albums.Value.Single().OldForeignAlbumIds.Add("old-id");
+            GivenSource(2, MetadataSourceRole.Supplementary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(caughtUp);
+
+            var mergedAgain = ArtistWith("newer-id");
+            mergedAgain.Albums.Value.Single().OldForeignAlbumIds.Add("new-id");
+            GivenSource(3, MetadataSourceRole.Supplementary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(mergedAgain);
+
+            var albums = Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value;
+
+            albums.Select(a => a.ForeignAlbumId).Should().Equal("old-id");
+            albums.Single().OldForeignAlbumIds.Should().BeEquivalentTo("new-id", "newer-id");
+        }
+
+        [Test]
+        public void a_supplement_should_not_add_an_album_an_and_merge_skipped_by_an_old_id()
+        {
+            _profile.PrimaryCombination = MetadataSourceCombination.And;
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(ArtistWith("old-id"));
+
+            var caughtUp = ArtistWith("new-id");
+            caughtUp.Albums.Value.Single().OldForeignAlbumIds.Add("old-id");
+            GivenSource(2, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(caughtUp);
+
+            var mergedAgain = ArtistWith("newer-id");
+            mergedAgain.Albums.Value.Single().OldForeignAlbumIds.Add("new-id");
+            GivenSource(3, MetadataSourceRole.Supplementary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(mergedAgain);
+
+            Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("old-id");
+        }
+
+        [Test]
         public void a_supplementary_source_of_the_same_kind_that_is_down_fails_the_lookup()
         {
             GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(ArtistWith("album-1"));
@@ -318,7 +360,6 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
         private Artist GivenSupplementaryAlbumOwnedBy(string ownerId)
         {
             var owner = new Artist { Id = 5, ArtistMetadataId = 50, Metadata = new ArtistMetadata { Id = 50, ForeignArtistId = ownerId, Name = "Artist Name" } };
-            Mocker.GetMock<IMetadataSourceProfileService>().Setup(s => s.HasSupplementarySources()).Returns(true);
             Mocker.GetMock<IAlbumService>().Setup(s => s.FindById("other:101")).Returns(new Album { ForeignAlbumId = "other:101", ArtistMetadataId = 50 });
             Mocker.GetMock<IArtistService>().Setup(s => s.GetArtistByMetadataId(50)).Returns(owner);
 
@@ -548,7 +589,10 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
             GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetChangedArtists(It.IsAny<DateTime>())).Returns(new HashSet<string> { "artist-1" });
             GivenSource(2, MetadataSourceRole.Primary).Setup(s => s.GetChangedArtists(It.IsAny<DateTime>())).Returns(new HashSet<string> { "artist-2" });
 
-            Subject.GetChangedArtists(DateTime.UtcNow).Should().BeEquivalentTo(new[] { "artist-1", "artist-2" });
+            // Neither is Lidarr's own source, so MusicBrainz lookups can still fall back to Lidarr's server
+            _lidarr.Setup(s => s.GetChangedArtists(It.IsAny<DateTime>())).Returns(new HashSet<string> { "artist-3" });
+
+            Subject.GetChangedArtists(DateTime.UtcNow).Should().BeEquivalentTo(new[] { "artist-1", "artist-2", "artist-3" });
         }
 
         [Test]
@@ -596,6 +640,106 @@ namespace NzbDrone.Core.Test.MetadataSource.Sources
             Subject.GetArtistInfo(MusicBrainzId, 1);
 
             Mocker.GetMock<IMetadataSourceFactory>().Verify(s => s.GetAvailableProviders(), Times.Exactly(2));
+        }
+
+        [Test]
+        public void and_merge_should_not_add_an_album_the_first_source_lists_by_an_old_id()
+        {
+            _profile.PrimaryCombination = MetadataSourceCombination.And;
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(ArtistWith("old-id"));
+
+            var caughtUp = ArtistWith("new-id");
+            caughtUp.Albums.Value.Single().OldForeignAlbumIds.Add("old-id");
+            GivenSource(2, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(caughtUp);
+
+            Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("old-id");
+        }
+
+        [Test]
+        public void and_merge_should_not_add_an_album_a_later_source_lists_by_an_id_a_skipped_album_keeps_as_old()
+        {
+            _profile.PrimaryCombination = MetadataSourceCombination.And;
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(ArtistWith("old-id"));
+
+            var caughtUp = ArtistWith("new-id");
+            caughtUp.Albums.Value.Single().OldForeignAlbumIds.Add("old-id");
+            GivenSource(2, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(caughtUp);
+
+            var mergedAgain = ArtistWith("newer-id");
+            mergedAgain.Albums.Value.Single().OldForeignAlbumIds.Add("new-id");
+            GivenSource(3, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(mergedAgain);
+
+            Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("old-id");
+        }
+
+        [Test]
+        public void and_merge_should_add_an_album_a_later_source_lists_twice_under_merged_ids_once()
+        {
+            _profile.PrimaryCombination = MetadataSourceCombination.And;
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(ArtistWith("album-1"));
+
+            var listedTwice = ArtistWith("old-id", "new-id");
+            listedTwice.Albums.Value.Last().OldForeignAlbumIds.Add("old-id");
+            GivenSource(2, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(listedTwice);
+
+            Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("album-1", "old-id");
+        }
+
+        [Test]
+        public void and_should_fail_when_a_primary_is_down_even_if_a_fallback_has_the_artist()
+        {
+            _profile.PrimaryCombination = MetadataSourceCombination.And;
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Throws(new TimeoutException("Source 1 is down"));
+            GivenSource(2, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Throws(new ArtistNotFoundException(MusicBrainzId));
+            var fallback = GivenSource(3, MetadataSourceRole.Fallback);
+            fallback.Setup(s => s.GetArtistInfo(MusicBrainzId, 1)).Returns(ArtistWith("album-1"));
+
+            Assert.Throws<TimeoutException>(() => Subject.GetArtistInfo(MusicBrainzId, 1));
+
+            fallback.Verify(s => s.GetArtistInfo(It.IsAny<string>(), It.IsAny<int>()), Times.Never());
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_log_a_failed_source_without_its_url()
+        {
+            const string token = "s3cr3ttoken";
+            var request = new HttpRequest("https://metadata.example.invalid/" + token + "/api/v0.4/artist/" + MusicBrainzId);
+            var http = new HttpException(request, new HttpResponse(request, new HttpHeader(), string.Empty, HttpStatusCode.InternalServerError));
+            GivenSource(1, MetadataSourceRole.Primary).Setup(s => s.GetArtistInfo(MusicBrainzId, 1))
+                .Throws(new SkyHookException("Search failed. Unable to communicate with LidarrAPI. {0}", http, http.Message));
+
+            var target = new MemoryTarget("metadata-source-errors") { Layout = "${message} ${exception:format=tostring}" };
+            var config = LogManager.Configuration ?? new LoggingConfiguration();
+            config.AddRuleForAllLevels(target);
+            LogManager.Configuration = config;
+
+            try
+            {
+                Assert.Throws<SkyHookException>(() => Subject.GetArtistInfo(MusicBrainzId, 1));
+
+                target.Logs.Should().Contain(l => l.Contains("HTTP 500")).And.NotContain(l => l.Contains(token));
+            }
+            finally
+            {
+                config.RemoveTarget(target.Name);
+                LogManager.Configuration = config;
+            }
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void a_supplement_album_is_not_dropped_as_an_edition_of_an_ignored_album()
+        {
+            _metadataProfile.Ignored = new List<string> { "deluxe" };
+            GivenPrimaryWithLinkTo("other:9", NamedAlbum("mb-1", "First Album (Deluxe Edition)", 2011));
+            GivenSource(2, MetadataSourceRole.Supplementary, OtherFamily).Setup(s => s.GetArtistInfo("other:9", 1)).Returns(new Artist
+            {
+                Albums = new List<Album> { NamedAlbum("other:101", "First Album", 2001) }
+            });
+
+            Subject.GetArtistInfo(MusicBrainzId, 1).Albums.Value.Select(a => a.ForeignAlbumId).Should().Equal("other:101");
         }
     }
 }

@@ -184,6 +184,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             var albumReleasesDict = new Dictionary<int, List<AlbumRelease>>(albumDecisions.Count);
             var trackImportedEvents = new List<TrackImportedEvent>(qualifiedImports.Count);
             var extrasToImport = new List<(LocalTrack LocalTrack, TrackFile TrackFile, bool CopyOnly)>(qualifiedImports.Count);
+            var extrasToRelink = new List<(int PreviousTrackFileId, TrackFile TrackFile)>();
 
             foreach (var importDecision in qualifiedImports.OrderBy(e => e.Item.Tracks.Select(track => track.AbsoluteTrackNumber).MinOrDefault())
                                                            .ThenByDescending(e => e.Item.Size))
@@ -292,6 +293,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
 
                         if (previousFile != null)
                         {
+                            extrasToRelink.Add((previousFile.Id, trackFile));
                             _mediaFileService.Delete(previousFile, DeleteMediaFileReason.ManualOverride);
                         }
 
@@ -380,6 +382,18 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             foreach (var (album, release) in releaseSwitches)
             {
                 FinishAlbum(album, release, replacements.SingleOrDefault(r => r.Album.Id == album.Id), importResults, filesToAdd);
+            }
+
+            foreach (var (previousTrackFileId, trackFile) in extrasToRelink)
+            {
+                try
+                {
+                    _extraService.RelinkTrackFile(previousTrackFileId, trackFile);
+                }
+                catch (Exception e)
+                {
+                    _logger.Warn(e, "Couldn't move the extra files of {0} to its new row", trackFile);
+                }
             }
 
             // Only once AddMany has given the track files their ids, or each extra file is stored without its track file

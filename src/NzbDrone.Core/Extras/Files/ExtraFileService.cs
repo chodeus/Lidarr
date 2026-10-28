@@ -25,8 +25,15 @@ namespace NzbDrone.Core.Extras.Files
         void DeleteMany(IEnumerable<int> ids);
     }
 
+    public interface IRelinkExtraFiles
+    {
+        void Relink(int fromTrackFileId, int toTrackFileId);
+    }
+
     public abstract class ExtraFileService<TExtraFile> : IExtraFileService<TExtraFile>,
+                                                         IRelinkExtraFiles,
                                                          IHandleAsync<ArtistsDeletedEvent>,
+                                                         IHandleAsync<AlbumDeletedEvent>,
                                                          IHandle<TrackFileDeletedEvent>
         where TExtraFile : ExtraFile, new()
     {
@@ -100,9 +107,37 @@ namespace NzbDrone.Core.Extras.Files
             _repository.DeleteForArtists(message.Artists.Select(x => x.Id).ToList());
         }
 
+        // Its track files go to the recycle bin with no events of their own, so their extras go here
+        public void HandleAsync(AlbumDeletedEvent message)
+        {
+            if (!message.DeleteFiles)
+            {
+                return;
+            }
+
+            var artist = message.Album.Artist.Value;
+
+            Recycle(artist, _repository.GetFilesByAlbum(artist.Id, message.Album.Id));
+            _repository.DeleteForAlbum(artist.Id, message.Album.Id);
+        }
+
+        public void Relink(int fromTrackFileId, int toTrackFileId)
+        {
+            var extraFiles = _repository.GetFilesByTrackFile(fromTrackFileId);
+
+            extraFiles.ForEach(e => e.TrackFileId = toTrackFileId);
+            _repository.SetFields(extraFiles, e => e.TrackFileId);
+        }
+
         public void Handle(TrackFileDeletedEvent message)
         {
             var trackFile = message.TrackFile;
+
+            // The same file imported again under a new row: ImportApprovedTracks relinks its extras to that row
+            if (message.Reason == DeleteMediaFileReason.ManualOverride)
+            {
+                return;
+            }
 
             if (message.Reason == DeleteMediaFileReason.NoLinkedEpisodes)
             {
@@ -110,23 +145,26 @@ namespace NzbDrone.Core.Extras.Files
             }
             else
             {
-                var artist = trackFile.Artist.Value;
-
-                foreach (var extra in _repository.GetFilesByTrackFile(trackFile.Id))
-                {
-                    var path = Path.Combine(artist.Path, extra.RelativePath);
-
-                    if (_diskProvider.FileExists(path))
-                    {
-                        // Send to the recycling bin so they can be recovered if necessary
-                        var subfolder = _diskProvider.GetParentFolder(artist.Path).GetRelativePath(_diskProvider.GetParentFolder(path));
-                        _recycleBinProvider.DeleteFile(path, subfolder);
-                    }
-                }
+                Recycle(trackFile.Artist.Value, _repository.GetFilesByTrackFile(trackFile.Id));
             }
 
             _logger.Debug("Deleting Extra from database for track file: {0}", trackFile);
             _repository.DeleteForTrackFile(trackFile.Id);
+        }
+
+        protected void Recycle(Artist artist, IEnumerable<TExtraFile> extraFiles)
+        {
+            foreach (var extra in extraFiles)
+            {
+                var path = Path.Combine(artist.Path, extra.RelativePath);
+
+                if (_diskProvider.FileExists(path))
+                {
+                    // Send to the recycling bin so they can be recovered if necessary
+                    var subfolder = _diskProvider.GetParentFolder(artist.Path).GetRelativePath(_diskProvider.GetParentFolder(path));
+                    _recycleBinProvider.DeleteFile(path, subfolder);
+                }
+            }
         }
     }
 }

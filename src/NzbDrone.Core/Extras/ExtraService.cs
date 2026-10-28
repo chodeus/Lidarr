@@ -18,6 +18,7 @@ namespace NzbDrone.Core.Extras
     public interface IExtraService
     {
         void ImportTrack(LocalTrack localTrack, TrackFile trackFile, bool isReadOnly);
+        void RelinkTrackFile(int previousTrackFileId, TrackFile trackFile);
     }
 
     public class ExtraService : IExtraService,
@@ -32,6 +33,7 @@ namespace NzbDrone.Core.Extras
         private readonly IDiskProvider _diskProvider;
         private readonly IConfigService _configService;
         private readonly List<IManageExtraFiles> _extraFileManagers;
+        private readonly List<IRelinkExtraFiles> _extraFileRelinkers;
         private readonly Logger _logger;
 
         public ExtraService(IMediaFileService mediaFileService,
@@ -40,6 +42,7 @@ namespace NzbDrone.Core.Extras
                             IDiskProvider diskProvider,
                             IConfigService configService,
                             IEnumerable<IManageExtraFiles> extraFileManagers,
+                            IEnumerable<IRelinkExtraFiles> extraFileRelinkers,
                             Logger logger)
         {
             _mediaFileService = mediaFileService;
@@ -48,7 +51,13 @@ namespace NzbDrone.Core.Extras
             _diskProvider = diskProvider;
             _configService = configService;
             _extraFileManagers = extraFileManagers.OrderBy(e => e.Order).ToList();
+            _extraFileRelinkers = extraFileRelinkers.ToList();
             _logger = logger;
+        }
+
+        public void RelinkTrackFile(int previousTrackFileId, TrackFile trackFile)
+        {
+            _extraFileRelinkers.ForEach(r => r.Relink(previousTrackFileId, trackFile.Id));
         }
 
         public void ImportTrack(LocalTrack localTrack, TrackFile trackFile, bool isReadOnly)

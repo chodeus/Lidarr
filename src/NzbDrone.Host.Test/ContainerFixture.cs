@@ -18,6 +18,8 @@ using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Datastore.Extensions;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.TrackedDownloads;
+using NzbDrone.Core.Extras;
+using NzbDrone.Core.Extras.Files;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
@@ -61,6 +63,13 @@ namespace NzbDrone.App.Test
         public void should_be_able_to_resolve_indexers()
         {
             _container.GetRequiredService<IEnumerable<IIndexer>>().Should().NotBeEmpty();
+        }
+
+        [Test]
+        public void should_be_able_to_resolve_the_extra_file_services_that_relink_extras()
+        {
+            _container.GetRequiredService<IEnumerable<IRelinkExtraFiles>>().Select(r => r.GetType().Name).Should().BeEquivalentTo("LyricFileService", "MetadataFileService", "OtherExtraFileService");
+            _container.GetRequiredService<IExtraService>().Should().NotBeNull();
         }
 
         [Test]

@@ -229,8 +229,9 @@ namespace NzbDrone.Core.MediaFiles
         {
             if (message.Action == ModelAction.Deleted)
             {
+                // Only Lidarr's rows go: the files, and the extras beside them, stay on disk
                 var files = GetFilesWithBasePath(message.Model.Path);
-                DeleteMany(files, DeleteMediaFileReason.Manual);
+                DeleteMany(files, DeleteMediaFileReason.NoLinkedEpisodes);
             }
         }
     }

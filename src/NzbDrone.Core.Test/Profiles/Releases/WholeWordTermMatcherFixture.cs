@@ -60,7 +60,7 @@ namespace NzbDrone.Core.Test.Profiles.Releases
         }
 
         [TestCase("live", "live2", false)]
-        [TestCase("live", "live̲", false)]
+        [TestCase("live", "live\u0332", false)]
         [TestCase("live", "live_", false)]
         [TestCase("live", "live-", true)]
         public void a_word_character_is_a_letter_digit_mark_or_connector(string term, string title, bool matches)

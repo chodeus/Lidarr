@@ -1,6 +1,6 @@
 # Add excluded tags and multiple indexers to release profiles
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`metadata-profile-must-not-contain`](https://github.com/chodeus/Lidarr/tree/metadata-profile-must-not-contain), the top of the metadata stack, so the tag screens and tag tests include every profile type. Reviewed in [#49](https://github.com/chodeus/Lidarr/pull/49).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Builds on [`metadata-profile-must-not-contain`](https://github.com/chodeus/Lidarr/tree/metadata-profile-must-not-contain), the top of the metadata stack, so the tag screens and tag tests include every profile type. Reviewed in [#49](https://github.com/chodeus/Lidarr/pull/49) and [#70](https://github.com/chodeus/Lidarr/pull/70).
 
 - Release profiles get Excluded Tags: a profile does not apply to an artist with any of them. A tag cannot be in both Tags and Excluded Tags, and `excludedTags: null` is rejected.
 - A release profile can list several indexers instead of one. An empty list means every indexer. Migration 911 adds `ExcludedTags`; migration 912 adds `IndexerIds`, filled from `IndexerId` in one update.

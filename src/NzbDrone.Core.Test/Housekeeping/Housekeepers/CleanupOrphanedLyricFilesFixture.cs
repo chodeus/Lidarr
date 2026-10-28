@@ -1,3 +1,5 @@
+using System.IO;
+using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using NUnit.Framework;
@@ -7,16 +9,19 @@ using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.Housekeeping.Housekeepers
 {
     [TestFixture]
     public class CleanupOrphanedLyricFilesFixture : DbTest<CleanupOrphanedLyricFiles, LyricFile>
     {
-        private TrackFile GivenTrackFile()
+        private TrackFile GivenTrackFile(string path = null)
         {
             var trackFile = Builder<TrackFile>.CreateNew()
                                               .With(h => h.Quality = new QualityModel())
+                                              .With(h => h.Path = path ?? "track.flac")
+                                              .With(h => h.AlbumId = 7)
                                               .BuildNew();
 
             Db.Insert(trackFile);
@@ -78,18 +83,37 @@ namespace NzbDrone.Core.Test.Housekeeping.Housekeepers
         }
 
         [Test]
-        public void should_delete_lyric_files_that_have_trackfileid_of_zero()
+        public void should_link_a_row_stored_without_its_track_file_to_the_track_file_it_was_named_after()
         {
-            var artist = GivenArtist();
+            var artist = Builder<Artist>.CreateNew()
+                                        .With(a => a.Path = @"C:\Music\Artist".AsOsAgnostic())
+                                        .BuildNew();
 
-            var lyricFile = Builder<LyricFile>.CreateNew()
+            Db.Insert(artist);
+
+            var song = GivenTrackFile(Path.Combine(artist.Path, "Album", "01 - Song.flac"));
+            GivenTrackFile(Path.Combine(artist.Path, "Album", "Mr.flac"));
+            var blueSky = GivenTrackFile(Path.Combine(artist.Path, "Album", "Mr. Blue Sky.flac"));
+
+            foreach (var name in new[] { "01 - Song.lrc", "Mr. Blue Sky.lrc", "01 - Songs Intro.lrc", "Old Name.lrc" })
+            {
+                Db.Insert(Builder<LyricFile>.CreateNew()
                                                   .With(m => m.ArtistId = artist.Id)
+                                                  .With(m => m.AlbumId = 1)
                                                   .With(m => m.TrackFileId = 0)
-                                                  .BuildNew();
+                                                  .With(m => m.RelativePath = Path.Combine("Album", name))
+                                                  .BuildNew());
+            }
 
-            Db.Insert(lyricFile);
             Subject.Clean();
-            AllStoredModels.Should().BeEmpty();
+
+            AllStoredModels.Select(m => (Path.GetFileName(m.RelativePath), m.TrackFileId, m.AlbumId)).Should().BeEquivalentTo(new[]
+            {
+                ("01 - Song.lrc", (int?)song.Id, (int?)song.AlbumId),
+                ("Mr. Blue Sky.lrc", (int?)blueSky.Id, (int?)blueSky.AlbumId),
+                ("01 - Songs Intro.lrc", (int?)0, (int?)1),
+                ("Old Name.lrc", (int?)0, (int?)1)
+            });
         }
     }
 }

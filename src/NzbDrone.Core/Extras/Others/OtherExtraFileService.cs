@@ -12,8 +12,8 @@ namespace NzbDrone.Core.Extras.Others
 
     public class OtherExtraFileService : ExtraFileService<OtherExtraFile>, IOtherExtraFileService
     {
-        public OtherExtraFileService(IExtraFileRepository<OtherExtraFile> repository, IArtistService artistService, IDiskProvider diskProvider, IRecycleBinProvider recycleBinProvider, Logger logger)
-            : base(repository, artistService, diskProvider, recycleBinProvider, logger)
+        public OtherExtraFileService(IExtraFileRepository<OtherExtraFile> repository, IArtistService artistService, IMediaFileService mediaFileService, IDiskProvider diskProvider, IRecycleBinProvider recycleBinProvider, Logger logger)
+            : base(repository, artistService, mediaFileService, diskProvider, recycleBinProvider, logger)
         {
         }
     }

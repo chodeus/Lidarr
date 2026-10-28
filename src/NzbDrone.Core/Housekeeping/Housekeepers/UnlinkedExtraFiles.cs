@@ -45,19 +45,11 @@ namespace NzbDrone.Core.Housekeeping.Housekeepers
             foreach (var row in unlinked)
             {
                 var path = Path.Combine(row.ArtistPath, row.RelativePath);
+                var trackFile = ExtraFileNames.FindTrackFile(path, trackFilesByFolder[Path.GetDirectoryName(path)]);
 
-                // The longest name wins, so "Mr. Blue Sky.lrc" goes to "Mr. Blue Sky.flac", not "Mr.flac"; a tie ("Song.flac" and
-                // "Song.wav" for "Song.lrc") can't say which, so the row stays unlinked
-                var matches = trackFilesByFolder[Path.GetDirectoryName(path)]
-                    .Where(f => ExtraFileNames.IsNamedAfter(path, f.Path))
-                    .GroupBy(f => Path.GetFileNameWithoutExtension(f.Path).Length)
-                    .OrderByDescending(g => g.Key)
-                    .FirstOrDefault()?
-                    .ToList();
-
-                if (matches?.Count == 1)
+                if (trackFile != null)
                 {
-                    links.Add(new { TrackFileId = matches[0].Id, matches[0].AlbumId, row.Id });
+                    links.Add(new { TrackFileId = trackFile.Id, trackFile.AlbumId, row.Id });
                 }
             }
 

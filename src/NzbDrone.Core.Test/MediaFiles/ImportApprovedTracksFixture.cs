@@ -316,6 +316,24 @@ namespace NzbDrone.Core.Test.MediaFiles
         }
 
         [Test]
+        public void should_leave_the_extras_unlinked_when_the_previous_row_cannot_be_put_back()
+        {
+            var localTrack = GivenExistingFile();
+            GivenLinkedFile(localTrack, localTrack.Size + 1, localTrack.Tracks.ToList());
+            Mocker.GetMock<IMediaFileService>()
+                  .Setup(s => s.AddMany(It.IsAny<List<TrackFile>>()))
+                  .Throws(new InvalidOperationException("database is locked"));
+            Mocker.GetMock<IReplaceTrackFiles>()
+                  .Setup(s => s.PutBack(It.IsAny<TrackFile>()))
+                  .Throws(new InvalidOperationException("database is locked"));
+
+            Assert.Throws<InvalidOperationException>(() => Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, false));
+
+            Mocker.GetMock<IExtraService>().Verify(v => v.RelinkTrackFile(7, It.Is<TrackFile>(f => f.Id == 0 && f.AlbumId == localTrack.Album.Id)), Times.Once());
+            ExceptionVerification.ExpectedErrors(1);
+        }
+
+        [Test]
         public void should_skip_an_unchanged_file_already_linked_to_its_tracks()
         {
             var localTrack = GivenExistingFile();

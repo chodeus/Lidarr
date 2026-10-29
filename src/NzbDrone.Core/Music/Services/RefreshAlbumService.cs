@@ -92,15 +92,12 @@ namespace NzbDrone.Core.Music
             }
             catch (AlbumNotFoundException)
             {
-                // Kept and marked only when develop would keep it (files or a manual add); anything else is deleted as develop does
-                result.MissingFromSource = !ShouldDelete(local);
                 return result;
             }
 
             if (tuple.Item2.AlbumReleases.Value.Count == 0)
             {
                 _logger.Debug($"{local} has no valid releases");
-                result.MissingFromSource = !ShouldDelete(local);
                 return result;
             }
 

@@ -87,9 +87,6 @@ namespace NzbDrone.Core.Music
             }
             catch (ArtistNotFoundException)
             {
-                // Kept and marked only when develop would keep it (files); anything else is deleted as develop does
-                result.MissingFromSource = !ShouldDelete(local);
-
                 if (local.Metadata.Value.Status != ArtistStatusType.Deleted)
                 {
                     local.Metadata.Value.Status = ArtistStatusType.Deleted;

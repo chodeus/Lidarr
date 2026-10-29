@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.CompilerServices;
 using NLog;
 using NLog.Config;
 using NLog.Targets;
@@ -18,6 +19,9 @@ namespace NzbDrone.Test.Common
         protected static void InitLogging()
         {
             new StartupContext();
+
+            // NzbDroneLogger's static constructor replaces the configuration, so it must run first or the first test's warnings go nowhere
+            RuntimeHelpers.RunClassConstructor(typeof(NzbDroneLogger).TypeHandle);
 
             if (LogManager.Configuration == null || LogManager.Configuration.AllTargets.None(c => c is ExceptionVerification))
             {

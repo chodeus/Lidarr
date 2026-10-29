@@ -6,6 +6,7 @@ using NzbDrone.Core.ImportLists;
 using NzbDrone.Core.ImportLists.LidarrLists;
 using NzbDrone.Core.Lifecycle;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.ImportListTests
 {
@@ -38,6 +39,8 @@ namespace NzbDrone.Core.Test.ImportListTests
             Subject.Handle(new ApplicationStartedEvent());
 
             AllStoredModels.Should().NotContain(c => c.Id == existingImportLists.Id);
+
+            ExceptionVerification.ExpectedWarns(1);
         }
     }
 }

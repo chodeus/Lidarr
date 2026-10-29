@@ -149,6 +149,8 @@ namespace NzbDrone.Core.Test.MediaFiles
             Subject.UpgradeTrackFile(_trackFile, _localTrack);
 
             Mocker.GetMock<IMediaFileService>().Verify(v => v.Delete(_localTrack.Tracks.Single().TrackFile.Value, DeleteMediaFileReason.Upgrade), Times.Once());
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -163,6 +165,8 @@ namespace NzbDrone.Core.Test.MediaFiles
             Subject.UpgradeTrackFile(_trackFile, _localTrack);
 
             Mocker.GetMock<IRecycleBinProvider>().Verify(v => v.DeleteFile(It.IsAny<string>(), It.IsAny<string>()), Times.Never());
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]

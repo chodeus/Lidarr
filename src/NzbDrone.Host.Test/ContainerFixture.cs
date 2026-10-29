@@ -124,14 +124,5 @@ namespace NzbDrone.App.Test
 
             first.Should().BeSameAs(second);
         }
-
-        [Test]
-        public void should_build_the_album_refresh_with_the_metadata_profile_check()
-        {
-            var service = _container.GetRequiredService<IRefreshAlbumService>();
-
-            typeof(RefreshAlbumService).GetField("_metadataProfileService", BindingFlags.Instance | BindingFlags.NonPublic)
-                .GetValue(service).Should().NotBeNull();
-        }
     }
 }

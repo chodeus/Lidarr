@@ -88,8 +88,6 @@ namespace NzbDrone.Core.Music
             }
             catch (ArtistNotFoundException)
             {
-                result.MissingFromSource = true;
-
                 if (local.Metadata.Value.Status != ArtistStatusType.Deleted)
                 {
                     local.Metadata.Value.Status = ArtistStatusType.Deleted;
@@ -249,7 +247,8 @@ namespace NzbDrone.Core.Music
 
         protected override void DeleteEntity(Artist local, bool deleteFiles)
         {
-            _artistService.DeleteArtist(local.Id, true);
+            // Only an artist the source no longer has gets here, with no track files: its folder stays, as unmapped files and extras may be in it
+            _artistService.DeleteArtist(local.Id, false);
         }
 
         protected override List<Album> GetRemoteChildren(Artist remote)

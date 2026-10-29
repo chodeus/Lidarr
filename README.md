@@ -122,7 +122,7 @@
   - Lyrics and other extra files imported with a track are linked to its track file, so they're renamed, moved and recycled with it instead of left behind. Housekeeping links old unlinked rows by name, and removes rows whose artist or track file is gone.
   - Removing a root folder, or a scan finding a file gone, leaves its extras on disk, and a file imported again at the same path keeps them.
 - **A release's own files, such as its cue sheet and rip log** — branch [`feat/release-extra-files`](https://github.com/chodeus/Lidarr/tree/feat/release-extra-files), builds on `fix/extras-link-track-files`, not submitted
-  - With Import Extra Files on, a release's own files with a wanted extension, such as its `.cue` and `.log`, are imported once into the album's folder under their own names, including the cue sheet and rip log of a split image. They move with the album's tracks on rename.
+  - With Import Extra Files on, a release's own files with a wanted extension, such as its `.cue` and `.log`, are imported once into the album's folder under their own names, including the cue sheet and rip log of a split image, also when Unpackerr imports only the split tracks. They move with the album's tracks on rename.
   - A replacing import sends the previous release's files to the recycle bin first, unless its tracks come from inside the artist's folder, and deleting the album with its files recycles them too. Migration 915.
 
 ## How the build works

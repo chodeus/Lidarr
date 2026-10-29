@@ -82,6 +82,12 @@ namespace NzbDrone.Core.Test.MusicTests
             GivenLookup(() => { });
         }
 
+        // An artist the source no longer has is kept only with track files, as develop keeps it
+        private void GivenArtistFiles()
+        {
+            Mocker.GetMock<IMediaFileService>().Setup(s => s.GetFilesByArtist(_artist.Id)).Returns(new List<TrackFile> { new TrackFile() });
+        }
+
         // What the metadata source returns: new names, the same metadata row
         private void GivenLookup(Action duringLookup)
         {
@@ -201,6 +207,7 @@ namespace NzbDrone.Core.Test.MusicTests
         [Test]
         public void should_keep_an_edit_saved_when_the_lookup_finds_no_artist()
         {
+            GivenArtistFiles();
             Mocker.GetMock<IProvideArtistInfo>()
                   .Setup(s => s.GetArtistInfo(It.IsAny<string>(), It.IsAny<int>()))
                   .Callback(EditArtist)
@@ -264,6 +271,7 @@ namespace NzbDrone.Core.Test.MusicTests
         [Test]
         public void should_announce_the_stored_artist_when_the_lookup_finds_no_artist()
         {
+            GivenArtistFiles();
             Mocker.GetMock<IProvideArtistInfo>()
                   .Setup(s => s.GetArtistInfo(It.IsAny<string>(), It.IsAny<int>()))
                   .Callback(EditArtist)
@@ -279,6 +287,7 @@ namespace NzbDrone.Core.Test.MusicTests
         [Test]
         public void should_auto_tag_an_artist_the_lookup_marks_deleted()
         {
+            GivenArtistFiles();
             Mocker.GetMock<IRootFolderRepository>().Setup(s => s.All()).Returns(new List<RootFolder>());
             Mocker.GetMock<IAutoTaggingRepository>().Setup(s => s.All()).Returns(new List<AutoTag>
             {

@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using DryIoc;
 using DryIoc.Microsoft.DependencyInjection;
 using FluentAssertions;
@@ -22,7 +21,6 @@ using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
-using NzbDrone.Core.Music;
 using NzbDrone.SignalR;
 using NzbDrone.Test.Common;
 using IServiceProvider = System.IServiceProvider;
@@ -115,15 +113,6 @@ namespace NzbDrone.App.Test
             var second = (DownloadMonitoringService)_container.GetRequiredService<IExecute<RefreshMonitoredDownloadsCommand>>();
 
             first.Should().BeSameAs(second);
-        }
-
-        [Test]
-        public void should_build_the_album_refresh_with_the_metadata_profile_check()
-        {
-            var service = _container.GetRequiredService<IRefreshAlbumService>();
-
-            typeof(RefreshAlbumService).GetField("_metadataProfileService", BindingFlags.Instance | BindingFlags.NonPublic)
-                .GetValue(service).Should().NotBeNull();
         }
     }
 }

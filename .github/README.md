@@ -10,7 +10,7 @@ Adds Must Not Contain terms to metadata profiles (upstream request #4923):
 - Albums are filtered before the supplementary sources add theirs and again after, so a left-out edition can't make a supplement skip the album it is an edition of.
 - The validator rejects invalid regexes and regexes that match an empty title.
 - Migration 900 adds `MetadataProfiles.Ignored`. The 900+ range is reserved for build-only changes.
-- Also merges [`fix/keep-unlisted-metadata`](https://github.com/chodeus/Lidarr/tree/fix/keep-unlisted-metadata), which keeps an album the artist's list leaves out unless the source moved it or the metadata profile excludes it. That check now uses the shared album filter, so a Must Not Contain term removes such an album too.
+- Also merges [`fix/keep-unlisted-metadata`](https://github.com/chodeus/Lidarr/tree/fix/keep-unlisted-metadata), which keeps an album the source no longer has only where develop keeps it (files, or added by hand). An album without files that a term leaves out of its artist's list is removed as develop removes it.
 
 `SkyHookProxy` is unchanged apart from using the shared album filter, so plugins still construct it with develop's constructor. The aggregator builds its own `TermMatcherService`, since the whole-word match isn't on `ITermMatcherService`.
 

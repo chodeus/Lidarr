@@ -157,8 +157,16 @@ namespace NzbDrone.Core.ImportLists
 
             report.AlbumMusicBrainzId = mappedAlbum.ForeignAlbumId;
             report.Album = mappedAlbum.Title;
-            report.Artist ??= mappedAlbum.ArtistMetadata?.Value?.Name;
-            report.ArtistMusicBrainzId ??= mappedAlbum.ArtistMetadata?.Value?.ForeignArtistId;
+
+            if (report.Artist.IsNullOrWhiteSpace())
+            {
+                report.Artist = mappedAlbum.ArtistMetadata?.Value?.Name;
+            }
+
+            if (report.ArtistMusicBrainzId.IsNullOrWhiteSpace())
+            {
+                report.ArtistMusicBrainzId = mappedAlbum.ArtistMetadata?.Value?.ForeignArtistId;
+            }
         }
 
         private void ProcessAlbumReport(ImportListDefinition importList, ImportListItemInfo report, Dictionary<string, ImportListExclusion> listExclusions, List<Album> albumsToAdd, List<Artist> artistsToAdd)

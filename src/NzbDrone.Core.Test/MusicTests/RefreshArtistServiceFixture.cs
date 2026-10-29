@@ -189,7 +189,7 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
-        public void should_log_error_and_keep_if_musicbrainz_id_not_found_and_artist_has_no_files()
+        public void should_log_error_and_delete_if_musicbrainz_id_not_found_and_author_has_no_files()
         {
             GivenAlbumsForRefresh(new List<Album>());
             AllowArtistUpdate();
@@ -203,9 +203,28 @@ namespace NzbDrone.Core.Test.MusicTests
                 .Verify(v => v.UpdateArtist(It.Is<Artist>(s => s.Metadata.Value.Status == ArtistStatusType.Deleted), true), Times.Once());
 
             Mocker.GetMock<IArtistService>()
-                .Verify(v => v.DeleteArtist(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+                .Verify(v => v.DeleteArtist(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Once());
 
-            ExceptionVerification.ExpectedErrors(2);
+            ExceptionVerification.ExpectedErrors(1);
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_leave_the_folder_of_an_artist_deleted_for_having_no_files()
+        {
+            GivenAlbumsForRefresh(new List<Album>());
+            AllowArtistUpdate();
+
+            Mocker.GetMock<IArtistService>()
+                .Setup(x => x.DeleteArtist(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
+
+            Subject.Execute(new RefreshArtistCommand(new List<int> { _artist.Id }));
+
+            Mocker.GetMock<IArtistService>()
+                .Verify(v => v.DeleteArtist(_artist.Id, false, false), Times.Once());
+
+            ExceptionVerification.ExpectedErrors(1);
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -240,7 +259,8 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IArtistService>()
                 .Verify(v => v.UpdateArtist(It.Is<Artist>(s => s.Metadata.Value.Status == ArtistStatusType.Deleted), It.IsAny<bool>()), Times.Once());
 
-            ExceptionVerification.ExpectedErrors(2);
+            ExceptionVerification.ExpectedErrors(1);
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -257,7 +277,8 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IArtistService>()
                 .Verify(v => v.UpdateArtist(It.IsAny<Artist>(), It.IsAny<bool>()), Times.Never());
 
-            ExceptionVerification.ExpectedErrors(2);
+            ExceptionVerification.ExpectedErrors(1);
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]

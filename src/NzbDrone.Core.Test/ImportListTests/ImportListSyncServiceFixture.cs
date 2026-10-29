@@ -180,13 +180,15 @@ namespace NzbDrone.Core.Test.ImportListTests
                 .Verify(v => v.SearchForNewAlbum(It.IsAny<string>(), It.IsAny<string>()), Times.Once());
         }
 
-        [TestCase("Linkin Park")]
-        [TestCase("")]
-        public void should_add_album_under_the_found_artist_if_artist_id_is_blank(string artistName)
+        [TestCase("Artist Name", "")]
+        [TestCase("Artist Name", " ")]
+        [TestCase("", "")]
+        [TestCase(" ", "")]
+        public void should_add_album_under_the_found_artist_if_artist_is_blank(string artistName, string artistId)
         {
-            WithAlbum();
+            _importListReports.First().Album = "Album Title";
             _importListReports.First().Artist = artistName;
-            _importListReports.First().ArtistMusicBrainzId = "";
+            _importListReports.First().ArtistMusicBrainzId = artistId;
 
             Mocker.GetMock<ISearchForNewAlbum>()
                 .Setup(v => v.SearchForNewAlbum(It.IsAny<string>(), It.IsAny<string>()))
@@ -195,15 +197,15 @@ namespace NzbDrone.Core.Test.ImportListTests
                     new Album
                     {
                         ForeignAlbumId = "00000000-0000-0000-0000-00000000000a",
-                        Title = "Meteora",
-                        ArtistMetadata = new ArtistMetadata { ForeignArtistId = "00000000-0000-0000-0000-00000000000b", Name = "Linkin Park" }
+                        Title = "Album Title",
+                        ArtistMetadata = new ArtistMetadata { ForeignArtistId = "00000000-0000-0000-0000-00000000000b", Name = "Artist Name" }
                     }
                 });
 
             Subject.Execute(new ImportListSyncCommand());
 
             Mocker.GetMock<IAddAlbumService>()
-                .Verify(v => v.AddAlbums(It.Is<List<Album>>(t => t.Count == 1 && t.First().Artist.Value.ForeignArtistId == "00000000-0000-0000-0000-00000000000b" && t.First().Artist.Value.Name == "Linkin Park"), false, It.IsAny<bool>()));
+                .Verify(v => v.AddAlbums(It.Is<List<Album>>(t => t.Count == 1 && t.First().Artist.Value.ForeignArtistId == "00000000-0000-0000-0000-00000000000b" && t.First().Artist.Value.Name == "Artist Name"), false, It.IsAny<bool>()));
         }
 
         [Test]

@@ -33,6 +33,25 @@ namespace NzbDrone.Core.Test.MusicTests.AlbumRepositoryTests
         }
 
         [Test]
+        public void should_load_each_album_with_its_artist_name()
+        {
+            var metadata = Db.Insert(Builder<ArtistMetadata>.CreateNew()
+                .With(m => m.Id = 0)
+                .With(m => m.Name = "Artist Name")
+                .BuildNew());
+            Db.Insert(Builder<Album>.CreateNew()
+                .With(a => a.Id = 0)
+                .With(a => a.ArtistMetadataId = metadata.Id)
+                .With(a => a.MetadataMissingSince = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc))
+                .BuildNew());
+
+            var album = Subject.GetAlbumsMissingFromMetadata().Single();
+
+            album.ArtistMetadata.IsLoaded.Should().BeTrue();
+            album.ArtistMetadata.Value.Name.Should().Be("Artist Name");
+        }
+
+        [Test]
         public void should_save_and_clear_the_missing_date()
         {
             var album = Db.Insert(Builder<Album>.CreateNew()

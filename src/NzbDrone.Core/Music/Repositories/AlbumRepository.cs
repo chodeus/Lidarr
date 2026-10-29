@@ -210,7 +210,16 @@ namespace NzbDrone.Core.Music
 
         public List<Album> GetAlbumsMissingFromMetadata()
         {
-            return Query(a => a.MetadataMissingSince != null);
+            // The artist names come in the same query, for the health check that lists these albums
+            var builder = new SqlBuilder(_database.DatabaseType)
+                    .LeftJoin<Album, ArtistMetadata>((a, m) => a.ArtistMetadataId == m.Id)
+                    .Where<Album>(a => a.MetadataMissingSince != null);
+
+            return _database.QueryJoined<Album, ArtistMetadata>(builder, (album, metadata) =>
+                    {
+                        album.ArtistMetadata = metadata;
+                        return album;
+                    }).ToList();
         }
 
         public Album FindByTitle(int artistMetadataId, string title)

@@ -6,6 +6,13 @@ Last.fm's top albums give each album's artist with the artist's MusicBrainz id, 
 
 - `MapAlbumReport` treats a blank artist name or id like a missing one, as the rest of the sync does with `IsNullOrWhiteSpace`, so the album is added under the artist of the album it found. An item with only an artist already got this in `MapArtistReport`.
 
-Tests: an album item with a blank artist id, with and without the artist's name, is added under the found album's artist and its name. Each of the two lines was put back to develop's check on purpose and caught by a test.
+Tests: an album item whose artist id is empty or only spaces, with the artist's name given, empty or only spaces, is added under the found album's artist and its name. Each of the two lines was put back to develop's check, and changed to `string.IsNullOrEmpty`, on purpose, and each change was caught by a test.
 
-Full Core suite in Release: 3,249 pass. Merged after the custom build's 53 other branches, it merges cleanly, also beside `feat/import-list-tag-existing`'s change to the method below `MapAlbumReport`, and builds, `en.json` has no repeated keys, and the Core suite there passes 4,689. In Debug, only the three tests that also fail without this branch fail: `should_remove_missing_import_lists_on_startup` and two `UpgradeMediaFileServiceFixture` tests for a file gone from disk.
+Full Core suite in Release: 3,251 pass. Merged after the custom build's 53 other branches, it merges cleanly, also beside `feat/import-list-tag-existing`'s change to the method below `MapAlbumReport`, and builds, `en.json` has no repeated keys, and the Core suite there passes 4,691. In Debug, only the three tests that also fail without this branch fail: `should_remove_missing_import_lists_on_startup` and two `UpgradeMediaFileServiceFixture` tests for a file gone from disk.
+
+## Summary by CodeRabbit
+
+- **Bug Fixes**
+  - An import list album whose artist name or MusicBrainz id is blank (empty or only spaces) is added under the artist of the album the lookup finds. An artist name or id the list gives is kept.
+- **Documentation**
+  - The branch README describes the bug, the fix, and the test and suite results.

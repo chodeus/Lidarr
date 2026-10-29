@@ -81,8 +81,10 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<ILocalizationService>().Setup(s => s.GetLocalizedString(It.IsAny<string>(), It.IsAny<Dictionary<string, object>>())).Returns("removed");
         }
 
+        // Kept only with track files, as develop keeps an artist the source no longer has
         private void GivenTheLookupFindsNoArtist()
         {
+            Mocker.GetMock<IMediaFileService>().Setup(s => s.GetFilesByArtist(_artist.Id)).Returns(new List<TrackFile> { new TrackFile() });
             Mocker.GetMock<IProvideArtistInfo>()
                   .Setup(s => s.GetArtistInfo(It.IsAny<string>(), It.IsAny<int>()))
                   .Throws(new ArtistNotFoundException("artist-1"));

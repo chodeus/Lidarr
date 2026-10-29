@@ -1,6 +1,6 @@
 # Keep artists and albums the metadata source no longer has
 
-Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Reviewed in [#30](https://github.com/chodeus/Lidarr/pull/30) and [#39](https://github.com/chodeus/Lidarr/pull/39).
+Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom) (`ghcr.io/chodeus/lidarr:custom`), which merges this branch into `develop`. Reviewed in [#30](https://github.com/chodeus/Lidarr/pull/30), [#39](https://github.com/chodeus/Lidarr/pull/39) and [#74](https://github.com/chodeus/Lidarr/pull/74).
 
 - An artist or album the metadata source no longer has is kept only where develop keeps it: an artist with track files, or an album with files or added by hand. For an album, no longer has means not found, or no releases with tracks. The album is marked with the date it went missing (`Albums.MetadataMissingSince`, migration 908); the first date is kept, and the mark clears when the source has the album again. The artist stays marked removed and listed by develop's removed-artist health check.
 - Anything else is deleted, as develop does: an album without files, including one that drops out of its artist's list or was marked before its files went. An artist deleted this way leaves its folder on disk, since with no track files anything left in it is unmapped files or extras.
@@ -19,9 +19,10 @@ Tests: refresh cases for an album with files or added by hand (kept and marked w
 
 ## Summary by CodeRabbit
 
-* **New Features**
-  * Albums retained when missing from metadata are marked with the date they went missing; the date clears when metadata returns.
-  * Health checks warn when albums are missing from the metadata source and identify each affected album.
-* **Bug Fixes**
-  * Albums with files, added by hand, or synced from the source before are kept and marked missing when the source no longer has them or has no usable releases.
-  * Artists missing from metadata are marked as deleted without being physically removed.
+* **Behavior Changes**
+  * Albums missing from the metadata source are retained when they have files or were added manually; other eligible albums are removed.
+  * Artists missing from the metadata source with no files are removed, while their folders are left in place.
+  * Albums retained despite missing metadata are marked accordingly, and previously marked albums are removed once they no longer qualify to be kept.
+
+* **Health Checks**
+  * Missing-album alerts show artist names when available, sort albums alphabetically, and include a help link. Lists show up to five albums and indicate how many more are missing.

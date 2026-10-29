@@ -289,6 +289,19 @@ namespace NzbDrone.Core.Test.MediaFiles
         }
 
         [Test]
+        public void should_import_the_cue_and_log_of_a_split_image_when_only_the_tracks_are_imported()
+        {
+            // Unpackerr's manual import after a split sends the tracks alone, so the image is no decision
+            File.WriteAllText(Path.Combine(_download, "Artist - Album.flac"), "audio");
+            File.WriteAllText(Path.Combine(_download, "Artist - Album.cue"), "FILE \"Artist - Album.flac\" WAVE");
+            File.WriteAllText(Path.Combine(_download, "Artist - Album.log"), "rip log");
+
+            Import("01 - Song.flac");
+
+            Db.All<OtherExtraFile>().Select(o => Path.GetFileName(o.RelativePath)).Should().BeEquivalentTo("Artist - Album.cue", "Artist - Album.log");
+        }
+
+        [Test]
         public void should_take_no_release_files_beside_a_single_file_download_but_still_replace_the_previous_ones()
         {
             GivenReleaseFileFromAnEarlierImport("Old.log");

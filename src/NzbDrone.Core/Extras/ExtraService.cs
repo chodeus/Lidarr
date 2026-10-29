@@ -186,19 +186,20 @@ namespace NzbDrone.Core.Extras
             var files = _diskProvider.GetFiles(folder, false).ToList();
             var audio = files.Where(f => MediaFileExtensions.Extensions.Contains(Path.GetExtension(f))).ToList();
 
-            if (!audio.All(albumAudio.Contains))
+            // An image with its cue sheet beside it, whatever the case, isn't a track, so its "Album.cue" and "Album.log" are the release's
+            var cueSheets = files.Where(f => Path.GetExtension(f).Equals(".cue", StringComparison.OrdinalIgnoreCase))
+                                 .Select(Path.GetFileNameWithoutExtension)
+                                 .ToHashSet(StringComparer.InvariantCultureIgnoreCase);
+            var tracks = audio.Where(f => !cueSheets.Contains(Path.GetFileNameWithoutExtension(f))).ToList();
+
+            // Nor is it another album's audio: unpackerr's import after a split sends the tracks without it
+            if (!tracks.All(albumAudio.Contains))
             {
                 _logger.Debug("Not importing release files from {0}: it holds audio of other albums", folder);
                 return Enumerable.Empty<string>();
             }
 
-            // An image with its cue sheet beside it, whatever the case, isn't a track, so its "Album.cue" and "Album.log" are the release's
-            var cueSheets = files.Where(f => Path.GetExtension(f).Equals(".cue", StringComparison.OrdinalIgnoreCase))
-                                 .Select(Path.GetFileNameWithoutExtension)
-                                 .ToHashSet(StringComparer.InvariantCultureIgnoreCase);
-            var trackNames = audio.Select(Path.GetFileNameWithoutExtension)
-                                  .Where(n => !cueSheets.Contains(n))
-                                  .ToList();
+            var trackNames = tracks.Select(Path.GetFileNameWithoutExtension).ToList();
 
             return files.Where(f => IsWanted(f, wantedExtensions) &&
                                     !trackNames.Any(n => Path.GetFileNameWithoutExtension(f).StartsWith(n, StringComparison.InvariantCultureIgnoreCase)));

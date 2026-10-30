@@ -149,7 +149,8 @@ namespace NzbDrone.Core.MediaFiles
             {
                 var files = message.TrackFilesToDelete;
 
-                foreach (var file in files)
+                // A file already gone from disk would stop the recycle bin move, and every file after it
+                foreach (var file in files.Where(f => _diskProvider.FileExists(f.Path)))
                 {
                     _recycleBinProvider.DeleteFile(file.Path);
                 }
@@ -164,7 +165,7 @@ namespace NzbDrone.Core.MediaFiles
                     {
                         _diskProvider.DeleteFolder(artist.Path, true);
                     }
-                    else if (albumFolder.IsNotNullOrWhiteSpace() && _diskProvider.GetFiles(albumFolder, true).Empty())
+                    else if (albumFolder.IsNotNullOrWhiteSpace() && _diskProvider.FolderExists(albumFolder) && _diskProvider.GetFiles(albumFolder, true).Empty())
                     {
                         _diskProvider.RemoveEmptySubfolders(albumFolder);
                     }

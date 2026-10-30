@@ -159,7 +159,8 @@ namespace NzbDrone.Core.MediaFiles
                     var artist = message.Album.Artist.Value;
                     var albumFolder = message.TrackFilesToDelete.FirstOrDefault()?.Path.GetParentPath();
 
-                    if (_diskProvider.GetFiles(artist.Path, true).Empty())
+                    // An artist whose albums never had files may have no folder on disk
+                    if (_diskProvider.FolderExists(artist.Path) && _diskProvider.GetFiles(artist.Path, true).Empty())
                     {
                         _diskProvider.DeleteFolder(artist.Path, true);
                     }

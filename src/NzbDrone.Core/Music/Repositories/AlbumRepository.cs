@@ -26,7 +26,7 @@ namespace NzbDrone.Core.Music
         void SetMonitored(IEnumerable<int> ids, bool monitored);
 
         // A default body keeps implementations built against develop working.
-        List<Album> GetAlbumsMissingFromMetadata()
+        List<Album> GetAlbumsMissingFromMetadataWithoutFiles()
         {
             return new List<Album>();
         }
@@ -208,12 +208,16 @@ namespace NzbDrone.Core.Music
             SetFields(albums, p => p.Monitored);
         }
 
-        public List<Album> GetAlbumsMissingFromMetadata()
+        // x.Id == null is converted to SQL, so warning incorrect
+#pragma warning disable CS0472
+        public List<Album> GetAlbumsMissingFromMetadataWithoutFiles()
         {
             // The artist names come in the same query, for the health check that lists these albums
             var builder = new SqlBuilder(_database.DatabaseType)
                     .LeftJoin<Album, ArtistMetadata>((a, m) => a.ArtistMetadataId == m.Id)
-                    .Where<Album>(a => a.MetadataMissingSince != null);
+                    .LeftJoin<Album, TrackFile>((a, f) => a.Id == f.AlbumId)
+                    .Where<Album>(a => a.MetadataMissingSince != null)
+                    .Where<TrackFile>(f => f.Id == null);
 
             return _database.QueryJoined<Album, ArtistMetadata>(builder, (album, metadata) =>
                     {
@@ -221,6 +225,7 @@ namespace NzbDrone.Core.Music
                         return album;
                     }).ToList();
         }
+#pragma warning restore CS0472
 
         public Album FindByTitle(int artistMetadataId, string title)
         {

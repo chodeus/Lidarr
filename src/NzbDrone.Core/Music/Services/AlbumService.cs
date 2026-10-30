@@ -40,7 +40,7 @@ namespace NzbDrone.Core.Music
         {
         }
 
-        List<Album> GetAlbumsMissingFromMetadata()
+        List<Album> GetAlbumsMissingFromMetadataWithoutFiles()
         {
             return new List<Album>();
         }
@@ -430,9 +430,9 @@ namespace NzbDrone.Core.Music
             _albumRepository.SetFields(albums, a => a.MetadataMissingSince);
         }
 
-        public List<Album> GetAlbumsMissingFromMetadata()
+        public List<Album> GetAlbumsMissingFromMetadataWithoutFiles()
         {
-            return _albumRepository.GetAlbumsMissingFromMetadata();
+            return _albumRepository.GetAlbumsMissingFromMetadataWithoutFiles();
         }
 
         public void Handle(ArtistsDeletedEvent message)

@@ -9,8 +9,8 @@ namespace NzbDrone.Core.Test.MusicTests
     public class MetadataMissingDefaultsFixture
     {
         [TestCase(typeof(IAlbumService), nameof(IAlbumService.UpdateMetadataMissingSince))]
-        [TestCase(typeof(IAlbumService), nameof(IAlbumService.GetAlbumsMissingFromMetadata))]
-        [TestCase(typeof(IAlbumRepository), nameof(IAlbumRepository.GetAlbumsMissingFromMetadata))]
+        [TestCase(typeof(IAlbumService), nameof(IAlbumService.GetAlbumsMissingFromMetadataWithoutFiles))]
+        [TestCase(typeof(IAlbumRepository), nameof(IAlbumRepository.GetAlbumsMissingFromMetadataWithoutFiles))]
         public void should_give_new_interface_members_a_default_body(Type type, string method)
         {
             type.GetMethod(method).IsAbstract.Should().BeFalse();

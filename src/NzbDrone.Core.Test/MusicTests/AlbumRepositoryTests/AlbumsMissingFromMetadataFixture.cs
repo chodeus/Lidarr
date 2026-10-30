@@ -3,7 +3,9 @@ using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using NUnit.Framework;
+using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Music;
+using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Test.Framework;
 
 namespace NzbDrone.Core.Test.MusicTests.AlbumRepositoryTests
@@ -29,7 +31,32 @@ namespace NzbDrone.Core.Test.MusicTests.AlbumRepositoryTests
                 .BuildListOfNew();
             Db.InsertMany(albums);
 
-            Subject.GetAlbumsMissingFromMetadata().Select(a => a.ForeignAlbumId).Should().Equal("missing");
+            Subject.GetAlbumsMissingFromMetadataWithoutFiles().Select(a => a.ForeignAlbumId).Should().Equal("missing");
+        }
+
+        [Test]
+        public void should_leave_out_albums_with_files()
+        {
+            var albums = Builder<Album>.CreateListOfSize(2)
+                .All()
+                .With(a => a.Id = 0)
+                .With(a => a.MetadataMissingSince = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc))
+                .TheFirst(1)
+                .With(a => a.ForeignAlbumId = "without-files")
+                .TheNext(1)
+                .With(a => a.ForeignAlbumId = "with-files")
+                .BuildListOfNew();
+            Db.InsertMany(albums);
+
+            var files = Builder<TrackFile>.CreateListOfSize(2)
+                .All()
+                .With(f => f.Id = 0)
+                .With(f => f.Quality = new QualityModel())
+                .With(f => f.AlbumId = albums[1].Id)
+                .BuildListOfNew();
+            Db.InsertMany(files);
+
+            Subject.GetAlbumsMissingFromMetadataWithoutFiles().Select(a => a.ForeignAlbumId).Should().Equal("without-files");
         }
 
         [Test]
@@ -45,7 +72,7 @@ namespace NzbDrone.Core.Test.MusicTests.AlbumRepositoryTests
                 .With(a => a.MetadataMissingSince = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc))
                 .BuildNew());
 
-            var album = Subject.GetAlbumsMissingFromMetadata().Single();
+            var album = Subject.GetAlbumsMissingFromMetadataWithoutFiles().Single();
 
             album.ArtistMetadata.IsLoaded.Should().BeTrue();
             album.ArtistMetadata.Value.Name.Should().Be("Artist Name");
@@ -62,11 +89,11 @@ namespace NzbDrone.Core.Test.MusicTests.AlbumRepositoryTests
 
             album.MetadataMissingSince = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
             Subject.SetFields(album, a => a.MetadataMissingSince);
-            Subject.GetAlbumsMissingFromMetadata().Should().ContainSingle(a => a.Id == album.Id);
+            Subject.GetAlbumsMissingFromMetadataWithoutFiles().Should().ContainSingle(a => a.Id == album.Id);
 
             album.MetadataMissingSince = null;
             Subject.SetFields(album, a => a.MetadataMissingSince);
-            Subject.GetAlbumsMissingFromMetadata().Should().BeEmpty();
+            Subject.GetAlbumsMissingFromMetadataWithoutFiles().Should().BeEmpty();
         }
     }
 }

@@ -30,6 +30,10 @@ namespace NzbDrone.Core.Test.MediaFiles
         [SetUp]
         public void Setup()
         {
+            // NUnit reuses the fixture: a test that never reaches the decision maker must not read the last test's call
+            _overrides = null;
+            _config = null;
+
             FileSystem.AddFile(_file, new MockFileData("".PadRight(10)));
 
             Mocker.GetMock<IDiskScanService>()

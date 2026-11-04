@@ -101,6 +101,7 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
                 .With(h => h.DownloadId = DownloadId)
                 .With(h => h.ArtistId = _artist.Id)
                 .With(h => h.AlbumId = album.Id)
+                .With(h => h.Date = System.DateTime.UtcNow.AddMinutes(-10))
                 .With(h => h.Quality = new QualityModel())
                 .BuildNew());
         }

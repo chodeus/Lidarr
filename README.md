@@ -128,6 +128,8 @@
 - **A release's own files, such as its cue sheet and rip log** — branch [`feat/release-extra-files`](https://github.com/chodeus/Lidarr/tree/feat/release-extra-files), builds on `fix/extras-link-track-files`, not submitted
   - With Import Extra Files on, a release's own files with a wanted extension, such as its `.cue` and `.log`, are imported once into the album's folder under their own names, including the cue sheet and rip log of a split image, also when Unpackerr imports only the split tracks. They move with the album's tracks on rename.
   - A replacing import sends the previous release's files to the recycle bin first, unless its tracks come from inside the artist's folder, and deleting the album with its files recycles them too. Migration 915.
+- **Import against the grabbed album** — branch [`fix/import-grabbed-album`](https://github.com/chodeus/Lidarr/tree/fix/import-grabbed-album), not submitted
+  - A completed download, or a scan of a known download, imports against the one album its grab named, as a single release, so a single and an album of one name no longer swap. The queue, the import check and the `DownloadImported` history name that album. Several grabbed albums, another artist's album or no grab history keep develop's import.
 
 ## How the build works
 

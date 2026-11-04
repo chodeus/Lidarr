@@ -50,7 +50,7 @@ namespace NzbDrone.Core.Test.MediaFiles
         [Test]
         public void should_import_a_known_download_against_its_grabbed_album()
         {
-            Mocker.GetMock<ICompletedDownloadService>().Setup(s => s.GrabbedAlbum(_trackedDownload)).Returns(_album);
+            Mocker.GetMock<ICompletedDownloadService>().Setup(s => s.ScopeToGrabbedAlbum(_trackedDownload)).Returns(_album);
 
             Scan();
 

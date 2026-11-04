@@ -53,7 +53,7 @@ namespace NzbDrone.Core.MediaFiles
                 {
                     _logger.Debug("External directory scan request for known download {0}. [{1}]", message.DownloadClientId, message.Path);
 
-                    var album = _completedDownloadService.GrabbedAlbum(trackedDownload);
+                    var album = _completedDownloadService.ScopeToGrabbedAlbum(trackedDownload);
                     var importResults = album == null
                         ? _downloadedTracksImportService.ProcessPath(message.Path, message.ImportMode, trackedDownload.RemoteAlbum.Artist, trackedDownload.DownloadItem)
                         : _downloadedTracksImportService.ProcessGrabbedPath(message.Path, message.ImportMode, trackedDownload.RemoteAlbum.Artist, album, trackedDownload.DownloadItem);

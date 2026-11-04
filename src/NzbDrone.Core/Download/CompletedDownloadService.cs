@@ -24,7 +24,7 @@ namespace NzbDrone.Core.Download
         bool VerifyImport(TrackedDownload trackedDownload, List<ImportResult> importResults);
 
         // Not on develop: the default keeps develop's artist-only import
-        Album GrabbedAlbum(TrackedDownload trackedDownload) => null;
+        Album ScopeToGrabbedAlbum(TrackedDownload trackedDownload) => null;
     }
 
     public class CompletedDownloadService : ICompletedDownloadService
@@ -126,7 +126,7 @@ namespace NzbDrone.Core.Download
             trackedDownload.State = TrackedDownloadState.Importing;
 
             var outputPath = trackedDownload.ImportItem.OutputPath.FullPath;
-            var album = GrabbedAlbum(trackedDownload);
+            var album = ScopeToGrabbedAlbum(trackedDownload);
             var importResults = album == null
                 ? _downloadedTracksImportService.ProcessPath(outputPath, ImportMode.Auto, trackedDownload.RemoteAlbum.Artist, trackedDownload.ImportItem)
                 : _downloadedTracksImportService.ProcessGrabbedPath(outputPath, ImportMode.Auto, trackedDownload.RemoteAlbum.Artist, album, trackedDownload.ImportItem);
@@ -285,21 +285,37 @@ namespace NzbDrone.Core.Download
             return true;
         }
 
-        // The grab names the album; the queue's album is parsed from the title and can be the artist's other album of that name
-        public Album GrabbedAlbum(TrackedDownload trackedDownload)
+        // The grab names the album; the queue's album is parsed from the title and can be the artist's other album of that name.
+        // Pointing the tracked download at it keeps verification, history and the queue on the album the files go to.
+        public Album ScopeToGrabbedAlbum(TrackedDownload trackedDownload)
         {
-            var grabs = _historyService.FindByDownloadId(trackedDownload.DownloadItem.DownloadId)
-                                       .Where(h => h.EventType == EntityHistoryEventType.Grabbed)
-                                       .ToList();
+            var remoteAlbum = trackedDownload.RemoteAlbum;
 
-            if (grabs.Select(h => h.AlbumId).Distinct().Count() != 1)
+            // A grab of several albums keeps all of them here even after one is deleted and drops out of the history join
+            if (remoteAlbum?.Artist == null || remoteAlbum.Albums?.Count > 1)
             {
                 return null;
             }
 
-            var album = grabs.First().Album;
+            var grabs = _historyService.FindByDownloadId(trackedDownload.DownloadItem.DownloadId)
+                                       .Where(h => h.EventType == EntityHistoryEventType.Grabbed)
+                                       .ToList();
 
-            return album != null && album.ArtistMetadataId == trackedDownload.RemoteAlbum?.Artist?.ArtistMetadataId ? album : null;
+            if (grabs.Select(h => h.AlbumId).Distinct().Count() != 1 || grabs[0].Album?.ArtistMetadataId != remoteAlbum.Artist.ArtistMetadataId)
+            {
+                return null;
+            }
+
+            var albums = _parsingService.Map(remoteAlbum.ParsedAlbumInfo, remoteAlbum.Artist.Id, new[] { grabs[0].AlbumId })?.Albums;
+
+            if (albums?.Count != 1)
+            {
+                return null;
+            }
+
+            remoteAlbum.Albums = albums;
+
+            return albums[0];
         }
     }
 }

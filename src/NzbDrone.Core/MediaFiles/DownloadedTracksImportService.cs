@@ -22,6 +22,9 @@ namespace NzbDrone.Core.MediaFiles
     {
         List<ImportResult> ProcessRootFolder(IDirectoryInfo directoryInfo);
         List<ImportResult> ProcessPath(string path, ImportMode importMode = ImportMode.Auto, Artist artist = null, DownloadClientItem downloadClientItem = null);
+
+        // Not on develop: the default keeps develop's import for any other implementation
+        List<ImportResult> ProcessGrabbedPath(string path, ImportMode importMode, Artist artist, Album album, DownloadClientItem downloadClientItem) => ProcessPath(path, importMode, artist, downloadClientItem);
         bool ShouldDeleteFolder(IDirectoryInfo directoryInfo, Artist artist);
     }
 
@@ -79,6 +82,11 @@ namespace NzbDrone.Core.MediaFiles
 
         public List<ImportResult> ProcessPath(string path, ImportMode importMode = ImportMode.Auto, Artist artist = null, DownloadClientItem downloadClientItem = null)
         {
+            return ProcessGrabbedPath(path, importMode, artist, null, downloadClientItem);
+        }
+
+        public List<ImportResult> ProcessGrabbedPath(string path, ImportMode importMode, Artist artist, Album album, DownloadClientItem downloadClientItem)
+        {
             _logger.Debug("Processing path: {0}", path);
 
             if (_diskProvider.FolderExists(path))
@@ -90,7 +98,7 @@ namespace NzbDrone.Core.MediaFiles
                     return ProcessFolder(directoryInfo, importMode, downloadClientItem);
                 }
 
-                return ProcessFolder(directoryInfo, importMode, artist, downloadClientItem);
+                return ProcessFolder(directoryInfo, importMode, artist, album, downloadClientItem);
             }
 
             if (_diskProvider.FileExists(path))
@@ -102,7 +110,7 @@ namespace NzbDrone.Core.MediaFiles
                     return ProcessFile(fileInfo, importMode, downloadClientItem);
                 }
 
-                return ProcessFile(fileInfo, importMode, artist, downloadClientItem);
+                return ProcessFile(fileInfo, importMode, artist, album, downloadClientItem);
             }
 
             LogInaccessiblePathError(path);
@@ -169,10 +177,10 @@ namespace NzbDrone.Core.MediaFiles
                        };
             }
 
-            return ProcessFolder(directoryInfo, importMode, artist, downloadClientItem);
+            return ProcessFolder(directoryInfo, importMode, artist, null, downloadClientItem);
         }
 
-        private List<ImportResult> ProcessFolder(IDirectoryInfo directoryInfo, ImportMode importMode, Artist artist, DownloadClientItem downloadClientItem)
+        private List<ImportResult> ProcessFolder(IDirectoryInfo directoryInfo, ImportMode importMode, Artist artist, Album album, DownloadClientItem downloadClientItem)
         {
             if (_artistService.ArtistPathExists(directoryInfo.FullName))
             {
@@ -203,7 +211,8 @@ namespace NzbDrone.Core.MediaFiles
 
             var idOverrides = new IdentificationOverrides
             {
-                Artist = artist
+                Artist = artist,
+                Album = album
             };
             var idInfo = new ImportDecisionMakerInfo
             {
@@ -214,7 +223,9 @@ namespace NzbDrone.Core.MediaFiles
             {
                 Filter = FilterFilesType.None,
                 NewDownload = true,
-                SingleRelease = false,
+
+                // A grab of one album is that album, so its files are judged together as manual import does
+                SingleRelease = album != null,
                 IncludeExisting = false,
                 AddNewArtists = false
             };
@@ -264,10 +275,10 @@ namespace NzbDrone.Core.MediaFiles
                        };
             }
 
-            return ProcessFile(fileInfo, importMode, artist, downloadClientItem);
+            return ProcessFile(fileInfo, importMode, artist, null, downloadClientItem);
         }
 
-        private List<ImportResult> ProcessFile(IFileInfo fileInfo, ImportMode importMode, Artist artist, DownloadClientItem downloadClientItem)
+        private List<ImportResult> ProcessFile(IFileInfo fileInfo, ImportMode importMode, Artist artist, Album album, DownloadClientItem downloadClientItem)
         {
             if (Path.GetFileNameWithoutExtension(fileInfo.Name).StartsWith("._"))
             {
@@ -306,7 +317,8 @@ namespace NzbDrone.Core.MediaFiles
 
             var idOverrides = new IdentificationOverrides
             {
-                Artist = artist
+                Artist = artist,
+                Album = album
             };
             var idInfo = new ImportDecisionMakerInfo
             {

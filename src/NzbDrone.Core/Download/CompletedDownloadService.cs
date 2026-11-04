@@ -22,6 +22,9 @@ namespace NzbDrone.Core.Download
         void Check(TrackedDownload trackedDownload);
         void Import(TrackedDownload trackedDownload);
         bool VerifyImport(TrackedDownload trackedDownload, List<ImportResult> importResults);
+
+        // Not on develop: the default keeps develop's artist-only import
+        Album GrabbedAlbum(TrackedDownload trackedDownload) => null;
     }
 
     public class CompletedDownloadService : ICompletedDownloadService
@@ -123,7 +126,10 @@ namespace NzbDrone.Core.Download
             trackedDownload.State = TrackedDownloadState.Importing;
 
             var outputPath = trackedDownload.ImportItem.OutputPath.FullPath;
-            var importResults = _downloadedTracksImportService.ProcessPath(outputPath, ImportMode.Auto, trackedDownload.RemoteAlbum.Artist, trackedDownload.ImportItem);
+            var album = GrabbedAlbum(trackedDownload);
+            var importResults = album == null
+                ? _downloadedTracksImportService.ProcessPath(outputPath, ImportMode.Auto, trackedDownload.RemoteAlbum.Artist, trackedDownload.ImportItem)
+                : _downloadedTracksImportService.ProcessGrabbedPath(outputPath, ImportMode.Auto, trackedDownload.RemoteAlbum.Artist, album, trackedDownload.ImportItem);
 
             if (VerifyImport(trackedDownload, importResults))
             {
@@ -277,6 +283,23 @@ namespace NzbDrone.Core.Download
             }
 
             return true;
+        }
+
+        // The grab names the album; the queue's album is parsed from the title and can be the artist's other album of that name
+        public Album GrabbedAlbum(TrackedDownload trackedDownload)
+        {
+            var grabs = _historyService.FindByDownloadId(trackedDownload.DownloadItem.DownloadId)
+                                       .Where(h => h.EventType == EntityHistoryEventType.Grabbed)
+                                       .ToList();
+
+            if (grabs.Select(h => h.AlbumId).Distinct().Count() != 1)
+            {
+                return null;
+            }
+
+            var album = grabs.First().Album;
+
+            return album != null && album.ArtistMetadataId == trackedDownload.RemoteAlbum?.Artist?.ArtistMetadataId ? album : null;
         }
     }
 }

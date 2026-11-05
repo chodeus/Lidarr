@@ -6,6 +6,7 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.MediaFiles.TrackImport;
 using NzbDrone.Core.MediaFiles.TrackImport.Identification;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
@@ -220,6 +221,25 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
                   .Returns(new List<AlbumRelease> { other, monitored });
 
             var candidates = Subject.GetDbCandidatesFromFingerprint(localAlbumRelease, null, false);
+
+            candidates.Select(x => x.AlbumRelease).Should().BeEquivalentTo(anyReleaseOk ? new[] { other, monitored } : new[] { monitored });
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void get_remote_candidates_should_skip_a_release_an_existing_album_does_not_want(bool anyReleaseOk)
+        {
+            var (monitored, other) = GivenTwoReleases(anyReleaseOk);
+            var album = monitored.Album.Value;
+            album.AlbumReleases = new List<AlbumRelease> { other, monitored };
+            var localAlbumRelease = new LocalAlbumRelease(GivenLocalTracks(other.Tracks.Value, other));
+            localAlbumRelease.LocalTracks.ForEach(x => x.FileTrackInfo.AlbumMBId = "album-mbid");
+
+            Mocker.GetMock<ISearchForNewAlbum>()
+                  .Setup(x => x.SearchForNewAlbum("mbid:album-mbid", null))
+                  .Returns(new List<Album> { album });
+
+            var candidates = Subject.GetRemoteCandidates(localAlbumRelease);
 
             candidates.Select(x => x.AlbumRelease).Should().BeEquivalentTo(anyReleaseOk ? new[] { other, monitored } : new[] { monitored });
         }

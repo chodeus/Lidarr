@@ -294,7 +294,8 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
             {
                 // We have to make sure various bits and pieces are populated that are normally handled
                 // by a database lazy load
-                foreach (var release in album.AlbumReleases.Value)
+                // An mbid search returns an album already in the library with its own flags; a new one allows any release.
+                foreach (var release in album.AlbumReleases.Value.Where(x => album.AnyReleaseOk || x.Monitored))
                 {
                     release.Album = album;
                     candidates.Add(new CandidateAlbumRelease

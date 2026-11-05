@@ -256,7 +256,10 @@ namespace NzbDrone.Core.Configuration
 
         public string Theme => _appOptions.Theme ?? GetValue("Theme", "auto", persist: false);
 
-        public string AcoustIdApiKey => _appOptions.AcoustIdApiKey ?? GetValue("AcoustIdApiKey", string.Empty, persist: false);
+        // A blank variable, as compose writes for an unset one, must not hide a key in config.xml
+        public string AcoustIdApiKey => _appOptions.AcoustIdApiKey.IsNotNullOrWhiteSpace()
+            ? _appOptions.AcoustIdApiKey.Trim()
+            : GetValue("AcoustIdApiKey", string.Empty, persist: false);
 
         public string PostgresHost => _postgresOptions?.Host ?? GetValue("PostgresHost", string.Empty, persist: false);
         public string PostgresUser => _postgresOptions?.User ?? GetValue("PostgresUser", string.Empty, persist: false);

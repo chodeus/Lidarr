@@ -369,9 +369,7 @@ namespace NzbDrone.Core.Parser
                 .WithRateLimit(0.334)
                 .Build();
 
-            var ownKey = _configFileProvider?.AcoustIdApiKey;
-            var key = string.IsNullOrWhiteSpace(ownKey) ? _acoustIdApiKey : ownKey.Trim();
-            var sb = new StringBuilder($"client={key}&format=json&meta=recordings&batch=1", 2000);
+            var sb = new StringBuilder($"client={AcoustIdKey()}&format=json&meta=recordings&batch=1", 2000);
             for (var i = 0; i < toLookup.Count; i++)
             {
                 sb.Append($"&duration.{i}={toLookup[i].Item2.Duration:F0}&fingerprint.{i}={toLookup[i].Item2.Fingerprint}");
@@ -385,6 +383,21 @@ namespace NzbDrone.Core.Parser
             httpRequest.RequestTimeout = TimeSpan.FromSeconds(5);
 
             return httpRequest;
+        }
+
+        private string AcoustIdKey()
+        {
+            try
+            {
+                var ownKey = _configFileProvider?.AcoustIdApiKey;
+                return string.IsNullOrWhiteSpace(ownKey) ? _acoustIdApiKey : ownKey.Trim();
+            }
+            catch (Exception e)
+            {
+                // An unreadable config.xml must not stop the lookup
+                _logger.Warn(e, "Could not read the AcoustID key setting; using Lidarr's own key");
+                return _acoustIdApiKey;
+            }
         }
 
         public LookupResponse GetResponse(HttpRequest request, int retry = 3)

@@ -434,6 +434,16 @@ FINGERPRINT=AQAHJlMURlEURcgP6cwRD43Y4Ptw9FowncWPWkf6GB9-JYdP9OgJHw8u4Apw4SsOHMdx
         }
 
         [Test]
+        public void should_look_up_with_lidarrs_own_key_when_the_key_setting_cannot_be_read()
+        {
+            Mocker.GetMock<IConfigFileProvider>().SetupGet(c => c.AcoustIdApiKey).Throws(new InvalidConfigFileException("config.xml is unreadable"));
+            var withoutConfig = new FingerprintingService(TestLogger, Mocker.Resolve<IHttpClient>(), Mocker.Resolve<ICacheManager>());
+
+            Body(Subject.GenerateRequest(OneFile())).Should().Be(Body(withoutConfig.GenerateRequest(OneFile())));
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
         public void should_not_retry_indefinitely_if_too_many_requests()
         {
             var error = "{\"error\": {\"code\": 14, \"message\": \"rate limit (3 requests per second) exceeded, try again later\"}, \"status\": \"error\"}";

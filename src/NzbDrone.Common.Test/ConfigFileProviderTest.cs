@@ -223,6 +223,9 @@ namespace NzbDrone.Common.Test
         [TestCase(null, null, "")]
         [TestCase("file-key", null, "file-key")]
         [TestCase("file-key", "env-key", "env-key")]
+        [TestCase("file-key", "", "file-key")]
+        [TestCase("file-key", "   ", "file-key")]
+        [TestCase(null, "  env-key  ", "env-key")]
         public void should_read_the_acoustid_key_from_the_environment_before_the_config_file(string fileKey, string envKey, string expected)
         {
             _configFileContents = fileKey == null ? "<Config></Config>" : $"<Config><AcoustIdApiKey>{fileKey}</AcoustIdApiKey></Config>";

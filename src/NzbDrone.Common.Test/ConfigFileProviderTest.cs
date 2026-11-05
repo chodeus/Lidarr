@@ -219,5 +219,18 @@ namespace NzbDrone.Common.Test
 
             Assert.Throws<InvalidConfigFileException>(() => Subject.GetValue("key", "value"));
         }
+
+        [TestCase(null, null, "")]
+        [TestCase("file-key", null, "file-key")]
+        [TestCase("file-key", "env-key", "env-key")]
+        public void should_read_the_acoustid_key_from_the_environment_before_the_config_file(string fileKey, string envKey, string expected)
+        {
+            _configFileContents = fileKey == null ? "<Config></Config>" : $"<Config><AcoustIdApiKey>{fileKey}</AcoustIdApiKey></Config>";
+            Mocker.GetMock<IOptions<AppOptions>>()
+                .Setup(v => v.Value)
+                .Returns(new AppOptions { AcoustIdApiKey = envKey });
+
+            Subject.AcoustIdApiKey.Should().Be(expected);
+        }
     }
 }

@@ -8,8 +8,10 @@ using FluentAssertions;
 using Moq;
 using Newtonsoft.Json;
 using NUnit.Framework;
+using NzbDrone.Common.Cache;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Test.Framework;
@@ -405,6 +407,30 @@ FINGERPRINT=AQAHJlMURlEURcgP6cwRD43Y4Ptw9FowncWPWkf6GB9-JYdP9OgJHw8u4Apw4SsOHMdx
             localTrack.AcoustIdRecordings.Select(x => x.Duration).Should().Equal(201.5, null);
             localTrack.AcoustIdRecordings[0].Artists.Select(x => x.Id).Should().Equal("00000000-0000-0000-0000-00000000000b");
             localTrack.AcoustIdRecordings[1].Artists.Should().BeNull();
+        }
+
+        private static string Body(HttpRequest request) => Encoding.UTF8.GetString(request.ContentData.Decompress());
+
+        private static List<Tuple<LocalTrack, AcoustId>> OneFile() =>
+            new() { Tuple.Create(new LocalTrack { Path = "/music/01.flac" }, new AcoustId { Duration = 200, Fingerprint = "AQAA" }) };
+
+        [Test]
+        public void should_send_the_owners_acoustid_key_when_one_is_set()
+        {
+            Mocker.GetMock<IConfigFileProvider>().SetupGet(c => c.AcoustIdApiKey).Returns("  own-key  ");
+
+            Body(Subject.GenerateRequest(OneFile())).Should().StartWith("client=own-key&");
+        }
+
+        [TestCase(null)]
+        [TestCase("")]
+        [TestCase("   ")]
+        public void should_send_lidarrs_own_key_when_no_key_is_set(string ownKey)
+        {
+            Mocker.GetMock<IConfigFileProvider>().SetupGet(c => c.AcoustIdApiKey).Returns(ownKey);
+            var withoutConfig = new FingerprintingService(TestLogger, Mocker.Resolve<IHttpClient>(), Mocker.Resolve<ICacheManager>());
+
+            Body(Subject.GenerateRequest(OneFile())).Should().Be(Body(withoutConfig.GenerateRequest(OneFile())));
         }
 
         [Test]

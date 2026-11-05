@@ -14,6 +14,7 @@ using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
 using NzbDrone.Common.Serializer;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Parser.Model;
 
 namespace NzbDrone.Core.Parser
@@ -41,6 +42,7 @@ namespace NzbDrone.Core.Parser
         private readonly IHttpClient _httpClient;
         private readonly IHttpRequestBuilderFactory _customerRequestBuilder;
         private readonly ICached<AcoustId> _cache;
+        private readonly IConfigFileProvider _configFileProvider;
 
         private readonly string _fpcalcPath;
         private readonly Version _fpcalcVersion;
@@ -49,8 +51,18 @@ namespace NzbDrone.Core.Parser
         public FingerprintingService(Logger logger,
                                      IHttpClient httpClient,
                                      ICacheManager cacheManager)
+            : this(logger, httpClient, cacheManager, null)
+        {
+        }
+
+        // Not on develop: the container takes this one, so a key of the owner's own replaces the one every install shares
+        public FingerprintingService(Logger logger,
+                                     IHttpClient httpClient,
+                                     ICacheManager cacheManager,
+                                     IConfigFileProvider configFileProvider)
         {
             _logger = logger;
+            _configFileProvider = configFileProvider;
             _httpClient = httpClient;
             _cache = cacheManager.GetCache<AcoustId>(GetType());
 
@@ -357,7 +369,9 @@ namespace NzbDrone.Core.Parser
                 .WithRateLimit(0.334)
                 .Build();
 
-            var sb = new StringBuilder($"client={_acoustIdApiKey}&format=json&meta=recordings&batch=1", 2000);
+            var ownKey = _configFileProvider?.AcoustIdApiKey;
+            var key = string.IsNullOrWhiteSpace(ownKey) ? _acoustIdApiKey : ownKey.Trim();
+            var sb = new StringBuilder($"client={key}&format=json&meta=recordings&batch=1", 2000);
             for (var i = 0; i < toLookup.Count; i++)
             {
                 sb.Append($"&duration.{i}={toLookup[i].Item2.Duration:F0}&fingerprint.{i}={toLookup[i].Item2.Fingerprint}");

@@ -6,7 +6,6 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.MediaFiles.TrackImport;
 using NzbDrone.Core.MediaFiles.TrackImport.Identification;
-using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
@@ -235,7 +234,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             var localAlbumRelease = new LocalAlbumRelease(GivenLocalTracks(other.Tracks.Value, other));
             localAlbumRelease.LocalTracks.ForEach(x => x.FileTrackInfo.AlbumMBId = "album-mbid");
 
-            Mocker.GetMock<ISearchForNewAlbum>()
+            Mocker.GetMock<NzbDrone.Core.MetadataSource.ISearchForNewAlbum>()
                   .Setup(x => x.SearchForNewAlbum("mbid:album-mbid", null))
                   .Returns(new List<Album> { album });
 

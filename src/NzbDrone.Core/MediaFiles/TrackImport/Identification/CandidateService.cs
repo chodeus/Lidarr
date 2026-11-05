@@ -59,6 +59,12 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
                 _logger.Debug("Selecting release from consensus ForeignReleaseId [{0}]", releaseIds[0]);
                 tagMbidRelease = _releaseService.GetReleaseByForeignReleaseId(releaseIds[0], true);
 
+                if (tagMbidRelease != null && !IsWanted(tagMbidRelease))
+                {
+                    _logger.Debug("Ignoring tagged release {0}: its album wants only its monitored release", tagMbidRelease);
+                    tagMbidRelease = null;
+                }
+
                 if (tagMbidRelease != null)
                 {
                     tagCandidate = GetDbCandidatesByRelease(new List<AlbumRelease> { tagMbidRelease }, includeExisting);
@@ -134,6 +140,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
             // sort candidate releases by closest track count so that we stand a chance of
             // getting a perfect match early on
             return GetDbCandidatesByRelease(_releaseService.GetReleasesByAlbum(album.Id)
+                                          .Where(x => album.AnyReleaseOk || x.Monitored)
                                           .OrderBy(x => Math.Abs(localAlbumRelease.TrackCount - x.TrackCount))
                                           .ToList(),
                 includeExisting);
@@ -205,6 +212,8 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
                 allReleases = allReleases.Where(x => x.Album.Value.ArtistMetadataId == idOverrides.Artist.ArtistMetadataId).ToList();
             }
 
+            allReleases = allReleases.Where(IsWanted).ToList();
+
             return GetDbCandidatesByRelease(allReleases.Select(x => new
             {
                 Release = x,
@@ -219,6 +228,12 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Identification
                 .Take(10)
                 .ToList(),
                 includeExisting);
+        }
+
+        // ReleaseWantedSpecification refuses any other release of an album with Any Release OK off, so it is no candidate.
+        private static bool IsWanted(AlbumRelease release)
+        {
+            return release.Monitored || release.Album.Value.AnyReleaseOk;
         }
 
         public List<CandidateAlbumRelease> GetRemoteCandidates(LocalAlbumRelease localAlbumRelease)

@@ -75,6 +75,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
                 .CreateNew()
                 .With(x => x.Title = title)
                 .With(x => x.ArtistMetadata = _artist)
+                .With(x => x.AnyReleaseOk = true)
                 .Build();
 
             var media = Builder<Medium>
@@ -156,6 +157,71 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
 
             Subject.GetDbCandidatesFromTags(localAlbumRelease, null, false).Should().BeEquivalentTo(
                 new List<CandidateAlbumRelease> { new CandidateAlbumRelease(release) });
+        }
+
+        private (AlbumRelease Monitored, AlbumRelease Other) GivenTwoReleases(bool anyReleaseOk)
+        {
+            var monitored = GivenAlbumRelease("album", GivenTracks(3));
+            var other = GivenAlbumRelease("album", GivenTracks(3));
+            other.Album = monitored.Album;
+            monitored.Album.Value.AnyReleaseOk = anyReleaseOk;
+            monitored.Monitored = true;
+            other.Monitored = false;
+            other.ForeignReleaseId = "other";
+
+            Mocker.GetMock<IReleaseService>()
+                  .Setup(x => x.GetReleasesByAlbum(monitored.Album.Value.Id))
+                  .Returns(new List<AlbumRelease> { other, monitored });
+
+            return (monitored, other);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void get_candidates_for_an_album_should_offer_only_its_monitored_release_unless_any_release_ok(bool anyReleaseOk)
+        {
+            var (monitored, other) = GivenTwoReleases(anyReleaseOk);
+            var localAlbumRelease = new LocalAlbumRelease(GivenLocalTracks(other.Tracks.Value, other));
+            localAlbumRelease.LocalTracks.ForEach(x => x.FileTrackInfo.ReleaseMBId = null);
+
+            var candidates = Subject.GetDbCandidatesFromTags(localAlbumRelease, new IdentificationOverrides { Album = monitored.Album.Value }, false);
+
+            candidates.Select(x => x.AlbumRelease).Should().BeEquivalentTo(anyReleaseOk ? new[] { other, monitored } : new[] { monitored });
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void get_candidates_should_skip_a_tagged_release_its_album_does_not_want(bool anyReleaseOk)
+        {
+            var (monitored, other) = GivenTwoReleases(anyReleaseOk);
+            var localAlbumRelease = new LocalAlbumRelease(GivenLocalTracks(other.Tracks.Value, other));
+
+            Mocker.GetMock<IReleaseService>()
+                  .Setup(x => x.GetReleaseByForeignReleaseId("other", true))
+                  .Returns(other);
+
+            var candidates = Subject.GetDbCandidatesFromTags(localAlbumRelease, new IdentificationOverrides { Album = monitored.Album.Value }, false);
+
+            candidates.Select(x => x.AlbumRelease).Should().BeEquivalentTo(anyReleaseOk ? new[] { other } : new[] { monitored });
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void get_candidates_by_fingerprint_should_skip_a_release_its_album_does_not_want(bool anyReleaseOk)
+        {
+            var (monitored, other) = GivenTwoReleases(anyReleaseOk);
+            var localAlbumRelease = new LocalAlbumRelease(GivenLocalTracks(other.Tracks.Value, other));
+            var recordings = other.Tracks.Value.Select(x => x.ForeignRecordingId).ToList();
+            monitored.Tracks.Value.ForEach(x => x.ForeignRecordingId = recordings[monitored.Tracks.Value.IndexOf(x)]);
+            localAlbumRelease.LocalTracks.ForEach(x => x.AcoustIdResults = recordings);
+
+            Mocker.GetMock<IReleaseService>()
+                  .Setup(x => x.GetReleasesByRecordingIds(It.IsAny<List<string>>()))
+                  .Returns(new List<AlbumRelease> { other, monitored });
+
+            var candidates = Subject.GetDbCandidatesFromFingerprint(localAlbumRelease, null, false);
+
+            candidates.Select(x => x.AlbumRelease).Should().BeEquivalentTo(anyReleaseOk ? new[] { other, monitored } : new[] { monitored });
         }
     }
 }

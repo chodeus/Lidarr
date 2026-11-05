@@ -42,6 +42,11 @@ namespace NzbDrone.Core.Music
             return string.Format("[{0}][{1}]", ForeignReleaseId, Title.NullSafe());
         }
 
+        public bool IsOfficial()
+        {
+            return "Official".Equals(Status, StringComparison.OrdinalIgnoreCase);
+        }
+
         public override void UseMetadataFrom(AlbumRelease other)
         {
             ForeignReleaseId = other.ForeignReleaseId;

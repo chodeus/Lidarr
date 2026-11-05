@@ -394,5 +394,51 @@ namespace NzbDrone.Core.Test.MusicTests
                                                  It.IsAny<bool>(),
                                                  It.IsAny<bool>()));
         }
+
+        [Test]
+        public void refreshing_album_should_monitor_an_official_release_over_a_withdrawn_one_of_the_same_length()
+        {
+            var newAlbum = Builder<Album>.CreateNew()
+                .With(x => x.ArtistMetadata = Builder<ArtistMetadata>.CreateNew().Build())
+                .Build();
+
+            var albumCopy = Builder<Album>.CreateNew()
+                .With(x => x.ArtistMetadata = Builder<ArtistMetadata>.CreateNew().Build())
+                .Build();
+
+            var releases = Builder<AlbumRelease>.CreateListOfSize(2)
+                .All()
+                .With(x => x.AlbumId = newAlbum.Id)
+                .With(x => x.Monitored = false)
+                .With(x => x.TrackCount = 1)
+                .TheFirst(1)
+                .With(x => x.ForeignReleaseId = "Withdrawn")
+                .With(x => x.Status = "Withdrawn")
+                .TheNext(1)
+                .With(x => x.ForeignReleaseId = "Official")
+                .With(x => x.Status = "Official")
+                .Build() as List<AlbumRelease>;
+
+            newAlbum.AlbumReleases = releases;
+            albumCopy.AlbumReleases = releases;
+
+            Mocker.GetMock<IReleaseService>()
+                .Setup(x => x.GetReleasesForRefresh(It.IsAny<int>(), It.IsAny<List<string>>()))
+                .Returns(new List<AlbumRelease>());
+
+            Mocker.GetMock<IProvideAlbumInfo>()
+                .Setup(x => x.GetAlbumInfo(It.IsAny<string>()))
+                .Returns(Tuple.Create("dummy string", albumCopy, new List<ArtistMetadata>()));
+
+            Subject.RefreshAlbumInfo(newAlbum, null, false);
+
+            Mocker.GetMock<IRefreshAlbumReleaseService>()
+                .Verify(x => x.RefreshEntityInfo(It.Is<List<AlbumRelease>>(
+                                                     l => l.Count(y => y.Monitored) == 1 &&
+                                                     l.Single(y => y.Monitored).ForeignReleaseId == "Official"),
+                                                 It.IsAny<List<AlbumRelease>>(),
+                                                 It.IsAny<bool>(),
+                                                 It.IsAny<bool>()));
+        }
     }
 }

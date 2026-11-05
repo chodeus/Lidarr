@@ -482,6 +482,12 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             }
         }
 
+        // The official release with most tracks: a withdrawn, bootleg or promotional twin is no default.
+        internal static AlbumRelease DefaultRelease(List<AlbumRelease> releases)
+        {
+            return releases.OrderByDescending(x => x.IsOfficial()).ThenByDescending(x => x.TrackCount).FirstOrDefault();
+        }
+
         private static Album MapAlbum(AlbumResource resource, Dictionary<string, ArtistMetadata> artistDict)
         {
             var album = new Album();
@@ -508,11 +514,10 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             {
                 album.AlbumReleases = resource.Releases.Select(x => MapRelease(x, artistDict)).Where(x => x.TrackCount > 0).ToList();
 
-                // Monitor the release with most tracks
-                var mostTracks = album.AlbumReleases.Value.MaxBy(x => x.TrackCount);
-                if (mostTracks != null)
+                var defaultRelease = DefaultRelease(album.AlbumReleases.Value);
+                if (defaultRelease != null)
                 {
-                    mostTracks.Monitored = true;
+                    defaultRelease.Monitored = true;
                 }
             }
             else

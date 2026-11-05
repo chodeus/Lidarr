@@ -62,7 +62,7 @@ namespace NzbDrone.Core.Configuration
         bool LogDbEnabled { get; }
         string Theme { get; }
 
-        // Not on develop: no key keeps Lidarr's own AcoustID key
+        // A default body, so plugins that implement this interface still build
         string AcoustIdApiKey => null;
 
         string PostgresHost { get; }

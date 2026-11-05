@@ -88,7 +88,6 @@ namespace NzbDrone.App.Test
             executor.Should().BeAssignableTo<IExecute<RssSyncCommand>>();
         }
 
-        // Not on develop: the container must pick the constructor that reads the owner's AcoustID key.
         [Test]
         public void should_give_the_fingerprinting_service_the_config_file()
         {

@@ -55,7 +55,7 @@ namespace NzbDrone.Core.Parser
         {
         }
 
-        // Not on develop: the container takes this one, so a key of the owner's own replaces the one every install shares
+        // The container takes this overload to read the install's own key; the one above stays for plugins that build the service
         public FingerprintingService(Logger logger,
                                      IHttpClient httpClient,
                                      ICacheManager cacheManager,

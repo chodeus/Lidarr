@@ -1,7 +1,9 @@
 using System.Collections.Generic;
+using System.Linq;
 using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Core.MetadataSource.SkyHook;
+using NzbDrone.Core.MetadataSource.SkyHook.Resource;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Test.Framework;
 
@@ -37,6 +39,38 @@ namespace NzbDrone.Core.Test.MetadataSource.SkyHook
             var releases = new List<AlbumRelease> { Release("short", "Official", 10), Release("long", "Official", 12) };
 
             SkyHookProxy.DefaultRelease(releases).ForeignReleaseId.Should().Be("long");
+        }
+
+        private static ReleaseResource ReleaseResource(string id, string status, int trackCount)
+        {
+            return new ReleaseResource
+            {
+                Id = id,
+                Status = status,
+                Title = "Lantern Song",
+                Media = new List<MediumResource> { new MediumResource { Name = "Digital", Format = "Digital Media", Position = 1 } },
+                Tracks = Enumerable.Range(1, trackCount)
+                    .Select(n => new TrackResource { ArtistId = "artist", Id = $"{id}-{n}", RecordingId = $"rec-{n}", TrackName = $"Track {n}", TrackPosition = n, MediumNumber = 1, DurationMs = 200000 })
+                    .ToList()
+            };
+        }
+
+        [Test]
+        public void mapping_an_album_should_monitor_its_official_release_over_a_longer_bootleg()
+        {
+            var resource = new AlbumResource
+            {
+                Id = "album",
+                Title = "Lantern Song",
+                Type = "Single",
+                SecondaryTypes = new List<string>(),
+                Releases = new List<ReleaseResource> { ReleaseResource("bootleg", "Bootleg", 2), ReleaseResource("official", "Official", 1) }
+            };
+            var artists = new Dictionary<string, ArtistMetadata> { ["artist"] = new ArtistMetadata { ForeignArtistId = "artist", Name = "Artist" } };
+
+            var album = SkyHookProxy.MapAlbum(resource, artists);
+
+            album.AlbumReleases.Value.Single(x => x.Monitored).ForeignReleaseId.Should().Be("official");
         }
 
         [Test]

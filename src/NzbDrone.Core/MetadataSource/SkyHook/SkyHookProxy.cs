@@ -488,7 +488,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             return releases.OrderByDescending(x => x.IsOfficial()).ThenByDescending(x => x.TrackCount).FirstOrDefault();
         }
 
-        private static Album MapAlbum(AlbumResource resource, Dictionary<string, ArtistMetadata> artistDict)
+        internal static Album MapAlbum(AlbumResource resource, Dictionary<string, ArtistMetadata> artistDict)
         {
             var album = new Album();
             album.ForeignAlbumId = resource.Id;

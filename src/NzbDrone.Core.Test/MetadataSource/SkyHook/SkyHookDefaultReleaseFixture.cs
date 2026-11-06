@@ -47,7 +47,7 @@ namespace NzbDrone.Core.Test.MetadataSource.SkyHook
             {
                 Id = id,
                 Status = status,
-                Title = "Lantern Song",
+                Title = "Album Title",
                 Media = new List<MediumResource> { new MediumResource { Name = "Digital", Format = "Digital Media", Position = 1 } },
                 Tracks = Enumerable.Range(1, trackCount)
                     .Select(n => new TrackResource { ArtistId = "artist", Id = $"{id}-{n}", RecordingId = $"rec-{n}", TrackName = $"Track {n}", TrackPosition = n, MediumNumber = 1, DurationMs = 200000 })
@@ -61,7 +61,7 @@ namespace NzbDrone.Core.Test.MetadataSource.SkyHook
             var resource = new AlbumResource
             {
                 Id = "album",
-                Title = "Lantern Song",
+                Title = "Album Title",
                 Type = "Single",
                 SecondaryTypes = new List<string>(),
                 Releases = new List<ReleaseResource> { ReleaseResource("bootleg", "Bootleg", 2), ReleaseResource("official", "Official", 1) }

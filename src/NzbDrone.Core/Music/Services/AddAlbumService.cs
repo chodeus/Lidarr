@@ -127,6 +127,9 @@ namespace NzbDrone.Core.Music
             }
 
             newAlbum.UseMetadataFrom(tuple.Item2);
+
+            // An API client can leave images out, and a source without any keeps that null; Albums.Images is NOT NULL
+            newAlbum.Images ??= new List<MediaCover.MediaCover>();
             newAlbum.Added = DateTime.UtcNow;
 
             var metadata = tuple.Item3.Single(x => x.ForeignArtistId == tuple.Item1);

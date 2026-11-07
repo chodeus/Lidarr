@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Data.SQLite;
 using System.Linq;
 using FluentAssertions;
 using NUnit.Framework;
+using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Test.Framework;
@@ -10,7 +12,7 @@ using NzbDrone.Core.Test.Framework;
 namespace NzbDrone.Core.Test.MusicTests
 {
     [TestFixture]
-    public class AddAlbumImagesFixture : DbTest<AddAlbumService, Album>
+    public class AddAlbumServiceDbFixture : DbTest<AddAlbumService, Album>
     {
         private const string AlbumId = "11111111-2222-3333-4444-555555555555";
         private const string ArtistId = "66666666-7777-8888-9999-000000000000";
@@ -20,6 +22,8 @@ namespace NzbDrone.Core.Test.MusicTests
         {
             Mocker.SetConstant<IAlbumRepository>(Mocker.Resolve<AlbumRepository>());
             Mocker.SetConstant<IAlbumService>(Mocker.Resolve<AlbumService>());
+            Mocker.SetConstant<IImportListExclusionRepository>(Mocker.Resolve<ImportListExclusionRepository>());
+            Mocker.SetConstant<IImportListExclusionService>(Mocker.Resolve<ImportListExclusionService>());
 
             Mocker.GetMock<IArtistService>()
                   .Setup(s => s.FindById(ArtistId))
@@ -40,6 +44,14 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IProvideAlbumInfo>()
                   .Setup(s => s.GetAlbumInfo(AlbumId))
                   .Returns(Tuple.Create(ArtistId, source, new List<ArtistMetadata> { new ArtistMetadata { ForeignArtistId = ArtistId } }));
+        }
+
+        private void GivenExclusions()
+        {
+            var exclusions = Mocker.Resolve<IImportListExclusionService>();
+
+            exclusions.Add(new ImportListExclusion { ForeignId = AlbumId, Name = "Album Title" });
+            exclusions.Add(new ImportListExclusion { ForeignId = ArtistId, Name = "Artist Name" });
         }
 
         // What AlbumResource.ToModel builds from a POST body that has no images
@@ -71,6 +83,30 @@ namespace NzbDrone.Core.Test.MusicTests
             Subject.AddAlbum(PostedWithoutImages(), false);
 
             Db.All<Album>().Single().Images.Should().ContainSingle().Which.RemoteUrl.Should().Be("http://example.test/cover.jpg");
+        }
+
+        [Test]
+        public void should_remove_the_exclusions_of_an_added_album()
+        {
+            GivenSourceAlbum(new List<MediaCover.MediaCover>());
+            GivenExclusions();
+
+            Subject.AddAlbum(PostedWithoutImages(), false);
+
+            Mocker.Resolve<IImportListExclusionService>().All().Should().BeEmpty();
+        }
+
+        // Two adds of the same album can both pass the API's already-added check
+        [Test]
+        public void should_keep_the_exclusions_when_the_add_fails()
+        {
+            GivenSourceAlbum(new List<MediaCover.MediaCover>());
+            Subject.AddAlbum(PostedWithoutImages(), false);
+            GivenExclusions();
+
+            Assert.Throws<SQLiteException>(() => Subject.AddAlbum(PostedWithoutImages(), false));
+
+            Mocker.Resolve<IImportListExclusionService>().All().Select(e => e.ForeignId).Should().BeEquivalentTo(AlbumId, ArtistId);
         }
     }
 }

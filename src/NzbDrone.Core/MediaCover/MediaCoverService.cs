@@ -244,7 +244,7 @@ namespace NzbDrone.Core.MediaCover
                     continue;
                 }
 
-                // Rows saved before migration 081 keep the address in "url", leaving RemoteUrl empty
+                // A stored cover can still carry only the old "url" key, leaving RemoteUrl empty
                 if (cover.RemoteUrl.IsNullOrWhiteSpace())
                 {
                     _logger.Debug("{0} cover of {1} has no remote url, not downloading it", cover.CoverType, album);

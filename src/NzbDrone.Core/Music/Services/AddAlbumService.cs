@@ -46,10 +46,6 @@ namespace NzbDrone.Core.Music
 
             album = AddSkyhookData(album);
 
-            // Remove any import list exclusions preventing addition
-            _importListExclusionService.Delete(album.ForeignAlbumId);
-            _importListExclusionService.Delete(album.ArtistMetadata.Value.ForeignArtistId);
-
             // Note it's a manual addition so it's not deleted on next refresh
             album.AddOptions.AddType = AlbumAddType.Manual;
 
@@ -73,6 +69,10 @@ namespace NzbDrone.Core.Music
             album.ArtistMetadataId = dbArtist.ArtistMetadataId;
             album.Artist = dbArtist;
             _albumService.AddAlbum(album, doRefresh);
+
+            // Remove any import list exclusions preventing addition, once the add can no longer fail
+            _importListExclusionService.Delete(album.ForeignAlbumId);
+            _importListExclusionService.Delete(album.ArtistMetadata.Value.ForeignArtistId);
 
             return album;
         }
@@ -128,7 +128,7 @@ namespace NzbDrone.Core.Music
 
             newAlbum.UseMetadataFrom(tuple.Item2);
 
-            // An API client can leave images out, and a source without any keeps that null; Albums.Images is NOT NULL
+            // An API client can leave images out, which UseMetadataFrom keeps when the source's list is empty; Albums.Images is NOT NULL
             newAlbum.Images ??= new List<MediaCover.MediaCover>();
             newAlbum.Added = DateTime.UtcNow;
 

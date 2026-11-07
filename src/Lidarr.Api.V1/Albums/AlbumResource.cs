@@ -97,7 +97,9 @@ namespace Lidarr.Api.V1.Albums
                 Title = resource.Title,
                 Disambiguation = resource.Disambiguation,
                 Overview = resource.Overview,
-                Images = resource.Images,
+
+                // Kept when the source has no images, and Albums.Images is NOT NULL
+                Images = resource.Images ?? new List<MediaCover>(),
                 AlbumType = resource.AlbumType,
                 Monitored = resource.Monitored,
                 AnyReleaseOk = resource.AnyReleaseOk,

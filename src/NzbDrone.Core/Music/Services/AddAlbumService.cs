@@ -70,7 +70,7 @@ namespace NzbDrone.Core.Music
             album.Artist = dbArtist;
             _albumService.AddAlbum(album, doRefresh);
 
-            // Remove any import list exclusions preventing addition, once the add can no longer fail
+            // Remove any import list exclusions preventing addition, after the save so a failed add keeps them
             _importListExclusionService.Delete(album.ForeignAlbumId);
             _importListExclusionService.Delete(album.ArtistMetadata.Value.ForeignArtistId);
 

@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Data.SQLite;
+using System.Data.Common;
 using System.Linq;
 using FluentAssertions;
 using NUnit.Framework;
@@ -16,6 +16,7 @@ namespace NzbDrone.Core.Test.MusicTests
     {
         private const string AlbumId = "11111111-2222-3333-4444-555555555555";
         private const string ArtistId = "66666666-7777-8888-9999-000000000000";
+        private const string OtherId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 
         [SetUp]
         public void Setup()
@@ -52,6 +53,7 @@ namespace NzbDrone.Core.Test.MusicTests
 
             exclusions.Add(new ImportListExclusion { ForeignId = AlbumId, Name = "Album Title" });
             exclusions.Add(new ImportListExclusion { ForeignId = ArtistId, Name = "Artist Name" });
+            exclusions.Add(new ImportListExclusion { ForeignId = OtherId, Name = "Other Album" });
         }
 
         // What AlbumResource.ToModel builds from a POST body that has no images
@@ -93,7 +95,7 @@ namespace NzbDrone.Core.Test.MusicTests
 
             Subject.AddAlbum(PostedWithoutImages(), false);
 
-            Mocker.Resolve<IImportListExclusionService>().All().Should().BeEmpty();
+            Mocker.Resolve<IImportListExclusionService>().All().Select(e => e.ForeignId).Should().Equal(OtherId);
         }
 
         // Two adds of the same album can both pass the API's already-added check
@@ -104,9 +106,9 @@ namespace NzbDrone.Core.Test.MusicTests
             Subject.AddAlbum(PostedWithoutImages(), false);
             GivenExclusions();
 
-            Assert.Throws<SQLiteException>(() => Subject.AddAlbum(PostedWithoutImages(), false));
+            Assert.Catch<DbException>(() => Subject.AddAlbum(PostedWithoutImages(), false));
 
-            Mocker.Resolve<IImportListExclusionService>().All().Select(e => e.ForeignId).Should().BeEquivalentTo(AlbumId, ArtistId);
+            Mocker.Resolve<IImportListExclusionService>().All().Select(e => e.ForeignId).Should().BeEquivalentTo(AlbumId, ArtistId, OtherId);
         }
     }
 }

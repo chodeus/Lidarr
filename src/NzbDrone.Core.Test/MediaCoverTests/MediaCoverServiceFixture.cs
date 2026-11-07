@@ -10,6 +10,7 @@ using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Http;
+using NzbDrone.Core.Datastore.Converters;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Music.Events;
@@ -31,12 +32,12 @@ namespace NzbDrone.Core.Test.MediaCoverTests
 
             _artist = Builder<Artist>.CreateNew()
                 .With(v => v.Id = 2)
-                .With(v => v.Metadata.Value.Images = new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Poster, "") })
+                .With(v => v.Metadata.Value.Images = new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Poster, "http://dummy.com/poster.jpg") })
                 .Build();
 
             _album = Builder<Album>.CreateNew()
                 .With(v => v.Id = 4)
-                .With(v => v.Images = new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Cover, "") })
+                .With(v => v.Images = new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Cover, "http://dummy.com/cover.jpg") })
                 .Build();
 
             _httpResponse = new HttpResponse(null, new HttpHeader(), "");
@@ -253,6 +254,38 @@ namespace NzbDrone.Core.Test.MediaCoverTests
 
             Subject.HandleAsync(new ArtistRefreshCompleteEvent(_artist));
 
+            Mocker.GetMock<IImageResizer>()
+                  .Verify(v => v.Resize(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()), Times.Exactly(2));
+        }
+
+        [TestCase("[{\"coverType\": \"cover\", \"url\": \"http://dummy.com/cover.jpg\"}]")]
+        [TestCase("[{\"coverType\": \"cover\", \"remoteUrl\": \"\"}]")]
+        public void should_not_request_album_cover_without_remote_url(string storedImages)
+        {
+            _album.Images = new EmbeddedDocumentConverter<List<MediaCover.MediaCover>>().Parse(storedImages);
+
+            Subject.EnsureAlbumCovers(_album).Should().BeFalse();
+
+            Mocker.GetMock<IHttpClient>().Verify(v => v.Head(It.IsAny<HttpRequest>()), Times.Never());
+            Mocker.GetMock<IHttpClient>().Verify(v => v.DownloadFile(It.IsAny<string>(), It.IsAny<string>()), Times.Never());
+        }
+
+        [Test]
+        public void should_still_resize_artist_cover_without_remote_url()
+        {
+            _artist.Metadata.Value.Images = new EmbeddedDocumentConverter<List<MediaCover.MediaCover>>().Parse("[{\"coverType\": \"poster\", \"url\": \"http://dummy.com/poster.jpg\"}]");
+
+            Mocker.GetMock<IAlbumService>()
+                  .Setup(v => v.GetAlbumsByArtist(It.IsAny<int>()))
+                  .Returns(new List<Album>());
+
+            Mocker.GetMock<IDiskProvider>()
+                  .Setup(v => v.FileExists(It.IsAny<string>()))
+                  .Returns(true);
+
+            Subject.HandleAsync(new ArtistRefreshCompleteEvent(_artist));
+
+            Mocker.GetMock<IHttpClient>().Verify(v => v.Head(It.IsAny<HttpRequest>()), Times.Never());
             Mocker.GetMock<IImageResizer>()
                   .Verify(v => v.Resize(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()), Times.Exactly(2));
         }

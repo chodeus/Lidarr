@@ -148,6 +148,14 @@ namespace NzbDrone.Core.MediaCover
                     continue;
                 }
 
+                // Nothing to download, but the cover on disk is still resized like after a failed download
+                if (cover.RemoteUrl.IsNullOrWhiteSpace())
+                {
+                    _logger.Debug("{0} cover of {1} has no remote url, not downloading it", cover.CoverType, artist);
+                    toResize.Add(Tuple.Create(cover, false));
+                    continue;
+                }
+
                 var fileName = GetCoverPath(artist.Id, MediaCoverEntity.Artist, cover.CoverType, cover.Extension);
                 var alreadyExists = false;
 
@@ -233,6 +241,13 @@ namespace NzbDrone.Core.MediaCover
             {
                 if (cover.CoverType == MediaCoverTypes.Unknown)
                 {
+                    continue;
+                }
+
+                // Rows saved before migration 081 keep the address in "url", leaving RemoteUrl empty
+                if (cover.RemoteUrl.IsNullOrWhiteSpace())
+                {
+                    _logger.Debug("{0} cover of {1} has no remote url, not downloading it", cover.CoverType, album);
                     continue;
                 }
 

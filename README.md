@@ -132,6 +132,8 @@
   - A replacing import sends the previous release's files to the recycle bin first, unless its tracks come from inside the artist's folder, and deleting the album with its files recycles them too. Migration 915.
 - **Import against the grabbed album** — branch [`fix/import-grabbed-album`](https://github.com/chodeus/Lidarr/tree/fix/import-grabbed-album), not submitted
   - A completed download, or a scan of a known download, imports against the one album its grab named, as a single release, so a single and an album of one name no longer swap. The queue, the import check and the `DownloadImported` history name that album. Several grabbed albums, another artist's album or no grab history keep develop's import.
+- **Album images from an API add, and covers without a remote url** — branch [`fix/album-images-null-or-blank`](https://github.com/chodeus/Lidarr/tree/fix/album-images-null-or-blank), not submitted
+  - An album added through the API without images no longer fails to save when it has no cover art, and a failed add keeps its import list exclusions. A stored cover without a remote url is no longer requested, and its error no longer logged, on every refresh.
 
 ## How the build works
 

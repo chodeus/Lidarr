@@ -54,6 +54,10 @@ namespace NzbDrone.App.Test
             container.RegisterInstance<IOptions<UpdateOptions>>(new Mock<IOptions<UpdateOptions>>().Object);
             container.RegisterInstance<IOptions<LogOptions>>(new Mock<IOptions<LogOptions>>().Object);
 
+            // Not on develop: both reach the database, which the dummy can't open, and RecentUpdateProvider needs them.
+            container.RegisterInstance(new Mock<NzbDrone.Core.Update.History.IUpdateHistoryService>().Object, IfAlreadyRegistered.Replace);
+            container.RegisterInstance(new Mock<NzbDrone.Core.Update.IUpdatePackageProvider>().Object, IfAlreadyRegistered.Replace);
+
             _container = container.GetServiceProvider();
         }
 
@@ -86,6 +90,17 @@ namespace NzbDrone.App.Test
 
             executor.Should().NotBeNull();
             executor.Should().BeAssignableTo<IExecute<RssSyncCommand>>();
+        }
+
+        // Not on develop: the container must pick the constructor that reads the build's changelog.
+        [Test]
+        public void should_give_the_recent_update_provider_the_build_changelog()
+        {
+            var provider = _container.GetRequiredService<NzbDrone.Core.Update.IRecentUpdateProvider>();
+
+            typeof(NzbDrone.Core.Update.RecentUpdateProvider)
+                .GetField("_buildChangelog", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .GetValue(provider).Should().NotBeNull();
         }
 
         [Test]

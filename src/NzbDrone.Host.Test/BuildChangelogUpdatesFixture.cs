@@ -48,7 +48,7 @@ namespace NzbDrone.App.Test
         [Test]
         public void should_mark_the_running_build_installed()
         {
-            var older = new Version(BuildInfo.Version.Major, BuildInfo.Version.Minor, BuildInfo.Version.Build, BuildInfo.Version.Revision - 1);
+            var older = new Version(1, 0, 0, 1);
             GivenChangelog(Entry(BuildInfo.Version), Entry(older, "2026-11-07T04:00:00Z"));
 
             var resources = Subject.GetRecentUpdates();

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Newtonsoft.Json;
 using NLog;
 using NzbDrone.Common.Disk;
@@ -39,15 +40,22 @@ namespace NzbDrone.Core.Update
                 return null;
             }
 
+            List<UpdatePackage> packages;
+
             try
             {
-                return Json.Deserialize<List<UpdatePackage>>(_diskProvider.ReadAllText(path));
+                packages = Json.Deserialize<List<UpdatePackage>>(_diskProvider.ReadAllText(path));
             }
-            catch (Exception ex) when (ex is JsonException or IOException)
+            catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
             {
                 _logger.Warn(ex, "Unable to read {0}, showing the update service's changes instead", path);
                 return null;
             }
+
+            // UpdateController sorts by version and expects each version once; the file lists the newest first.
+            var entries = packages?.Where(p => p?.Version != null).DistinctBy(p => p.Version).ToList();
+
+            return entries?.Count > 0 ? entries : null;
         }
     }
 }

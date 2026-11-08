@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
@@ -67,6 +68,53 @@ namespace NzbDrone.Core.Test.UpdateTests
             Subject.Read().Should().BeNull();
 
             ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_return_null_and_warn_when_the_changelog_cannot_be_read()
+        {
+            GivenChangelog(Changelog);
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.ReadAllText(It.IsAny<string>())).Throws(new UnauthorizedAccessException("Access to the path is denied."));
+
+            Subject.Read().Should().BeNull();
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_keep_the_first_entry_of_a_repeated_version()
+        {
+            GivenChangelog(@"[
+  { ""version"": ""10.0.0.162"", ""releaseDate"": ""2026-11-08T05:00:00Z"", ""changes"": { ""new"": [""second run""], ""fixed"": [] } },
+  { ""version"": ""10.0.0.162"", ""releaseDate"": ""2026-11-08T04:00:00Z"", ""changes"": { ""new"": [""first run""], ""fixed"": [] } }
+]");
+
+            var packages = Subject.Read();
+
+            packages.Should().ContainSingle();
+            packages[0].Changes.New.Should().Equal("second run");
+        }
+
+        [Test]
+        public void should_skip_entries_without_a_version()
+        {
+            GivenChangelog(@"[
+  { ""version"": ""10.0.0.162"", ""releaseDate"": ""2026-11-08T04:00:00Z"" },
+  null,
+  { ""releaseDate"": ""2026-11-07T04:00:00Z"" }
+]");
+
+            Subject.Read().Select(p => p.Version).Should().Equal(new Version(10, 0, 0, 162));
+        }
+
+        [TestCase("[]")]
+        [TestCase("[null]")]
+        [TestCase("null")]
+        public void should_return_null_for_a_changelog_without_entries(string content)
+        {
+            GivenChangelog(content);
+
+            Subject.Read().Should().BeNull();
         }
     }
 }

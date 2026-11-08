@@ -9,6 +9,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
+  actions: read
   contents: read
 
 jobs:
@@ -38,6 +39,8 @@ jobs:
           # Unset, every DLL stamps its own 10.0.0.* revision. Major must stay 10: RuntimeInfo then treats the build as unofficial.
           LIDARRVERSION: 10.0.0.${{ github.run_number }}
           BUILD_SOURCEBRANCHNAME: ${{ github.ref_name }}
+          # changelog.py reads the previous builds' meta.json and README, and upstream's commits.
+          GH_TOKEN: ${{ github.token }}
         run: ./build.sh compile
 
       - name: Check Plugins

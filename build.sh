@@ -97,6 +97,10 @@ fi
 
 if [[ ${1} == "compile" ]]; then
     (cd _src && ./build.sh --backend --frontend --packages -r linux-musl-x64 -f net8.0)
+    if [[ -n ${LIDARRVERSION:-} ]]; then
+        python3 -I changelog.py _src/_artifacts/linux-musl-x64/net8.0/Lidarr/changelog.json ||
+            echo "::warning::No changelog.json: Lidarr's Updates page shows upstream's changes instead."
+    fi
     tar -czf lidarr.tar.gz -C _src/_artifacts/linux-musl-x64/net8.0 Lidarr
 fi
 

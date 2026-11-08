@@ -132,8 +132,16 @@
   - A replacing import sends the previous release's files to the recycle bin first, unless its tracks come from inside the artist's folder, and deleting the album with its files recycles them too. Migration 915.
 - **Import against the grabbed album** — branch [`fix/import-grabbed-album`](https://github.com/chodeus/Lidarr/tree/fix/import-grabbed-album), not submitted
   - A completed download, or a scan of a known download, imports against the one album its grab named, as a single release, so a single and an album of one name no longer swap. The queue, the import check and the `DownloadImported` history name that album. Several grabbed albums, another artist's album or no grab history keep develop's import.
+- **Any Release OK off and identification** — branch [`fix/any-release-ok-candidates`](https://github.com/chodeus/Lidarr/tree/fix/any-release-ok-candidates), not submitted
+  - With Any Release OK off, identification offers only the album's monitored release, whether the candidates come from the album, a release named in the tags or a fingerprint. A download that fits the monitored release is no longer matched to a sibling and refused as "Album release not requested".
+- **An official release as the album's monitored release** — branch [`fix/monitor-official-release`](https://github.com/chodeus/Lidarr/tree/fix/monitor-official-release), not submitted
+  - The default monitored release, and the one a refresh monitors when none is, prefers an Official release before most tracks, so a Withdrawn or bootleg twin no longer becomes the album's release on an Official-only profile. Files on disk still come first on refresh, and a release already monitored stays.
 - **Album images from an API add, and covers without a remote url** — branch [`fix/album-images-null-or-blank`](https://github.com/chodeus/Lidarr/tree/fix/album-images-null-or-blank), not submitted
   - An album added through the API without images no longer fails to save when it has no cover art, and a failed add keeps its import list exclusions. A stored cover without a remote url is no longer requested, and its error no longer logged, on every refresh.
+- **No error reports to Servarr's Sentry** — branch [`fix/unofficial-build-no-sentry`](https://github.com/chodeus/Lidarr/tree/fix/unofficial-build-no-sentry), custom build only
+  - Lidarr sends an unofficial build's error reports to Servarr's development Sentry whatever the analytics setting, and this build counts as unofficial. It no longer registers Sentry at all; official builds are unchanged.
+- **This build's changes on the Updates page** — branch [`feat/build-changelog`](https://github.com/chodeus/Lidarr/tree/feat/build-changelog), custom build only
+  - System → Updates lists the image's last five builds instead of upstream's nightlies, the running one marked installed. Each lists the branches it added or removed, and upstream's own New and Fixed lines merged since the build before. Without `changelog.json` beside the binaries, the page shows upstream's list as before.
 
 ## How the build works
 
@@ -146,6 +154,7 @@
 - After compiling, `build.sh plugins` checks the latest release of each plugin in `plugin_repos` against the build: every Lidarr type and member it uses must exist, and its classes must still implement every Lidarr interface and abstract member. A build that would break a plugin fails and is never published.
 - To add or drop a change, edit `pr_branches`. Drop a change once upstream has merged it.
 - Every build is stamped `10.0.0.<build run number>`, the same on every assembly. Major 10 keeps Lidarr treating it as an unofficial build, so upstream releases never show as updates.
+- `build.sh compile` then runs `changelog.py`, which writes `changelog.json` beside the binaries for `feat/build-changelog`: this build and the four successful builds before it, each with the branches it added or removed (titled from this README) and upstream's `New:` and `Fixed:` commits since the build before. If it fails, the build still ships with a warning.
 - Build-only migrations are numbered from 900 so upstream's own numbers can't collide. Before a change goes upstream, give its migration the next upstream number and correct the live database's `VersionInfo`.
 
 ## Contributing a branch

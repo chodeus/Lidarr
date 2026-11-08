@@ -45,7 +45,11 @@ namespace NzbDrone.Common.Instrumentation
                 RegisterDebugger();
             }
 
-            RegisterSentry(updateApp, appFolderInfo);
+            // An unofficial build (major 10) would report to Servarr's Sentry whatever the analytics setting.
+            if (RuntimeInfo.IsProduction)
+            {
+                RegisterSentry(updateApp, appFolderInfo);
+            }
 
             if (updateApp)
             {

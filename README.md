@@ -145,6 +145,7 @@
 - The daily `audit` workflow runs `build.sh audit` on the merged source: NuGet advisories, transitive ones included, in the projects the image ships (Lidarr, Lidarr.Update, Lidarr.Mono), and in the production frontend packages. A finding is posted to Discord. Patch it in a branch, as `chore/backend-dependency-advisories` does, and drop that branch once `develop` catches up; or list the advisory in `audit-ignore.txt` with the reason.
 - After compiling, `build.sh plugins` checks the latest release of each plugin in `plugin_repos` against the build: every Lidarr type and member it uses must exist, and its classes must still implement every Lidarr interface and abstract member. A build that would break a plugin fails and is never published.
 - To add or drop a change, edit `pr_branches`. Drop a change once upstream has merged it.
+- Every build is stamped `10.0.0.<build run number>`, the same on every assembly. Major 10 keeps Lidarr treating it as an unofficial build, so upstream releases never show as updates.
 - Build-only migrations are numbered from 900 so upstream's own numbers can't collide. Before a change goes upstream, give its migration the next upstream number and correct the live database's `VersionInfo`.
 
 ## Contributing a branch

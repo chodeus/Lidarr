@@ -34,6 +34,10 @@ jobs:
           cache-dependency-path: _src/yarn.lock
 
       - name: Compile
+        env:
+          # Unset, every DLL stamps its own 10.0.0.* revision. Major must stay 10: RuntimeInfo then treats the build as unofficial.
+          LIDARRVERSION: 10.0.0.${{ github.run_number }}
+          BUILD_SOURCEBRANCHNAME: ${{ github.ref_name }}
         run: ./build.sh compile
 
       - name: Check Plugins

@@ -193,7 +193,7 @@ jobs:
       event_type: workflow
       status: failure
       title: "❌ Lidarr ${{ github.ref == 'refs/heads/custom' && 'image' || 'branch' }} build failed: ${{ github.ref_name }}"
-      description: "${{ github.ref == 'refs/heads/custom' && 'No new image was published, so the running image stays on the last good build. If the Merge Sources step failed, rebase the branch it names onto develop; if compile failed, upstream develop changed code one of meta.json''s `pr_branches` relies on; if Check Plugins failed, the step names the Lidarr type or member a plugin in `plugin_repos` uses that the build lacks, or the release it could not download.' || 'This branch never publishes, so the running image is untouched. Check the failed step: a failure a Renovate update caused means fixing or closing its PR.' }}"
+      description: "${{ github.ref == 'refs/heads/custom' && 'A failure before Tag Image leaves `:custom` on the last good build; a later one means `:custom` moved but packages.txt is behind. If the Merge Sources step failed, rebase the branch it names onto develop; if compile failed, upstream develop changed code one of meta.json''s `pr_branches` relies on; if Check Plugins failed, the step names the Lidarr type or member a plugin in `plugin_repos` uses that the build lacks, or the release it could not download.' || 'This branch never publishes, so the running image is untouched. Check the failed step: a failure a Renovate update caused means fixing or closing its PR.' }}"
       commit_sha: ${{ github.sha }}
       needs: ${{ toJSON(needs) }}
     secrets:

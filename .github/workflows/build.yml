@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   compile:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -59,7 +59,7 @@ jobs:
   # Every branch builds and smoke-tests the image with a read-only token, so a Renovate update is proven before it merges.
   image:
     needs: compile
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     outputs:
       image-full:           ${{ steps.meta.outputs.image-full }}
       image-branch:         ${{ steps.meta.outputs.image-branch }}
@@ -166,7 +166,7 @@ jobs:
   publish:
     needs: image
     if: github.ref == 'refs/heads/custom'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: write
       packages: write

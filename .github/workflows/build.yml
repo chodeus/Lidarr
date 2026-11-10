@@ -56,9 +56,12 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # Every branch builds and smoke-tests the image; only custom publishes it (a Renovate branch proves its update works).
   image:
     needs: compile
     runs-on: ubuntu-24.04
+    env:
+      PUBLISH: ${{ github.ref_name == 'custom' }}
     permissions:
       contents: write
       packages: write
@@ -75,6 +78,7 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Login to ghcr.io
+        if: env.PUBLISH == 'true'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -90,6 +94,7 @@ jobs:
           SHA:        ${{ github.sha }}
           SERVER_URL: ${{ github.server_url }}
         run: |
+          BRANCH="${BRANCH//[^A-Za-z0-9._-]/-}"
           IMAGE="ghcr.io/${REPOSITORY,,}"
           VERSION=$(jq -re '.version' < meta.json)
           {
@@ -115,7 +120,7 @@ jobs:
           file: ./linux-amd64.Dockerfile
           provenance: false
           load: true
-          push: true
+          push: ${{ env.PUBLISH == 'true' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: ${{ steps.meta.outputs.image-full }}
@@ -142,6 +147,7 @@ jobs:
           exit ${exitcode}
 
       - name: Tag Image
+        if: env.PUBLISH == 'true'
         env:
           IMAGE_FULL:           ${{ steps.meta.outputs.image-full }}
           IMAGE_BRANCH:         ${{ steps.meta.outputs.image-branch }}
@@ -150,11 +156,13 @@ jobs:
         run: docker buildx imagetools create --tag "${IMAGE_BRANCH}" --tag "${IMAGE_BRANCH_SHA}" --tag "${IMAGE_BRANCH_VERSION}" "${IMAGE_FULL}"
 
       - name: Update packages.txt
+        if: env.PUBLISH == 'true'
         env:
           IMAGE: ${{ steps.meta.outputs.image-full }}
         run: ./build.sh packages "${IMAGE}"
 
       - name: Commit packages.txt
+        if: env.PUBLISH == 'true'
         env:
           BRANCH: ${{ github.ref_name }}
         run: |
@@ -184,8 +192,8 @@ jobs:
     with:
       event_type: workflow
       status: failure
-      title: "❌ Lidarr image build failed: ${{ github.ref_name }}"
-      description: "No new image was published, so the running image stays on the last good build. If the Merge Sources step failed, rebase the branch it names onto develop; if compile failed, upstream develop changed code one of meta.json's `pr_branches` relies on; if Check Plugins failed, the step names the Lidarr type or member a plugin in `plugin_repos` uses that the build lacks, or the release it could not download."
+      title: "❌ Lidarr ${{ github.ref_name == 'custom' && 'image' || 'branch' }} build failed: ${{ github.ref_name }}"
+      description: "${{ github.ref_name == 'custom' && 'No new image was published, so the running image stays on the last good build. If the Merge Sources step failed, rebase the branch it names onto develop; if compile failed, upstream develop changed code one of meta.json''s `pr_branches` relies on; if Check Plugins failed, the step names the Lidarr type or member a plugin in `plugin_repos` uses that the build lacks, or the release it could not download.' || 'This branch never publishes, so the running image is untouched. On a Renovate branch the update breaks the build or the smoke test: fix or close its PR.' }}"
       commit_sha: ${{ github.sha }}
       needs: ${{ toJSON(needs) }}
     secrets:

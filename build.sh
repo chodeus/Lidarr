@@ -96,6 +96,10 @@ if [[ ${1} == "source" || ${1} == "migrations" ]]; then
 fi
 
 if [[ ${1} == "compile" ]]; then
+    # Lidarr's version step puts the branch name in a sed replacement: a "/" ends it and an "&" rewrites it.
+    if [[ -n ${BUILD_SOURCEBRANCHNAME:-} ]]; then
+        export BUILD_SOURCEBRANCHNAME="${BUILD_SOURCEBRANCHNAME//[^A-Za-z0-9._-]/-}"
+    fi
     (cd _src && ./build.sh --backend --frontend --packages -r linux-musl-x64 -f net8.0)
     if [[ -n ${LIDARRVERSION:-} ]]; then
         python3 -I changelog.py _src/_artifacts/linux-musl-x64/net8.0/Lidarr/changelog.json ||

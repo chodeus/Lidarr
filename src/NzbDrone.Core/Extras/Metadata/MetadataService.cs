@@ -129,9 +129,17 @@ namespace NzbDrone.Core.Extras.Metadata
         {
             var files = new List<MetadataFile>();
 
+            // Each on its own: one that throws, such as a converter, keeps the others' files and rows
             foreach (var consumer in _metadataFactory.Enabled())
             {
-                files.AddIfNotNull(ProcessTrackMetadata(consumer, artist, trackFile, new List<MetadataFile>()));
+                try
+                {
+                    files.AddIfNotNull(ProcessTrackMetadata(consumer, artist, trackFile, new List<MetadataFile>()));
+                }
+                catch (Exception e)
+                {
+                    _logger.Warn(e, "Couldn't create the {0} track metadata for {1}", consumer.Name, trackFile);
+                }
             }
 
             _metadataFileService.Upsert(files);

@@ -28,6 +28,11 @@ namespace NzbDrone.Core.Extras.Files
     public interface IRelinkExtraFiles
     {
         void Relink(int fromTrackFileId, TrackFile toTrackFile);
+
+        // Rows written before their track file was saved carry 0; null is an album's or artist's own row
+        void Link(IEnumerable<ExtraFile> extraFiles, TrackFile trackFile);
+
+        void Discard(IEnumerable<ExtraFile> extraFiles);
     }
 
     public abstract class ExtraFileService<TExtraFile> : IExtraFileService<TExtraFile>,
@@ -158,6 +163,28 @@ namespace NzbDrone.Core.Extras.Files
                 e.AlbumId = toTrackFile.AlbumId;
             });
             _repository.SetFields(extraFiles, e => e.TrackFileId, e => e.AlbumId);
+        }
+
+        public void Link(IEnumerable<ExtraFile> extraFiles, TrackFile trackFile)
+        {
+            var unlinked = extraFiles.OfType<TExtraFile>().Where(e => e.TrackFileId == 0).ToList();
+            if (unlinked.Count == 0)
+            {
+                return;
+            }
+
+            unlinked.ForEach(e => e.TrackFileId = trackFile.Id);
+            _repository.SetFields(unlinked, e => e.TrackFileId);
+        }
+
+        // An import whose track files couldn't be saved: the unlinked rows it wrote go, before the previous album's rows come back
+        public void Discard(IEnumerable<ExtraFile> extraFiles)
+        {
+            var written = extraFiles.OfType<TExtraFile>().Where(e => e.Id > 0 && e.TrackFileId == 0).Select(e => e.Id).ToList();
+            if (written.Count > 0)
+            {
+                _repository.DeleteMany(written);
+            }
         }
 
         public void Handle(TrackFileDeletedEvent message)

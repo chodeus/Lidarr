@@ -374,6 +374,9 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             {
                 // Rows saved before the failure never linked; they go, and any that can't still count as this album's own
                 DeleteUnlinkedRows(filesToAdd);
+
+                // The extras written before the save go too, or a replaced album's put-back rows would share their paths
+                _extraService.DiscardTrackExtras(extrasToImport.SelectMany(e => e.Extras ?? new List<ExtraFile>()));
                 replacements.ForEach(_trackFileReplacer.Restore);
                 PutBackPreviousRows(reimported.Select(r => r.PreviousFile));
                 throw;

@@ -30,6 +30,10 @@ namespace NzbDrone.Core.Extras
         {
         }
 
+        void DiscardTrackExtras(IEnumerable<ExtraFile> extraFiles)
+        {
+        }
+
         // A default body, so an implementation built against develop still loads
         void RelinkTrackFile(int previousTrackFileId, TrackFile trackFile)
         {
@@ -130,6 +134,27 @@ namespace NzbDrone.Core.Extras
             }
 
             return written;
+        }
+
+        public void DiscardTrackExtras(IEnumerable<ExtraFile> extraFiles)
+        {
+            var files = extraFiles?.ToList() ?? new List<ExtraFile>();
+            if (files.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var relinker in _extraFileRelinkers)
+            {
+                try
+                {
+                    relinker.Discard(files);
+                }
+                catch (Exception e)
+                {
+                    _logger.Warn(e, "Couldn't remove the {0} written by a failed import", relinker.GetType().Name);
+                }
+            }
         }
 
         // Each kind on its own, so one that fails leaves the others linked

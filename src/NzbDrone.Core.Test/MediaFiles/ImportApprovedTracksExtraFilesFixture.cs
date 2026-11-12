@@ -337,6 +337,40 @@ namespace NzbDrone.Core.Test.MediaFiles
             }.Should().BeEquivalentTo(new { Track = putBack.Id, Recycled = new List<string>(), Lyrics = new int?[] { putBack.Id }, Others = new int?[] { putBack.Id } });
         }
 
+        [Test]
+        public void should_remove_the_extras_a_failed_import_wrote_before_its_save()
+        {
+            var folder = Path.Combine(_artist.Path, "Album");
+            var existing = GivenExistingFileWithExtras(folder);
+            _track.TrackFileId = existing.Id;
+            Db.Update(_track);
+
+            // A row whose file is gone holds the path the new track lands on, so AddMany fails
+            var other = Builder<Track>.CreateNew().With(t => t.Id = 0).With(t => t.ForeignTrackId = "track-2").With(t => t.AlbumReleaseId = _release.Id).With(t => t.TrackFileId = 0).Build();
+            Db.Insert(other);
+            Db.Insert(new TrackFile { AlbumId = _album.Id, Path = Path.Combine(folder, "02 - Other.flac"), Size = 5, Modified = DateTime.UtcNow, DateAdded = DateTime.UtcNow, Quality = new QualityModel(Quality.FLAC) });
+            File.WriteAllText(Path.Combine(_download, "02 - Other.flac"), "audio");
+            File.WriteAllText(Path.Combine(_download, "02 - Other.lrc"), "[00:01.00] lyric");
+
+            var decisions = new List<ImportDecision<LocalTrack>>
+            {
+                new ImportDecision<LocalTrack>(new LocalTrack { Artist = _artist, Album = _album, Release = _release, Tracks = new List<Track> { _track }, Path = existing.Path, ExistingFile = true, Size = 14, Modified = existing.Modified.AddHours(1), Quality = new QualityModel(Quality.FLAC), FileTrackInfo = new ParsedTrackInfo() }),
+                new ImportDecision<LocalTrack>(new LocalTrack { Artist = _artist, Album = _album, Release = _release, Tracks = new List<Track> { other }, Path = Path.Combine(_download, "02 - Other.flac"), Quality = new QualityModel(Quality.FLAC), FileTrackInfo = new ParsedTrackInfo() })
+            };
+
+            Mocker.SetConstant<IReplaceTrackFiles>(Mocker.Resolve<TrackFileReplacementService>());
+            Assert.Catch(() => Subject.Import(decisions, false));
+
+            var putBack = Db.All<TrackFile>().Single(f => f.Path == existing.Path);
+            new
+            {
+                Track = Db.All<Track>().Single(t => t.Id == _track.Id).TrackFileId,
+                Recycled = _recycled,
+                Lyrics = Db.All<LyricFile>().Select(l => l.TrackFileId).ToArray(),
+                Others = Db.All<OtherExtraFile>().Select(o => o.TrackFileId).ToArray()
+            }.Should().BeEquivalentTo(new { Track = putBack.Id, Recycled = new List<string>(), Lyrics = new int?[] { putBack.Id }, Others = new int?[] { putBack.Id } });
+        }
+
         // A rescan imports an existing file again: changed, a tagger rewrote it; switched, a release switch unlinked its track
         [TestCase("changed")]
         [TestCase("switched")]

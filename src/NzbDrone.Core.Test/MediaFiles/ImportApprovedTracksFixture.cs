@@ -161,6 +161,21 @@ namespace NzbDrone.Core.Test.MediaFiles
                 .Verify(v => v.PublishEvent(It.IsAny<TrackImportedEvent>()), Times.Once());
         }
 
+        // An extras service built against develop throws from ImportTrack, which ImportTrackExtras calls before the save
+        [Test]
+        public void should_still_import_a_track_whose_extras_step_throws_before_the_save()
+        {
+            Mocker.GetMock<IExtraService>()
+                  .Setup(s => s.ImportTrackExtras(It.IsAny<LocalTrack>(), It.IsAny<TrackFile>(), It.IsAny<bool>()))
+                  .Throws(new IOException("disk full"));
+
+            var results = Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, true);
+
+            results.Should().ContainSingle().Which.Result.Should().Be(ImportResultType.Imported);
+            Mocker.GetMock<IEventAggregator>().Verify(v => v.PublishEvent(It.IsAny<TrackImportedEvent>()), Times.Once());
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
         [Test]
         public void should_still_import_a_track_whose_extra_files_fail()
         {

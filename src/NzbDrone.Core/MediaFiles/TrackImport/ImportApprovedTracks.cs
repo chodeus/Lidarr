@@ -317,8 +317,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
 
                     if (!localTrack.ExistingFile)
                     {
-                        // Where develop runs it, before the save: a metadata consumer that changes the file, as a converter changes its path, has that saved
-                        extrasToImport.Add((localTrack, trackFile, copyOnly, _extraService.ImportTrackExtras(localTrack, trackFile, copyOnly)));
+                        extrasToImport.Add((localTrack, trackFile, copyOnly, ImportTrackExtras(localTrack, trackFile, copyOnly)));
                     }
 
                     allImportedTrackFiles.Add(trackFile);
@@ -456,6 +455,20 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             }
 
             return importResults;
+        }
+
+        // Where develop runs it, before the save, so a consumer's change to the file is saved. Its own try: the track has its result already
+        private List<ExtraFile> ImportTrackExtras(LocalTrack localTrack, TrackFile trackFile, bool copyOnly)
+        {
+            try
+            {
+                return _extraService.ImportTrackExtras(localTrack, trackFile, copyOnly);
+            }
+            catch (Exception e)
+            {
+                _logger.Warn(e, "Couldn't import extra files for " + localTrack);
+                return new List<ExtraFile>();
+            }
         }
 
         private Artist EnsureArtistAdded(List<ImportDecision<LocalTrack>> decisions, List<Artist> addedArtists)

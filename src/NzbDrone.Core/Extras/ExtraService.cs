@@ -109,7 +109,7 @@ namespace NzbDrone.Core.Extras
 
             try
             {
-                written.AddRange(ImportExtraFiles(localTrack, trackFile, isReadOnly));
+                written.AddRange(ImportExtraFilesFor(localTrack, trackFile, isReadOnly));
             }
             catch (Exception e)
             {
@@ -154,7 +154,12 @@ namespace NzbDrone.Core.Extras
             }
         }
 
-        public List<ExtraFile> ImportExtraFiles(LocalTrack localTrack, TrackFile trackFile, bool isReadOnly)
+        public void ImportExtraFiles(LocalTrack localTrack, TrackFile trackFile, bool isReadOnly)
+        {
+            ImportExtraFilesFor(localTrack, trackFile, isReadOnly);
+        }
+
+        private List<ExtraFile> ImportExtraFilesFor(LocalTrack localTrack, TrackFile trackFile, bool isReadOnly)
         {
             var imported = new List<ExtraFile>();
 

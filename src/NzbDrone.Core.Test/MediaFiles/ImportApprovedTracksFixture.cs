@@ -11,6 +11,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Extras;
+using NzbDrone.Core.Extras.Files;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.MediaFiles.TrackImport;
@@ -164,7 +165,7 @@ namespace NzbDrone.Core.Test.MediaFiles
         public void should_still_import_a_track_whose_extra_files_fail()
         {
             Mocker.GetMock<IExtraService>()
-                  .Setup(s => s.ImportTrack(It.IsAny<LocalTrack>(), It.IsAny<TrackFile>(), It.IsAny<bool>()))
+                  .Setup(s => s.LinkTrackExtras(It.IsAny<IEnumerable<ExtraFile>>(), It.IsAny<TrackFile>()))
                   .Throws(new IOException("disk full"));
 
             var results = Subject.Import(new List<ImportDecision<LocalTrack>> { _approvedDecisions.First() }, true);

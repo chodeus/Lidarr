@@ -19,6 +19,17 @@ namespace NzbDrone.Core.Extras
     {
         void ImportTrack(LocalTrack localTrack, TrackFile trackFile, bool isReadOnly);
 
+        // Run before the track file is saved, as develop runs ImportTrack: its rows come back without the track file's id
+        List<ExtraFile> ImportTrackExtras(LocalTrack localTrack, TrackFile trackFile, bool isReadOnly)
+        {
+            ImportTrack(localTrack, trackFile, isReadOnly);
+            return new List<ExtraFile>();
+        }
+
+        void LinkTrackExtras(IEnumerable<ExtraFile> extraFiles, TrackFile trackFile)
+        {
+        }
+
         // A default body, so an implementation built against develop still loads
         void RelinkTrackFile(int previousTrackFileId, TrackFile trackFile)
         {
@@ -89,16 +100,67 @@ namespace NzbDrone.Core.Extras
 
         public void ImportTrack(LocalTrack localTrack, TrackFile trackFile, bool isReadOnly)
         {
-            ImportExtraFiles(localTrack, trackFile, isReadOnly);
-
-            CreateAfterTrackImport(localTrack.Artist, trackFile);
+            ImportTrackExtras(localTrack, trackFile, isReadOnly);
         }
 
-        public void ImportExtraFiles(LocalTrack localTrack, TrackFile trackFile, bool isReadOnly)
+        public List<ExtraFile> ImportTrackExtras(LocalTrack localTrack, TrackFile trackFile, bool isReadOnly)
         {
-            if (!_configService.ImportExtraFiles)
+            var written = new List<ExtraFile>();
+
+            try
+            {
+                written.AddRange(ImportExtraFiles(localTrack, trackFile, isReadOnly));
+            }
+            catch (Exception e)
+            {
+                _logger.Warn(e, "Couldn't import extra files for {0}", localTrack);
+            }
+
+            // Each on its own: one that throws, such as a plugin's converter, keeps the others' rows
+            foreach (var extraFileManager in _extraFileManagers)
+            {
+                try
+                {
+                    written.AddRange(extraFileManager.CreateAfterTrackImport(localTrack.Artist, trackFile) ?? Enumerable.Empty<ExtraFile>());
+                }
+                catch (Exception e)
+                {
+                    _logger.Warn(e, "Couldn't create the {0} for {1}", extraFileManager.GetType().Name, trackFile);
+                }
+            }
+
+            return written;
+        }
+
+        // Each kind on its own, so one that fails leaves the others linked
+        public void LinkTrackExtras(IEnumerable<ExtraFile> extraFiles, TrackFile trackFile)
+        {
+            var files = extraFiles?.ToList() ?? new List<ExtraFile>();
+            if (files.Count == 0)
             {
                 return;
+            }
+
+            foreach (var relinker in _extraFileRelinkers)
+            {
+                try
+                {
+                    relinker.Link(files, trackFile);
+                }
+                catch (Exception e)
+                {
+                    _logger.Warn(e, "Couldn't link the {0} written for {1}", relinker.GetType().Name, trackFile);
+                }
+            }
+        }
+
+        public List<ExtraFile> ImportExtraFiles(LocalTrack localTrack, TrackFile trackFile, bool isReadOnly)
+        {
+            var imported = new List<ExtraFile>();
+
+            if (!_configService.ImportExtraFiles)
+            {
+                return imported;
             }
 
             var sourcePath = localTrack.Path;
@@ -148,6 +210,7 @@ namespace NzbDrone.Core.Extras
 
                         if (extraFile != null)
                         {
+                            imported.Add(extraFile);
                             break;
                         }
                     }
@@ -157,14 +220,8 @@ namespace NzbDrone.Core.Extras
                     _logger.Warn(ex, "Failed to import extra file: {0}", matchingFilename);
                 }
             }
-        }
 
-        private void CreateAfterTrackImport(Artist artist, TrackFile trackFile)
-        {
-            foreach (var extraFileManager in _extraFileManagers)
-            {
-                extraFileManager.CreateAfterTrackImport(artist, trackFile);
-            }
+            return imported;
         }
 
         public void Handle(MediaCoversUpdatedEvent message)

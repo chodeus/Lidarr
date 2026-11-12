@@ -25,12 +25,15 @@ namespace NzbDrone.Core.Test.Extras.Metadata
             return consumer;
         }
 
-        [Test]
-        public void should_keep_a_consumers_row_when_a_later_consumer_throws()
+        // Failing first proves the loop goes on past it; failing last, that what came before is kept
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_keep_the_other_consumers_row_when_one_consumer_throws(bool failingFirst)
         {
             var writer = Consumer("Writer", () => new MetadataFileResult(Path.Combine("Album", "01 - Song.nfo"), "track"));
             var converter = Consumer("Converter", () => throw new IOException("ffmpeg missing"));
-            Mocker.GetMock<IMetadataFactory>().Setup(f => f.Enabled()).Returns(new List<IMetadata> { writer.Object, converter.Object });
+            var consumers = failingFirst ? new List<IMetadata> { converter.Object, writer.Object } : new List<IMetadata> { writer.Object, converter.Object };
+            Mocker.GetMock<IMetadataFactory>().Setup(f => f.Enabled()).Returns(consumers);
 
             var artist = new Artist { Id = 1, Path = Path.Combine(TempFolder, "Artist") };
             var files = Subject.CreateAfterTrackImport(artist, new TrackFile { AlbumId = 2, Path = Path.Combine(artist.Path, "Album", "01 - Song.flac") }).ToList();

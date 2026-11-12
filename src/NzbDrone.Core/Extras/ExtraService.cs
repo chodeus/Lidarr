@@ -26,6 +26,22 @@ namespace NzbDrone.Core.Extras
         {
         }
 
+        // Run before the track file is saved, as develop runs ImportTrack: its rows come back without the track file's id
+        List<ExtraFile> ImportTrackExtras(LocalTrack localTrack, TrackFile trackFile, bool isReadOnly)
+        {
+            ImportTrack(localTrack, trackFile, isReadOnly);
+            return new List<ExtraFile>();
+        }
+
+        void LinkTrackExtras(IEnumerable<ExtraFile> extraFiles, TrackFile trackFile)
+        {
+        }
+
+        void DiscardTrackExtras(IEnumerable<ExtraFile> extraFiles)
+        {
+        }
+
+        // A default body, so an implementation built against develop still loads
         void RelinkTrackFile(int previousTrackFileId, TrackFile trackFile)
         {
         }
@@ -95,16 +111,93 @@ namespace NzbDrone.Core.Extras
 
         public void ImportTrack(LocalTrack localTrack, TrackFile trackFile, bool isReadOnly)
         {
-            ImportExtraFiles(localTrack, trackFile, isReadOnly);
+            ImportTrackExtras(localTrack, trackFile, isReadOnly);
+        }
 
-            CreateAfterTrackImport(localTrack.Artist, trackFile);
+        public List<ExtraFile> ImportTrackExtras(LocalTrack localTrack, TrackFile trackFile, bool isReadOnly)
+        {
+            var written = new List<ExtraFile>();
+
+            try
+            {
+                written.AddRange(ImportExtraFilesFor(localTrack, trackFile, isReadOnly));
+            }
+            catch (Exception e)
+            {
+                _logger.Warn(e, "Couldn't import extra files for {0}", localTrack);
+            }
+
+            // Each on its own: one that throws, such as a plugin's converter, keeps the others' rows
+            foreach (var extraFileManager in _extraFileManagers)
+            {
+                try
+                {
+                    written.AddRange(extraFileManager.CreateAfterTrackImport(localTrack.Artist, trackFile) ?? Enumerable.Empty<ExtraFile>());
+                }
+                catch (Exception e)
+                {
+                    _logger.Warn(e, "Couldn't create the {0} for {1}", extraFileManager.GetType().Name, trackFile);
+                }
+            }
+
+            return written;
+        }
+
+        public void DiscardTrackExtras(IEnumerable<ExtraFile> extraFiles)
+        {
+            var files = extraFiles?.ToList() ?? new List<ExtraFile>();
+            if (files.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var relinker in _extraFileRelinkers)
+            {
+                try
+                {
+                    relinker.Discard(files);
+                }
+                catch (Exception e)
+                {
+                    _logger.Warn(e, "Couldn't remove the {0} written by a failed import", relinker.GetType().Name);
+                }
+            }
+        }
+
+        // Each kind on its own, so one that fails leaves the others linked
+        public void LinkTrackExtras(IEnumerable<ExtraFile> extraFiles, TrackFile trackFile)
+        {
+            var files = extraFiles?.ToList() ?? new List<ExtraFile>();
+            if (files.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var relinker in _extraFileRelinkers)
+            {
+                try
+                {
+                    relinker.Link(files, trackFile);
+                }
+                catch (Exception e)
+                {
+                    _logger.Warn(e, "Couldn't link the {0} written for {1}", relinker.GetType().Name, trackFile);
+                }
+            }
         }
 
         public void ImportExtraFiles(LocalTrack localTrack, TrackFile trackFile, bool isReadOnly)
         {
+            ImportExtraFilesFor(localTrack, trackFile, isReadOnly);
+        }
+
+        private List<ExtraFile> ImportExtraFilesFor(LocalTrack localTrack, TrackFile trackFile, bool isReadOnly)
+        {
+            var imported = new List<ExtraFile>();
+
             if (!_configService.ImportExtraFiles)
             {
-                return;
+                return imported;
             }
 
             var sourcePath = localTrack.Path;
@@ -150,6 +243,7 @@ namespace NzbDrone.Core.Extras
 
                         if (extraFile != null)
                         {
+                            imported.Add(extraFile);
                             break;
                         }
                     }
@@ -159,6 +253,8 @@ namespace NzbDrone.Core.Extras
                     _logger.Warn(ex, "Failed to import extra file: {0}", matchingFilename);
                 }
             }
+
+            return imported;
         }
 
         // A release's own files, such as its .cue or rip log, go once into the album's folder; albumAudio holds every file this album's decisions came from
@@ -216,14 +312,6 @@ namespace NzbDrone.Core.Extras
         private static bool IsWanted(string path, List<string> wantedExtensions)
         {
             return wantedExtensions.Any(e => path.EndsWith("." + e, StringComparison.OrdinalIgnoreCase));
-        }
-
-        private void CreateAfterTrackImport(Artist artist, TrackFile trackFile)
-        {
-            foreach (var extraFileManager in _extraFileManagers)
-            {
-                extraFileManager.CreateAfterTrackImport(artist, trackFile);
-            }
         }
 
         public void Handle(MediaCoversUpdatedEvent message)

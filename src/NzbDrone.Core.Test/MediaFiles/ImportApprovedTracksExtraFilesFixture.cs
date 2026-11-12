@@ -14,6 +14,8 @@ using NzbDrone.Core.Download;
 using NzbDrone.Core.Extras;
 using NzbDrone.Core.Extras.Files;
 using NzbDrone.Core.Extras.Lyrics;
+using NzbDrone.Core.Extras.Metadata;
+using NzbDrone.Core.Extras.Metadata.Files;
 using NzbDrone.Core.Extras.Others;
 using NzbDrone.Core.History;
 using NzbDrone.Core.MediaFiles;
@@ -40,6 +42,22 @@ namespace NzbDrone.Core.Test.MediaFiles
         private string _download;
         private string _albumFolder;
         private List<string> _recycled;
+        private FakeMetadataConsumer _metadata;
+        private FakeMetadataConsumer _laterMetadata;
+
+        // A metadata consumer as a plugin adds one: called for each imported track, it may change the file or write rows
+        private class FakeMetadataConsumer : IManageExtraFiles
+        {
+            public Func<Artist, TrackFile, IEnumerable<ExtraFile>> OnTrackImport { get; set; }
+
+            public int Order { get; init; } = 3;
+            public IEnumerable<ExtraFile> CreateAfterMediaCoverUpdate(Artist artist) => Enumerable.Empty<ExtraFile>();
+            public IEnumerable<ExtraFile> CreateAfterArtistScan(Artist artist, List<TrackFile> trackFiles) => Enumerable.Empty<ExtraFile>();
+            public IEnumerable<ExtraFile> CreateAfterTrackImport(Artist artist, TrackFile trackFile) => OnTrackImport?.Invoke(artist, trackFile) ?? Enumerable.Empty<ExtraFile>();
+            public IEnumerable<ExtraFile> CreateAfterTrackFolder(Artist artist, Album album, string artistFolder, string albumFolder) => Enumerable.Empty<ExtraFile>();
+            public IEnumerable<ExtraFile> MoveFilesAfterRename(Artist artist, List<TrackFile> trackFiles) => Enumerable.Empty<ExtraFile>();
+            public ExtraFile Import(Artist artist, TrackFile trackFile, string path, string extension, bool readOnly) => null;
+        }
 
         [SetUp]
         public void Setup()
@@ -58,6 +76,9 @@ namespace NzbDrone.Core.Test.MediaFiles
             Mocker.GetMock<IConfigService>().SetupGet(c => c.ImportExtraFiles).Returns(true);
             Mocker.GetMock<IConfigService>().SetupGet(c => c.ExtraFileExtensions).Returns("lrc,cue,log");
 
+            Mocker.SetConstant<IExtraFileRepository<MetadataFile>>(Mocker.Resolve<MetadataFileRepository>());
+            Mocker.SetConstant<IMetadataFileService>(Mocker.Resolve<MetadataFileService>());
+
             _recycled = new List<string>();
             Mocker.GetMock<IRecycleBinProvider>()
                   .Setup(s => s.DeleteFile(It.IsAny<string>(), It.IsAny<string>()))
@@ -75,8 +96,10 @@ namespace NzbDrone.Core.Test.MediaFiles
             var trackService = (TrackService)Mocker.Resolve<ITrackService>();
             var lyricFileService = (LyricFileService)Mocker.Resolve<ILyricFileService>();
             var otherExtraFileService = (OtherExtraFileService)Mocker.Resolve<IOtherExtraFileService>();
-            var managers = new List<IManageExtraFiles> { Mocker.Resolve<LyricService>(), Mocker.Resolve<OtherExtraService>() };
-            var relinkers = new List<IRelinkExtraFiles> { lyricFileService, otherExtraFileService };
+            _metadata = new FakeMetadataConsumer();
+            _laterMetadata = new FakeMetadataConsumer { Order = 4 };
+            var managers = new List<IManageExtraFiles> { Mocker.Resolve<LyricService>(), Mocker.Resolve<OtherExtraService>(), _metadata, _laterMetadata };
+            var relinkers = new List<IRelinkExtraFiles> { lyricFileService, otherExtraFileService, (MetadataFileService)Mocker.Resolve<IMetadataFileService>() };
             Mocker.SetConstant<IExtraService>(new ExtraService(Mocker.Resolve<IMediaFileService>(), Mocker.Resolve<IAlbumService>(), Mocker.Resolve<ITrackService>(), diskProvider, Mocker.Resolve<IConfigService>(), managers, relinkers, TestLogger));
 
             // The bus hands deletions to the real extra file services, as the event aggregator does
@@ -389,6 +412,115 @@ namespace NzbDrone.Core.Test.MediaFiles
             (Db.All<LyricFile>().Count + Db.All<OtherExtraFile>().Count).Should().Be(extras);
         }
 
+        // A converter acts only on a file not yet saved, and changes its path
+        [Test]
+        public void should_run_the_metadata_pass_before_the_track_file_is_saved_and_save_the_path_it_sets()
+        {
+            var idsSeen = new List<int>();
+            _metadata.OnTrackImport = (artist, trackFile) =>
+            {
+                idsSeen.Add(trackFile.Id);
+                var converted = Path.ChangeExtension(trackFile.Path, ".opus");
+                File.Move(trackFile.Path, converted);
+                trackFile.Path = converted;
+                return Enumerable.Empty<ExtraFile>();
+            };
+
+            Import("01 - Song.flac").Should().ContainSingle(r => r.Result == ImportResultType.Imported);
+
+            idsSeen.Should().Equal(0);
+            var saved = Db.All<TrackFile>().Single();
+            saved.Path.Should().EndWith("01 - Song.opus");
+            File.Exists(saved.Path).Should().BeTrue();
+        }
+
+        // A downloaded .nfo goes first, as in develop, so a consumer's own one is not overwritten by it
+        [Test]
+        public void should_import_the_downloaded_extra_files_before_the_metadata_pass()
+        {
+            File.WriteAllText(Path.Combine(_download, "01 - Song.lrc"), "[00:01.00] lyric");
+            var lyricsPresent = false;
+            _metadata.OnTrackImport = (artist, trackFile) =>
+            {
+                lyricsPresent = File.Exists(Path.ChangeExtension(trackFile.Path, ".lrc"));
+                return Enumerable.Empty<ExtraFile>();
+            };
+
+            Import("01 - Song.flac");
+
+            lyricsPresent.Should().BeTrue();
+        }
+
+        [Test]
+        public void should_link_one_consumers_rows_when_a_later_consumer_fails()
+        {
+            var otherExtraFileService = Mocker.Resolve<IOtherExtraFileService>();
+            _metadata.OnTrackImport = (artist, trackFile) =>
+            {
+                var row = new OtherExtraFile { ArtistId = artist.Id, AlbumId = _album.Id, TrackFileId = trackFile.Id, RelativePath = Path.Combine("Album", "01 - Song.nfo"), Extension = ".nfo", Added = DateTime.UtcNow, LastUpdated = DateTime.UtcNow };
+                otherExtraFileService.Upsert(row);
+                return new List<ExtraFile> { row };
+            };
+            _laterMetadata.OnTrackImport = (artist, trackFile) => throw new IOException("ffmpeg missing");
+
+            Import("01 - Song.flac");
+
+            Db.All<OtherExtraFile>().Single().TrackFileId.Should().Be(Db.All<TrackFile>().Single().Id);
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        // Null is an album's own row, not one waiting for this track
+        [Test]
+        public void should_link_a_track_metadata_row_and_leave_an_album_row_alone()
+        {
+            var metadataFileService = Mocker.Resolve<IMetadataFileService>();
+            _metadata.OnTrackImport = (artist, trackFile) =>
+            {
+                var rows = new List<MetadataFile>
+                {
+                    new MetadataFile { ArtistId = artist.Id, AlbumId = _album.Id, TrackFileId = trackFile.Id, Consumer = "Fake", Type = MetadataType.TrackMetadata, RelativePath = Path.Combine("Album", "01 - Song.nfo"), Extension = ".nfo", Added = DateTime.UtcNow, LastUpdated = DateTime.UtcNow },
+                    new MetadataFile { ArtistId = artist.Id, AlbumId = _album.Id, TrackFileId = null, Consumer = "Fake", Type = MetadataType.AlbumMetadata, RelativePath = Path.Combine("Album", "album.nfo"), Extension = ".nfo", Added = DateTime.UtcNow, LastUpdated = DateTime.UtcNow }
+                };
+                metadataFileService.Upsert(rows);
+                return rows;
+            };
+
+            Import("01 - Song.flac");
+
+            var trackFile = Db.All<TrackFile>().Single();
+            Db.All<MetadataFile>().OrderBy(m => m.Type).Select(m => m.TrackFileId).Should().Equal(trackFile.Id, null);
+        }
+
+        [Test]
+        public void should_link_rows_the_metadata_pass_writes_to_the_saved_track_file()
+        {
+            var otherExtraFileService = Mocker.Resolve<IOtherExtraFileService>();
+            _metadata.OnTrackImport = (artist, trackFile) =>
+            {
+                var row = new OtherExtraFile { ArtistId = artist.Id, AlbumId = _album.Id, TrackFileId = trackFile.Id, RelativePath = Path.Combine("Album", "01 - Song.nfo"), Extension = ".nfo", Added = DateTime.UtcNow, LastUpdated = DateTime.UtcNow };
+                otherExtraFileService.Upsert(row);
+                return new List<ExtraFile> { row };
+            };
+
+            Import("01 - Song.flac").Should().ContainSingle(r => r.Result == ImportResultType.Imported);
+
+            var trackFile = Db.All<TrackFile>().Single();
+            Db.All<OtherExtraFile>().Single().TrackFileId.Should().Be(trackFile.Id);
+        }
+
+        [Test]
+        public void should_still_import_a_track_whose_metadata_pass_fails()
+        {
+            _metadata.OnTrackImport = (artist, trackFile) => throw new IOException("ffmpeg missing");
+            File.WriteAllText(Path.Combine(_download, "01 - Song.lrc"), "[00:01.00] lyric");
+
+            Import("01 - Song.flac").Should().ContainSingle().Which.Result.Should().Be(ImportResultType.Imported);
+
+            var trackFile = Db.All<TrackFile>().Single();
+            Db.All<LyricFile>().Single().TrackFileId.Should().Be(trackFile.Id);
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
         private TrackFile GivenExistingFileWithExtras(string folder)
         {
             Directory.CreateDirectory(folder);
@@ -417,6 +549,40 @@ namespace NzbDrone.Core.Test.MediaFiles
             Db.Insert(other);
             Db.Insert(new TrackFile { AlbumId = _album.Id, Path = Path.Combine(folder, "02 - Other.flac"), Size = 5, Modified = DateTime.UtcNow, DateAdded = DateTime.UtcNow, Quality = new QualityModel(Quality.FLAC) });
             File.WriteAllText(Path.Combine(_download, "02 - Other.flac"), "audio");
+
+            var decisions = new List<ImportDecision<LocalTrack>>
+            {
+                new ImportDecision<LocalTrack>(new LocalTrack { Artist = _artist, Album = _album, Release = _release, Tracks = new List<Track> { _track }, Path = existing.Path, ExistingFile = true, Size = 14, Modified = existing.Modified.AddHours(1), Quality = new QualityModel(Quality.FLAC), FileTrackInfo = new ParsedTrackInfo() }),
+                new ImportDecision<LocalTrack>(new LocalTrack { Artist = _artist, Album = _album, Release = _release, Tracks = new List<Track> { other }, Path = Path.Combine(_download, "02 - Other.flac"), Quality = new QualityModel(Quality.FLAC), FileTrackInfo = new ParsedTrackInfo() })
+            };
+
+            Mocker.SetConstant<IReplaceTrackFiles>(Mocker.Resolve<TrackFileReplacementService>());
+            Assert.Catch(() => Subject.Import(decisions, false));
+
+            var putBack = Db.All<TrackFile>().Single(f => f.Path == existing.Path);
+            new
+            {
+                Track = Db.All<Track>().Single(t => t.Id == _track.Id).TrackFileId,
+                Recycled = _recycled,
+                Lyrics = Db.All<LyricFile>().Select(l => l.TrackFileId).ToArray(),
+                Others = Db.All<OtherExtraFile>().Select(o => o.TrackFileId).ToArray()
+            }.Should().BeEquivalentTo(new { Track = putBack.Id, Recycled = new List<string>(), Lyrics = new int?[] { putBack.Id }, Others = new int?[] { putBack.Id } });
+        }
+
+        [Test]
+        public void should_remove_the_extras_a_failed_import_wrote_before_its_save()
+        {
+            var folder = Path.Combine(_artist.Path, "Album");
+            var existing = GivenExistingFileWithExtras(folder);
+            _track.TrackFileId = existing.Id;
+            Db.Update(_track);
+
+            // A row whose file is gone holds the path the new track lands on, so AddMany fails
+            var other = Builder<Track>.CreateNew().With(t => t.Id = 0).With(t => t.ForeignTrackId = "track-2").With(t => t.AlbumReleaseId = _release.Id).With(t => t.TrackFileId = 0).Build();
+            Db.Insert(other);
+            Db.Insert(new TrackFile { AlbumId = _album.Id, Path = Path.Combine(folder, "02 - Other.flac"), Size = 5, Modified = DateTime.UtcNow, DateAdded = DateTime.UtcNow, Quality = new QualityModel(Quality.FLAC) });
+            File.WriteAllText(Path.Combine(_download, "02 - Other.flac"), "audio");
+            File.WriteAllText(Path.Combine(_download, "02 - Other.lrc"), "[00:01.00] lyric");
 
             var decisions = new List<ImportDecision<LocalTrack>>
             {

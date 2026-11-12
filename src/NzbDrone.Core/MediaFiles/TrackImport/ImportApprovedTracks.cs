@@ -10,6 +10,7 @@ using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Extras;
+using NzbDrone.Core.Extras.Files;
 using NzbDrone.Core.History;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Commands;
@@ -184,7 +185,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             var filesToAdd = new List<TrackFile>(qualifiedImports.Count);
             var albumReleasesDict = new Dictionary<int, List<AlbumRelease>>(albumDecisions.Count);
             var trackImportedEvents = new List<TrackImportedEvent>(qualifiedImports.Count);
-            var extrasToImport = new List<(LocalTrack LocalTrack, TrackFile TrackFile, bool CopyOnly)>(qualifiedImports.Count);
+            var extrasToImport = new List<(LocalTrack LocalTrack, TrackFile TrackFile, bool CopyOnly, List<ExtraFile> Extras)>(qualifiedImports.Count);
             var reimported = new List<(TrackFile PreviousFile, TrackFile TrackFile)>();
 
             foreach (var importDecision in qualifiedImports.OrderBy(e => e.Item.Tracks.Select(track => track.AbsoluteTrackNumber).MinOrDefault())
@@ -317,7 +318,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
 
                     if (!localTrack.ExistingFile)
                     {
-                        extrasToImport.Add((localTrack, trackFile, copyOnly));
+                        extrasToImport.Add((localTrack, trackFile, copyOnly, ImportTrackExtras(localTrack, trackFile, copyOnly)));
                     }
 
                     allImportedTrackFiles.Add(trackFile);
@@ -374,6 +375,9 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             {
                 // Rows saved before the failure never linked; they go, and any that can't still count as this album's own
                 DeleteUnlinkedRows(filesToAdd);
+
+                // The extras written before the save go too, or a replaced album's put-back rows would share their paths
+                _extraService.DiscardTrackExtras(extrasToImport.SelectMany(e => e.Extras ?? new List<ExtraFile>()));
                 replacements.ForEach(_trackFileReplacer.Restore);
                 PutBackPreviousRows(reimported.Select(r => r.PreviousFile));
                 throw;
@@ -391,16 +395,16 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                 RelinkExtras(previousFile.Id, trackFile);
             }
 
-            // Only once AddMany has given the track files their ids, or each extra file is stored without its track file
-            foreach (var (localTrack, trackFile, copyOnly) in extrasToImport)
+            // The rows written before AddMany take their track file's id now
+            foreach (var (localTrack, trackFile, _, extras) in extrasToImport)
             {
                 try
                 {
-                    _extraService.ImportTrack(localTrack, trackFile, copyOnly);
+                    _extraService.LinkTrackExtras(extras, trackFile);
                 }
                 catch (Exception e)
                 {
-                    _logger.Warn(e, "Couldn't import extra files for " + localTrack);
+                    _logger.Warn(e, "Couldn't link the extra files of " + localTrack);
                 }
             }
 
@@ -473,6 +477,20 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
             }
 
             return importResults;
+        }
+
+        // Where develop runs it, before the save, so a consumer's change to the file is saved. Its own try: the track has its result already
+        private List<ExtraFile> ImportTrackExtras(LocalTrack localTrack, TrackFile trackFile, bool copyOnly)
+        {
+            try
+            {
+                return _extraService.ImportTrackExtras(localTrack, trackFile, copyOnly);
+            }
+            catch (Exception e)
+            {
+                _logger.Warn(e, "Couldn't import extra files for " + localTrack);
+                return new List<ExtraFile>();
+            }
         }
 
         private Artist EnsureArtistAdded(List<ImportDecision<LocalTrack>> decisions, List<Artist> addedArtists)

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Lidarr.Http.REST;
 using NzbDrone.Core.Statistics;
 
@@ -22,6 +23,13 @@ namespace Lidarr.Api.V1.Statistics
         public int UnreleasedTrackCount { get; set; }
         public int TrackFileCount { get; set; }
         public long SizeOnDisk { get; set; }
+        public List<QualityProfileStatisticsResource> QualityProfileStatistics { get; set; }
+        public List<MetadataProfileStatisticsResource> MetadataProfileStatistics { get; set; }
+        public List<QualityStatisticsResource> QualityStatistics { get; set; }
+        public List<TagStatisticsResource> TagStatistics { get; set; }
+        public List<AlbumTypeStatisticsResource> AlbumTypeStatistics { get; set; }
+        public List<SecondaryTypeStatisticsResource> SecondaryTypeStatistics { get; set; }
+        public List<DecadeStatisticsResource> DecadeStatistics { get; set; }
     }
 
     public static class StatisticsResourceMapper
@@ -46,7 +54,14 @@ namespace Lidarr.Api.V1.Statistics
                 MissingTrackCount = model.MissingTrackCount,
                 UnreleasedTrackCount = model.UnreleasedTrackCount,
                 TrackFileCount = model.TrackFileCount,
-                SizeOnDisk = model.SizeOnDisk
+                SizeOnDisk = model.SizeOnDisk,
+                QualityProfileStatistics = model.QualityProfileStatistics.ConvertAll(QualityProfileStatisticsResourceMapper.MapToResource),
+                MetadataProfileStatistics = model.MetadataProfileStatistics.ConvertAll(MetadataProfileStatisticsResourceMapper.MapToResource),
+                QualityStatistics = model.QualityStatistics.ConvertAll(QualityStatisticsResourceMapper.MapToResource),
+                TagStatistics = model.TagStatistics.ConvertAll(TagStatisticsResourceMapper.MapToResource),
+                AlbumTypeStatistics = model.AlbumTypeStatistics.ConvertAll(AlbumTypeStatisticsResourceMapper.MapToResource),
+                SecondaryTypeStatistics = model.SecondaryTypeStatistics.ConvertAll(SecondaryTypeStatisticsResourceMapper.MapToResource),
+                DecadeStatistics = model.DecadeStatistics.ConvertAll(DecadeStatisticsResourceMapper.MapToResource)
             };
         }
     }

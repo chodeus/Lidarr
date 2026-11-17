@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace NzbDrone.Core.Statistics
 {
     public class LibraryStatistics
@@ -19,5 +21,12 @@ namespace NzbDrone.Core.Statistics
         public int UnreleasedTrackCount { get; set; }
         public int TrackFileCount { get; set; }
         public long SizeOnDisk { get; set; }
+        public List<QualityProfileStatistics> QualityProfileStatistics { get; set; }
+        public List<MetadataProfileStatistics> MetadataProfileStatistics { get; set; }
+        public List<QualityStatistics> QualityStatistics { get; set; }
+        public List<TagStatistics> TagStatistics { get; set; }
+        public List<AlbumTypeStatistics> AlbumTypeStatistics { get; set; }
+        public List<SecondaryTypeStatistics> SecondaryTypeStatistics { get; set; }
+        public List<DecadeStatistics> DecadeStatistics { get; set; }
     }
 }

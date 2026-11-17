@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Dapper;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using NUnit.Framework;
@@ -8,6 +9,9 @@ using NzbDrone.Core.ArtistStats;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Music;
+using NzbDrone.Core.Profiles;
+using NzbDrone.Core.Profiles.Metadata;
+using NzbDrone.Core.Profiles.Qualities;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Statistics;
 using NzbDrone.Core.Tags;
@@ -55,7 +59,7 @@ namespace NzbDrone.Core.Test.StatisticsTests
                                             .BuildNew());
         }
 
-        private Album GivenAlbum(Artist artist, DateTime? releaseDate, bool monitored = true)
+        private Album GivenAlbum(Artist artist, DateTime? releaseDate, bool monitored = true, string albumType = "Album", List<SecondaryAlbumType> secondaryTypes = null)
         {
             var id = _nextId++;
 
@@ -65,7 +69,25 @@ namespace NzbDrone.Core.Test.StatisticsTests
                                            .With(a => a.CleanTitle = $"album{id}")
                                            .With(a => a.ReleaseDate = releaseDate)
                                            .With(a => a.Monitored = monitored)
+                                           .With(a => a.AlbumType = albumType)
+                                           .With(a => a.SecondaryTypes = secondaryTypes ?? new List<SecondaryAlbumType>())
                                            .BuildNew());
+        }
+
+        private QualityProfile GivenQualityProfile(string name)
+        {
+            return Db.Insert(new QualityProfile { Name = name, Items = new List<QualityProfileQualityItem>(), FormatItems = new List<ProfileFormatItem>() });
+        }
+
+        private MetadataProfile GivenMetadataProfile(string name)
+        {
+            return Db.Insert(new MetadataProfile
+            {
+                Name = name,
+                PrimaryAlbumTypes = new List<ProfilePrimaryAlbumTypeItem>(),
+                SecondaryAlbumTypes = new List<ProfileSecondaryAlbumTypeItem>(),
+                ReleaseStatuses = new List<ProfileReleaseStatusItem>()
+            });
         }
 
         private AlbumRelease GivenRelease(Album album, bool monitored = true)
@@ -563,6 +585,214 @@ namespace NzbDrone.Core.Test.StatisticsTests
             stats.ArtistCount.Should().Be(1);
             stats.TrackFileCount.Should().Be(1);
             stats.SizeOnDisk.Should().Be(100);
+        }
+
+        [Test]
+        public void should_return_empty_album_and_quality_breakdowns_when_library_is_empty()
+        {
+            var stats = Subject.GetLibraryStatistics();
+
+            stats.QualityStatistics.Should().BeEmpty();
+            stats.AlbumTypeStatistics.Should().BeEmpty();
+            stats.SecondaryTypeStatistics.Should().BeEmpty();
+            stats.DecadeStatistics.Should().BeEmpty();
+        }
+
+        [Test]
+        public void should_count_artists_and_files_per_quality_profile_in_name_order_ignoring_case()
+        {
+            var unused = GivenQualityProfile("Unused");
+            var lossless = GivenQualityProfile("lossless");
+            var artist = GivenArtist(qualityProfileId: lossless.Id);
+            GivenArtist(qualityProfileId: lossless.Id);
+
+            GivenTrackFile(GivenAlbum(artist, _released).Id, size: 100);
+            GivenTrackFile(GivenAlbum(artist, _released).Id, size: 200);
+
+            var stats = Subject.GetLibraryStatistics().QualityProfileStatistics;
+
+            stats.Select(p => p.Name).Should().ContainInOrder("lossless", "Unused");
+            stats.Single(p => p.QualityProfileId == lossless.Id).Should().BeEquivalentTo(new { Name = "lossless", ArtistCount = 2, TrackFileCount = 2, SizeOnDisk = 300L });
+            stats.Single(p => p.QualityProfileId == unused.Id).Should().BeEquivalentTo(new { Name = "Unused", ArtistCount = 0, TrackFileCount = 0, SizeOnDisk = 0L });
+        }
+
+        [Test]
+        public void should_count_artists_per_metadata_profile()
+        {
+            var standard = GivenMetadataProfile("Standard");
+            var minimal = GivenMetadataProfile("Minimal");
+            GivenArtist(metadataProfileId: standard.Id);
+            GivenArtist(metadataProfileId: standard.Id);
+            GivenArtist(metadataProfileId: minimal.Id);
+
+            var stats = Subject.GetLibraryStatistics().MetadataProfileStatistics;
+
+            stats.Single(p => p.MetadataProfileId == standard.Id).Should().BeEquivalentTo(new { Name = "Standard", ArtistCount = 2 });
+            stats.Single(p => p.MetadataProfileId == minimal.Id).Should().BeEquivalentTo(new { Name = "Minimal", ArtistCount = 1 });
+        }
+
+        [Test]
+        public void should_count_artists_and_files_per_tag()
+        {
+            var rock = GivenTag("rock");
+            var jazz = GivenTag("jazz");
+            var both = GivenArtist(tags: new HashSet<int> { rock.Id, jazz.Id });
+            GivenArtist(tags: new HashSet<int> { rock.Id });
+            var untagged = GivenArtist();
+            GivenTrackFile(GivenAlbum(both, _released).Id, size: 300);
+            GivenTrackFile(GivenAlbum(untagged, _released).Id, size: 50);
+
+            using (var conn = Db.OpenConnection())
+            {
+                conn.Execute(@"UPDATE ""Artists"" SET ""Tags"" = NULL WHERE ""Id"" = @id", new { id = untagged.Id });
+            }
+
+            var stats = Subject.GetLibraryStatistics().TagStatistics;
+
+            stats.Select(t => t.Label).Should().Equal("jazz", "rock");
+            stats.Single(t => t.TagId == rock.Id).Should().BeEquivalentTo(new { ArtistCount = 2, TrackFileCount = 1, SizeOnDisk = 300L });
+            stats.Single(t => t.TagId == jazz.Id).Should().BeEquivalentTo(new { ArtistCount = 1, TrackFileCount = 1, SizeOnDisk = 300L });
+        }
+
+        [Test]
+        public void should_scope_profile_and_tag_counts_to_the_filter_and_keep_empty_ones()
+        {
+            var kept = GivenQualityProfile("Kept");
+            var emptied = GivenQualityProfile("Emptied");
+            var keptMetadata = GivenMetadataProfile("Kept");
+            var emptiedMetadata = GivenMetadataProfile("Emptied");
+            var keptTag = GivenTag("kept");
+            var emptiedTag = GivenTag("emptied");
+
+            var inside = GivenArtist(qualityProfileId: kept.Id, metadataProfileId: keptMetadata.Id, path: "/music/Inside", tags: new HashSet<int> { keptTag.Id });
+            var outside = GivenArtist(qualityProfileId: emptied.Id, metadataProfileId: emptiedMetadata.Id, path: "/other/Outside", tags: new HashSet<int> { emptiedTag.Id });
+            GivenTrackFile(GivenAlbum(inside, _released).Id);
+            GivenTrackFile(GivenAlbum(outside, _released).Id);
+
+            var stats = Subject.GetLibraryStatistics(new StatisticsFilter { RootFolderPaths = new List<string> { "/music".AsOsAgnostic() } });
+
+            stats.QualityProfileStatistics.Single(p => p.QualityProfileId == kept.Id).Should().BeEquivalentTo(new { ArtistCount = 1, TrackFileCount = 1, SizeOnDisk = 100L });
+            stats.QualityProfileStatistics.Single(p => p.QualityProfileId == emptied.Id).Should().BeEquivalentTo(new { ArtistCount = 0, TrackFileCount = 0, SizeOnDisk = 0L });
+            stats.MetadataProfileStatistics.Single(p => p.MetadataProfileId == keptMetadata.Id).ArtistCount.Should().Be(1);
+            stats.MetadataProfileStatistics.Single(p => p.MetadataProfileId == emptiedMetadata.Id).ArtistCount.Should().Be(0);
+            stats.TagStatistics.Single(t => t.TagId == keptTag.Id).Should().BeEquivalentTo(new { ArtistCount = 1, TrackFileCount = 1, SizeOnDisk = 100L });
+            stats.TagStatistics.Single(t => t.TagId == emptiedTag.Id).Should().BeEquivalentTo(new { ArtistCount = 0, TrackFileCount = 0, SizeOnDisk = 0L });
+        }
+
+        [Test]
+        public void should_count_files_per_quality_in_weight_order_without_unmapped_files()
+        {
+            var album = GivenAlbum(GivenArtist(), _released);
+            GivenTrackFile(album.Id, size: 100, quality: Quality.FLAC);
+            GivenTrackFile(album.Id, size: 200, quality: Quality.FLAC);
+            GivenTrackFile(album.Id, size: 50, quality: Quality.MP3_320);
+            GivenTrackFile(album.Id, size: 25, quality: Quality.MP3_160);
+            GivenTrackFile(0, size: 999, quality: Quality.MP3_320);
+
+            var expected = new[]
+            {
+                new { Quality = Quality.MP3_160, TrackFileCount = 1, SizeOnDisk = 25L },
+                new { Quality = Quality.MP3_320, TrackFileCount = 1, SizeOnDisk = 50L },
+                new { Quality = Quality.FLAC, TrackFileCount = 2, SizeOnDisk = 300L }
+            };
+
+            Subject.GetLibraryStatistics().QualityStatistics.Should().BeEquivalentTo(expected, o => o.WithStrictOrdering());
+        }
+
+        [Test]
+        public void should_count_files_whose_quality_lidarr_cannot_read_as_unknown()
+        {
+            var album = GivenAlbum(GivenArtist(), _released);
+            var unknownId = GivenTrackFile(album.Id, size: 100);
+            var noQuality = GivenTrackFile(album.Id, size: 25);
+            GivenTrackFile(album.Id, size: 50, quality: Quality.Unknown);
+
+            using (var conn = Db.OpenConnection())
+            {
+                conn.Execute(@"UPDATE ""TrackFiles"" SET ""Quality"" = '{""quality"": 999, ""revision"": {""version"": 1, ""real"": 0, ""isRepack"": false}}' WHERE ""Id"" = @id", new { id = unknownId.Id });
+                conn.Execute(@"UPDATE ""TrackFiles"" SET ""Quality"" = '{}' WHERE ""Id"" = @id", new { id = noQuality.Id });
+            }
+
+            Subject.GetLibraryStatistics().QualityStatistics.Should().BeEquivalentTo(new[]
+            {
+                new { Quality = Quality.Unknown, TrackFileCount = 3, SizeOnDisk = 175L }
+            });
+        }
+
+        [Test]
+        public void should_count_albums_per_album_type()
+        {
+            var artist = GivenArtist();
+            GivenAlbum(artist, _released, albumType: "EP");
+            GivenAlbum(artist, _released, albumType: "Single");
+            GivenAlbum(artist, _released, albumType: "Album");
+            GivenAlbum(artist, _released, albumType: "Single");
+
+            var expected = new[]
+            {
+                new { AlbumType = "Single", AlbumCount = 2 },
+                new { AlbumType = "Album", AlbumCount = 1 },
+                new { AlbumType = "EP", AlbumCount = 1 }
+            };
+
+            Subject.GetLibraryStatistics().AlbumTypeStatistics.Should().BeEquivalentTo(expected, o => o.WithStrictOrdering());
+        }
+
+        [Test]
+        public void should_count_albums_once_per_secondary_type_with_none_as_studio()
+        {
+            var artist = GivenArtist();
+            GivenAlbum(artist, _released, secondaryTypes: new List<SecondaryAlbumType> { SecondaryAlbumType.Compilation, SecondaryAlbumType.Live });
+            GivenAlbum(artist, _released, secondaryTypes: new List<SecondaryAlbumType> { SecondaryAlbumType.Live, SecondaryAlbumType.Live });
+            GivenAlbum(artist, _released);
+
+            var expected = new[]
+            {
+                new { SecondaryType = "Live", AlbumCount = 2 },
+                new { SecondaryType = "Compilation", AlbumCount = 1 },
+                new { SecondaryType = "Studio", AlbumCount = 1 }
+            };
+
+            Subject.GetLibraryStatistics().SecondaryTypeStatistics.Should().BeEquivalentTo(expected, o => o.WithStrictOrdering());
+        }
+
+        [Test]
+        public void should_count_albums_files_and_size_per_decade_with_undated_last()
+        {
+            var artist = GivenArtist();
+            GivenAlbumWithTracks(artist, new DateTime(1995, 6, 1, 0, 0, 0, DateTimeKind.Utc), trackCount: 2, fileCount: 2);
+            GivenAlbum(artist, new DateTime(1999, 12, 31, 0, 0, 0, DateTimeKind.Utc));
+            GivenAlbumWithTracks(artist, new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc), trackCount: 1, fileCount: 1);
+            GivenAlbum(artist, null);
+            GivenAlbum(artist, new DateTime(1, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+            var expected = new[]
+            {
+                new { Decade = (int?)1990, AlbumCount = 2, TrackFileCount = 2, SizeOnDisk = 200L },
+                new { Decade = (int?)2000, AlbumCount = 1, TrackFileCount = 1, SizeOnDisk = 100L },
+                new { Decade = (int?)null, AlbumCount = 2, TrackFileCount = 0, SizeOnDisk = 0L }
+            };
+
+            Subject.GetLibraryStatistics().DecadeStatistics.Should().BeEquivalentTo(expected, o => o.WithStrictOrdering());
+        }
+
+        [Test]
+        public void should_scope_quality_and_album_breakdowns_to_the_filter()
+        {
+            var tag = GivenTag("keep");
+            var kept = GivenArtist(tags: new HashSet<int> { tag.Id });
+            var other = GivenArtist();
+            var keptAlbum = GivenAlbum(kept, new DateTime(1985, 1, 1, 0, 0, 0, DateTimeKind.Utc), albumType: "EP", secondaryTypes: new List<SecondaryAlbumType> { SecondaryAlbumType.Live });
+            var otherAlbum = GivenAlbum(other, new DateTime(2015, 1, 1, 0, 0, 0, DateTimeKind.Utc), albumType: "Single");
+            GivenTrackFile(keptAlbum.Id, quality: Quality.FLAC);
+            GivenTrackFile(otherAlbum.Id, quality: Quality.MP3_320);
+
+            var stats = Subject.GetLibraryStatistics(new StatisticsFilter { TagIds = new List<int> { tag.Id } });
+
+            stats.QualityStatistics.Select(q => q.Quality).Should().Equal(Quality.FLAC);
+            stats.AlbumTypeStatistics.Select(a => a.AlbumType).Should().Equal("EP");
+            stats.SecondaryTypeStatistics.Select(s => s.SecondaryType).Should().Equal("Live");
+            stats.DecadeStatistics.Select(d => d.Decade).Should().Equal(1980);
         }
     }
 }

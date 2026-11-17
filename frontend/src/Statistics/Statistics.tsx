@@ -38,7 +38,7 @@ function Statistics() {
 
   const customFilters = useSelector(customFiltersSelector);
 
-  const { params, ignoredCount } = useMemo(() => {
+  const params = useMemo(() => {
     return getStatisticsParams(
       findSelectedFilters(selectedFilterKey, filters, customFilters)
     );
@@ -59,8 +59,8 @@ function Statistics() {
     [dispatch]
   );
 
-  // The previous filter's numbers stay in state until the new ones arrive
-  const isLoading = isFetching || (!isPopulated && !error);
+  // As in Sonarr, a filter change keeps the old numbers on screen until the new ones arrive
+  const isLoading = !isPopulated && (isFetching || !error);
 
   return (
     <PageContent title={translate('Statistics')}>
@@ -84,19 +84,9 @@ function Statistics() {
           <Alert kind={kinds.DANGER}>{translate('StatisticsLoadError')}</Alert>
         ) : null}
 
-        {!isLoading && isPopulated ? (
+        {isPopulated ? (
           <div className={styles.chartsContainer}>
-            {ignoredCount ? (
-              <Alert kind={kinds.WARNING}>
-                {translate('StatisticsFilterConditionsIgnored')}
-              </Alert>
-            ) : null}
-
-            {data.artistCount ? (
-              <StatisticsContent data={data} />
-            ) : (
-              <Alert kind={kinds.INFO}>{translate('NoResultsFound')}</Alert>
-            )}
+            <StatisticsContent data={data} />
           </div>
         ) : null}
       </PageContentBody>

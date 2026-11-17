@@ -1217,7 +1217,6 @@
   "Started": "Started",
   "StartupDirectory": "Startup Directory",
   "Statistics": "Statistics",
-  "StatisticsFilterConditionsIgnored": "Some conditions in this filter can't be applied to statistics and are ignored. Statistics use the first condition for each field.",
   "StatisticsLoadError": "Unable to load statistics",
   "Status": "Status",
   "StatusEndedContinuing": "Continuing",

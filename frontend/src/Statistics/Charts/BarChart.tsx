@@ -10,7 +10,7 @@ import {
 import React, { useMemo } from 'react';
 import { Bar } from 'react-chartjs-2';
 import useChartColors from 'Statistics/Charts/useChartColors';
-import ChartContainer from './ChartContainer';
+import ChartContainer, { getChartAriaLabel } from './ChartContainer';
 
 Chart.register(BarElement, CategoryScale, LinearScale, Tooltip);
 
@@ -88,7 +88,11 @@ function BarChart({ title, items }: BarChartProps) {
 
   return (
     <ChartContainer title={title}>
-      <Bar data={data} options={options} />
+      <Bar
+        data={data}
+        options={options}
+        aria-label={getChartAriaLabel(title, items)}
+      />
     </ChartContainer>
   );
 }

@@ -13,7 +13,7 @@ import React, { useContext, useMemo } from 'react';
 import { Doughnut } from 'react-chartjs-2';
 import ColorImpairedContext from 'App/ColorImpairedContext';
 import useChartColors from 'Statistics/Charts/useChartColors';
-import ChartContainer from './ChartContainer';
+import ChartContainer, { getChartAriaLabel } from './ChartContainer';
 import createSlicePattern from './createSlicePattern';
 
 Chart.register(ArcElement, Tooltip, Legend);
@@ -114,7 +114,14 @@ function DoughnutChart({ title, items }: DoughnutChartProps) {
         tooltip: {
           callbacks: {
             label: (context: TooltipItem<'doughnut'>) => {
-              const total = items.reduce((acc, item) => acc + item.value, 0);
+              // Slices hidden via the legend leave the ring, so they leave the share too
+              const total = items.reduce(
+                (acc, item, index) =>
+                  context.chart.getDataVisibility(index)
+                    ? acc + item.value
+                    : acc,
+                0
+              );
 
               return ` ${context.parsed.toLocaleString()} (${formatShare(
                 context.parsed,
@@ -129,7 +136,11 @@ function DoughnutChart({ title, items }: DoughnutChartProps) {
 
   return (
     <ChartContainer title={title}>
-      <Doughnut data={data} options={options} />
+      <Doughnut
+        data={data}
+        options={options}
+        aria-label={getChartAriaLabel(title, items)}
+      />
     </ChartContainer>
   );
 }

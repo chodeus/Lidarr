@@ -35,7 +35,7 @@ const VERTICAL: Segment[] = [
 
 const SPARSE_RISING: Segment[] = [RISING[0], RISING[2], RISING[4]];
 
-// One variant per palette colour (useChartColors), so no two slices share a pattern
+// One variant per palette colour (useChartColors): an eighth slice repeats the first's pattern
 const STRIPE_SEGMENTS: Segment[][] = [
   RISING,
   FALLING,

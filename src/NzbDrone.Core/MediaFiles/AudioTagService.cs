@@ -88,12 +88,26 @@ namespace NzbDrone.Core.MediaFiles
 
         private bool ShouldSkipHardlinkedFile(TrackFile trackfile, TaggingProfile taggingProfile)
         {
-            if (!taggingProfile.SkipHardlinkedFiles || _diskProvider.GetHardLinkCount(trackfile.Path) <= 1)
+            if (!taggingProfile.SkipHardlinkedFiles)
             {
                 return false;
             }
 
-            _logger.Debug($"File {trackfile} is hardlinked. Skipping tag changes.");
+            try
+            {
+                if (_diskProvider.GetHardLinkCount(trackfile.Path) <= 1)
+                {
+                    return false;
+                }
+
+                _logger.Debug($"File {trackfile} is hardlinked. Skipping tag changes.");
+            }
+            catch (Exception ex)
+            {
+                // An unreadable count could be a seed, so the file is left alone
+                _logger.Warn(ex, "Unable to get hard link count for {0}. Skipping tag changes.", trackfile);
+            }
+
             return true;
         }
 
@@ -186,8 +200,8 @@ namespace NzbDrone.Core.MediaFiles
                     MusicBrainzArtistId = artist.ForeignArtistId,
                     MusicBrainzReleaseArtistId = albumartist.ForeignArtistId,
                     MusicBrainzReleaseGroupId = album.ForeignAlbumId,
-                    MusicBrainzTrackId = track.ForeignRecordingId,
-                    MusicBrainzReleaseTrackId = track.ForeignTrackId,
+                    MusicBrainzTrackId = track.ForeignTrackId,
+                    MusicBrainzRecordingId = track.ForeignRecordingId,
                     MusicBrainzAlbumComment = album.Disambiguation,
                 };
             }
@@ -241,7 +255,6 @@ namespace NzbDrone.Core.MediaFiles
         public void RemoveMusicBrainzTags(string path)
         {
             var tags = new AudioTag(path);
-
             tags.MusicBrainzReleaseCountry = null;
             tags.MusicBrainzReleaseStatus = null;
             tags.MusicBrainzReleaseType = null;
@@ -250,8 +263,8 @@ namespace NzbDrone.Core.MediaFiles
             tags.MusicBrainzReleaseArtistId = null;
             tags.MusicBrainzReleaseGroupId = null;
             tags.MusicBrainzTrackId = null;
+            tags.MusicBrainzRecordingId = null;
             tags.MusicBrainzAlbumComment = null;
-            tags.MusicBrainzReleaseTrackId = null;
 
             _rootFolderWatchingService.ReportFileSystemChangeBeginning(path);
             tags.Write(path);

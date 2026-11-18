@@ -55,6 +55,8 @@ namespace Lidarr.Http.Authentication
                     options.ExpireTimeSpan = TimeSpan.FromDays(7);
                     options.SlidingExpiration = true;
                     options.ReturnUrlParameter = "returnUrl";
+                    options.Events.OnRedirectToLogin = context => EventOnRedirectCookiesLogin(context, 401);
+                    options.Events.OnRedirectToAccessDenied = context => EventOnRedirectCookiesLogin(context, 403);
                 });
 
             return services.AddAuthentication()

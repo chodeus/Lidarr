@@ -200,8 +200,8 @@ namespace NzbDrone.Core.MediaFiles
                     MusicBrainzArtistId = artist.ForeignArtistId,
                     MusicBrainzReleaseArtistId = albumartist.ForeignArtistId,
                     MusicBrainzReleaseGroupId = album.ForeignAlbumId,
-                    MusicBrainzTrackId = track.ForeignRecordingId,
-                    MusicBrainzReleaseTrackId = track.ForeignTrackId,
+                    MusicBrainzTrackId = track.ForeignTrackId,
+                    MusicBrainzRecordingId = track.ForeignRecordingId,
                     MusicBrainzAlbumComment = album.Disambiguation,
                 };
             }
@@ -255,7 +255,6 @@ namespace NzbDrone.Core.MediaFiles
         public void RemoveMusicBrainzTags(string path)
         {
             var tags = new AudioTag(path);
-
             tags.MusicBrainzReleaseCountry = null;
             tags.MusicBrainzReleaseStatus = null;
             tags.MusicBrainzReleaseType = null;
@@ -264,8 +263,8 @@ namespace NzbDrone.Core.MediaFiles
             tags.MusicBrainzReleaseArtistId = null;
             tags.MusicBrainzReleaseGroupId = null;
             tags.MusicBrainzTrackId = null;
+            tags.MusicBrainzRecordingId = null;
             tags.MusicBrainzAlbumComment = null;
-            tags.MusicBrainzReleaseTrackId = null;
 
             _rootFolderWatchingService.ReportFileSystemChangeBeginning(path);
             tags.Write(path);

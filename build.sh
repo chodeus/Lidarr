@@ -14,6 +14,9 @@ fi
 
 set -euo pipefail
 
+# Upstream's target framework; keep plugincheck/plugincheck.csproj on the same one.
+framework=net10.0
+
 if [[ ${1} == "update" ]]; then
     rm -f cache-page*.json
     cp meta.json meta.json.bak
@@ -100,12 +103,12 @@ if [[ ${1} == "compile" ]]; then
     if [[ -n ${BUILD_SOURCEBRANCHNAME:-} ]]; then
         export BUILD_SOURCEBRANCHNAME="${BUILD_SOURCEBRANCHNAME//[^A-Za-z0-9._-]/-}"
     fi
-    (cd _src && ./build.sh --backend --frontend --packages -r linux-musl-x64 -f net8.0)
+    (cd _src && ./build.sh --backend --frontend --packages -r linux-musl-x64 -f "${framework}")
     if [[ -n ${LIDARRVERSION:-} ]]; then
-        python3 -I changelog.py _src/_artifacts/linux-musl-x64/net8.0/Lidarr/changelog.json ||
+        python3 -I changelog.py "_src/_artifacts/linux-musl-x64/${framework}/Lidarr/changelog.json" ||
             echo "::warning::No changelog.json: Lidarr's Updates page shows upstream's changes instead."
     fi
-    tar -czf lidarr.tar.gz -C _src/_artifacts/linux-musl-x64/net8.0 Lidarr
+    tar -czf lidarr.tar.gz -C "_src/_artifacts/linux-musl-x64/${framework}" Lidarr
 fi
 
 if [[ ${1} == "audit" ]]; then
@@ -138,7 +141,7 @@ fi
 
 if [[ ${1} == "plugins" ]]; then
     # The latest release of each plugin, against the compiled build: a type or member it uses that the build lacks fails it at load or call time.
-    lidarr=${2:-_src/_artifacts/linux-musl-x64/net8.0/Lidarr}
+    lidarr=${2:-_src/_artifacts/linux-musl-x64/${framework}/Lidarr}
     dotnet build plugincheck -c Release -v quiet -o _plugins/check
     for repo in $(jq -re '.plugin_repos' < meta.json); do
         dir=_plugins/${repo//\//_}

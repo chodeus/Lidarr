@@ -50,8 +50,6 @@
   - Import matching removes a bracketed "(feat. …)" up to its own closing bracket, so "Song (feat. Guest) (Remixer Remix)" is compared as "Song (Remixer Remix)" instead of "Song".
 - **qBittorrent duplicate torrents** — branch [`fix/qbittorrent-existing-torrent`](https://github.com/chodeus/Lidarr/tree/fix/qbittorrent-existing-torrent), not submitted
   - qBittorrent's 409 for a torrent it already has is a rejected release, not a connection failure, so a manual grab no longer fails with HTTP 500.
-- **Backend package advisories** — branch [`chore/backend-dependency-advisories`](https://github.com/chodeus/Lidarr/tree/chore/backend-dependency-advisories), not submitted
-  - System.Security.Cryptography.Pkcs pinned to 8.0.2 over the 8.0.1 that MailKit pulls in, which has two .NET denial of service advisories. Drop it once `develop` resolves 8.0.2 or later.
 - **Log cleansing, housekeeping and backup paths** — branch [`fix/log-cleansing-housekeeping-backups`](https://github.com/chodeus/Lidarr/tree/fix/log-cleansing-housekeeping-backups), not submitted
   - The `r=` key in logged RSS URLs is hidden, housekeeping runs only while no other task is running, and copying a file whose path has repeated slashes (backups) no longer fails.
 - **Custom format upgrades and Minimum Upgrade Score** — branch [`feat/custom-format-upgrades`](https://github.com/chodeus/Lidarr/tree/feat/custom-format-upgrades), not submitted
@@ -142,15 +140,17 @@
   - Lidarr sends an unofficial build's error reports to Servarr's development Sentry whatever the analytics setting, and this build counts as unofficial. It no longer registers Sentry at all; official builds are unchanged.
 - **This build's changes on the Updates page** — branch [`feat/build-changelog`](https://github.com/chodeus/Lidarr/tree/feat/build-changelog), custom build only
   - System → Updates lists the image's last five builds instead of upstream's nightlies, the running one marked installed. Each lists the branches it added or removed, and upstream's own New and Fixed lines merged since the build before. Without `changelog.json` beside the binaries, the page shows upstream's list as before.
+- **Library statistics** — branch [`feat/statistics-page`](https://github.com/chodeus/Lidarr/tree/feat/statistics-page), not submitted
+  - Library → Statistics, after Sonarr's page: tiles for artists, albums, tracks, track files, missing albums and size on disk, and charts by artist status, album type, track state, quality and metadata profile, track quality, tag, decade and secondary type. Filters by root folder, monitored, quality profile, metadata profile and tags.
 
 ## How the build works
 
 - Each change is its own branch off `develop` in [chodeus/Lidarr](https://github.com/chodeus/Lidarr), so it can be opened as an upstream PR as it is.
 - `meta.json` lists them in `pr_branches`. The `update` workflow, every 3 hours, records each branch's head in `pr_shas`, and any change to a branch, to upstream `develop` or to the base image triggers a build.
-- `build.sh source` merges the branches into `develop` in the listed order. If one no longer merges, the build fails and names it; rebase that branch onto `develop`.
+- `build.sh source` merges the branches into `develop` in the listed order. If one no longer merges, the build fails and names it; rebase that branch onto `develop`, or merge `develop` into it when other branches are built on it.
 - Each branch, except the two open upstream PRs, has a `.github/README.md` with its PR description and CodeRabbit's summary, shown on its branch page. `build.sh source` keeps only the first of those files, so they never clash. Drop that commit before opening a branch as an upstream PR.
 - Branches that add translation keys at the same sorted spot in `en.json` keep both sides' keys. If the merged file sets a key twice, or isn't valid JSON, the build fails.
-- The daily `audit` workflow runs `build.sh audit` on the merged source: NuGet advisories, transitive ones included, in the projects the image ships (Lidarr, Lidarr.Update, Lidarr.Mono), and in the production frontend packages. A finding is posted to Discord. Patch it in a branch, as `chore/backend-dependency-advisories` does, and drop that branch once `develop` catches up; or list the advisory in `audit-ignore.txt` with the reason.
+- The daily `audit` workflow runs `build.sh audit` on the merged source: NuGet advisories, transitive ones included, in the projects the image ships (Lidarr, Lidarr.Update, Lidarr.Mono), and in the production frontend packages. A finding is posted to Discord. Patch it in a branch, as `chore/backend-dependency-advisories` did until `develop` moved to .NET 10, and drop that branch once `develop` catches up; or list the advisory in `audit-ignore.txt` with the reason.
 - After compiling, `build.sh plugins` checks the latest release of each plugin in `plugin_repos` against the build: every Lidarr type and member it uses must exist, and its classes must still implement every Lidarr interface and abstract member. A build that would break a plugin fails and is never published.
 - To add or drop a change, edit `pr_branches`. Drop a change once upstream has merged it.
 - Every build is stamped `10.0.0.<build run number>`, the same on every assembly. Major 10 keeps Lidarr treating it as an unofficial build, so upstream releases never show as updates.

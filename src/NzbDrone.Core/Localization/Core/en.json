@@ -290,6 +290,7 @@
   "Date": "Date",
   "DateAdded": "Date Added",
   "Dates": "Dates",
+  "Decade": "{decade}s",
   "Deceased": "Deceased",
   "DefaultCase": "Default Case",
   "DefaultDelayProfileArtist": "This is the default profile. It applies to all artists that don't have an explicit profile.",

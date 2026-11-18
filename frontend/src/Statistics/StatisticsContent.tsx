@@ -204,7 +204,9 @@ function StatisticsContent({ data }: StatisticsContentProps) {
     return data.decadeStatistics.map((decade) => {
       return {
         label:
-          decade.decade == null ? translate('Unknown') : `${decade.decade}s`,
+          decade.decade == null
+            ? translate('Unknown')
+            : translate('Decade', { decade: decade.decade }),
         value: decade.albumCount,
         tooltipLines: filesAndSizeLines(
           decade.trackFileCount,

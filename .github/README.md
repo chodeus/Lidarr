@@ -10,7 +10,7 @@ Part of the [custom Lidarr image](https://github.com/chodeus/Lidarr/tree/custom)
 - A settings save that leaves a setting out, such as one from a client built before the OIDC settings, keeps that setting's stored value, as the database settings already do. Before, it failed partway through the save.
 - Changing the OIDC settings needs no restart. The Forms login now also reads the method on each request instead of once at startup.
 - The API key and its query parameter are unchanged.
-- `IConfigFileProvider` gains the OIDC settings with default bodies, and `HostConfigController` keeps develop's constructor. The OIDC health check reasons are numbered from 1000, so develop's reasons keep their values. A rejected sign in logs the user's subject, not their email. Adds `Microsoft.AspNetCore.Authentication.OpenIdConnect` 8.0.31.
+- `IConfigFileProvider` gains the OIDC settings with default bodies, and `HostConfigController` keeps develop's constructor. The OIDC health check reasons are numbered from 1000, so develop's reasons keep their values. A rejected sign in logs the user's subject, not their email. Adds `Microsoft.AspNetCore.Authentication.OpenIdConnect` 10.0.15.
 
 - The security settings section (`SecuritySettings`) and `FormInputButton` are TypeScript now, as in Radarr. `FormInputGroup` stays JavaScript, with `readOnly` and `onFocus` added to its prop types since it already passes them through.
 

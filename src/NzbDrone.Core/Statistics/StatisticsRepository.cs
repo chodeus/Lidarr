@@ -409,9 +409,10 @@ namespace NzbDrone.Core.Statistics
                 .GroupBy(groupColumn);
         }
 
+        // Never NULL: on SQLite, Dapper types the column from the first row, which can be the NULL group
         private string QualityIdExpression => _database.DatabaseType == DatabaseType.PostgreSQL
-            ? @"(""TrackFiles"".""Quality""::json->>'quality')::int"
-            : @"CAST(JSON_EXTRACT(""TrackFiles"".""Quality"", '$.quality') AS INTEGER)";
+            ? @"COALESCE((""TrackFiles"".""Quality""::json->>'quality')::int, 0)"
+            : @"COALESCE(CAST(JSON_EXTRACT(""TrackFiles"".""Quality"", '$.quality') AS INTEGER), 0)";
 
         // Sorted here, not in SQL, so the order doesn't depend on the database's collation
         private List<NamedRow> QueryNames(string table, string nameColumn)

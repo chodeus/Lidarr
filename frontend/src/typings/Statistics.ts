@@ -45,6 +45,13 @@ export interface DecadeStatistics {
   sizeOnDisk: number;
 }
 
+export interface GenreStatistics {
+  genre: string;
+  albumCount: number;
+  trackFileCount: number;
+  sizeOnDisk: number;
+}
+
 interface Statistics {
   artistCount: number;
   monitoredArtistCount: number;
@@ -70,6 +77,7 @@ interface Statistics {
   albumTypeStatistics: AlbumTypeStatistics[];
   secondaryTypeStatistics: SecondaryTypeStatistics[];
   decadeStatistics: DecadeStatistics[];
+  genreStatistics: GenreStatistics[];
 }
 
 export default Statistics;

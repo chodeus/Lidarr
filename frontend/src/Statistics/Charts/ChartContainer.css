@@ -16,5 +16,6 @@
 
 .chart {
   position: relative;
+  min-height: 300px;
   height: 300px;
 }

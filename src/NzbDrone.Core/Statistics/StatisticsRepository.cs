@@ -94,7 +94,8 @@ namespace NzbDrone.Core.Statistics
                 TagStatistics = MapTagStatistics(tags, artists, filesByArtist),
                 AlbumTypeStatistics = MapAlbumTypeStatistics(albums),
                 SecondaryTypeStatistics = MapSecondaryTypeStatistics(albums),
-                DecadeStatistics = MapDecadeStatistics(albums, filesByAlbum)
+                DecadeStatistics = MapDecadeStatistics(albums, filesByAlbum),
+                GenreStatistics = MapGenreStatistics(albums, filesByAlbum)
             };
         }
 
@@ -206,6 +207,29 @@ namespace NzbDrone.Core.Statistics
                         SizeOnDisk = files.SizeOnDisk
                     };
                 })
+                .ToList();
+        }
+
+        // Albums without genres are left out; an album counts once under each of its genres
+        private static List<GenreStatistics> MapGenreStatistics(List<AlbumRow> albums, Dictionary<int, GroupFileCounts> filesByAlbum)
+        {
+            return albums
+                .SelectMany(a => (a.Genres ?? new List<string>()).Distinct().Select(g => (Genre: g, AlbumId: a.Id)))
+                .GroupBy(e => e.Genre)
+                .Select(g =>
+                {
+                    var files = SumFiles(g.Select(e => filesByAlbum.GetValueOrDefault(e.AlbumId)));
+
+                    return new GenreStatistics
+                    {
+                        Genre = g.Key,
+                        AlbumCount = g.Count(),
+                        TrackFileCount = files.TrackFileCount,
+                        SizeOnDisk = files.SizeOnDisk
+                    };
+                })
+                .OrderByDescending(s => s.AlbumCount)
+                .ThenBy(s => s.Genre, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
 
@@ -437,7 +461,7 @@ namespace NzbDrone.Core.Statistics
         private SqlBuilder AlbumRowsBuilder(ArtistFilter artistFilter)
         {
             var builder = new SqlBuilder(_database.DatabaseType)
-                .Select(@"""Albums"".""Id"", ""Artists"".""Id"" AS ArtistId, ""Albums"".""AlbumType"", ""Albums"".""SecondaryTypes"", ""Albums"".""ReleaseDate""")
+                .Select(@"""Albums"".""Id"", ""Artists"".""Id"" AS ArtistId, ""Albums"".""AlbumType"", ""Albums"".""SecondaryTypes"", ""Albums"".""ReleaseDate"", ""Albums"".""Genres""")
                 .Join<Album, Artist>((album, artist) => album.ArtistMetadataId == artist.ArtistMetadataId);
 
             return ApplyArtistFilter(builder, artistFilter);
@@ -512,6 +536,7 @@ namespace NzbDrone.Core.Statistics
             public string AlbumType { get; set; }
             public List<SecondaryAlbumType> SecondaryTypes { get; set; }
             public DateTime? ReleaseDate { get; set; }
+            public List<string> Genres { get; set; }
         }
     }
 }

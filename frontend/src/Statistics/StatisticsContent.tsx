@@ -9,6 +9,8 @@ import useChartColors from './Charts/useChartColors';
 import StatisticsSummary, { SummaryItem } from './StatisticsSummary';
 import styles from './StatisticsContent.css';
 
+const TOP_GENRE_COUNT = 25;
+
 function formatCount(count: number) {
   return count.toLocaleString();
 }
@@ -216,6 +218,16 @@ function StatisticsContent({ data }: StatisticsContentProps) {
     });
   }, [data]);
 
+  const genreItems = useMemo<BarChartItem[]>(() => {
+    return data.genreStatistics.slice(0, TOP_GENRE_COUNT).map((genre) => {
+      return {
+        label: genre.genre,
+        value: genre.albumCount,
+        tooltipLines: filesAndSizeLines(genre.trackFileCount, genre.sizeOnDisk),
+      };
+    });
+  }, [data]);
+
   const secondaryTypeItems = useMemo<BarChartItem[]>(() => {
     return data.secondaryTypeStatistics.map((secondaryType) => {
       return {
@@ -266,6 +278,20 @@ function StatisticsContent({ data }: StatisticsContentProps) {
           <BarChart title={translate('Tags')} items={tagItems} />
         ) : null}
       </div>
+
+      {genreItems.length ? (
+        <div className={styles.charts}>
+          <BarChart
+            title={
+              data.genreStatistics.length > TOP_GENRE_COUNT
+                ? translate('TopAlbumGenres', { count: TOP_GENRE_COUNT })
+                : translate('AlbumGenres')
+            }
+            items={genreItems}
+            horizontal={true}
+          />
+        </div>
+      ) : null}
     </>
   );
 }

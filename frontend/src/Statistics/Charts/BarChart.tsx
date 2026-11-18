@@ -23,9 +23,13 @@ export interface BarChartItem {
 interface BarChartProps {
   title: string;
   items: BarChartItem[];
+  horizontal?: boolean;
 }
 
-function BarChart({ title, items }: BarChartProps) {
+// Horizontal bars get a row per label so long names are never skipped
+const HORIZONTAL_ROW_HEIGHT = 24;
+
+function BarChart({ title, items, horizontal = false }: BarChartProps) {
   const colors = useChartColors();
 
   const data = useMemo(() => {
@@ -43,29 +47,34 @@ function BarChart({ title, items }: BarChartProps) {
   }, [colors, items]);
 
   const options = useMemo<ChartOptions<'bar'>>(() => {
+    const categoryAxis = {
+      ticks: {
+        color: colors.text,
+        autoSkip: !horizontal,
+      },
+      grid: {
+        display: false,
+      },
+    };
+
+    const valueAxis = {
+      beginAtZero: true,
+      ticks: {
+        precision: 0,
+        color: colors.text,
+      },
+      grid: {
+        color: colors.grid,
+      },
+    };
+
     return {
+      indexAxis: horizontal ? 'y' : 'x',
       responsive: true,
       maintainAspectRatio: false,
-      scales: {
-        x: {
-          ticks: {
-            color: colors.text,
-          },
-          grid: {
-            display: false,
-          },
-        },
-        y: {
-          beginAtZero: true,
-          ticks: {
-            precision: 0,
-            color: colors.text,
-          },
-          grid: {
-            color: colors.grid,
-          },
-        },
-      },
+      scales: horizontal
+        ? { x: valueAxis, y: categoryAxis }
+        : { x: categoryAxis, y: valueAxis },
       plugins: {
         legend: {
           display: false,
@@ -73,7 +82,9 @@ function BarChart({ title, items }: BarChartProps) {
         tooltip: {
           callbacks: {
             label: (context: TooltipItem<'bar'>) => {
-              return ` ${(context.parsed.y ?? 0).toLocaleString()}`;
+              const value = horizontal ? context.parsed.x : context.parsed.y;
+
+              return ` ${(value ?? 0).toLocaleString()}`;
             },
             afterBody: (contexts: TooltipItem<'bar'>[]) => {
               const index = contexts[0]?.dataIndex ?? 0;
@@ -84,10 +95,13 @@ function BarChart({ title, items }: BarChartProps) {
         },
       },
     };
-  }, [colors, items]);
+  }, [colors, horizontal, items]);
 
   return (
-    <ChartContainer title={title}>
+    <ChartContainer
+      title={title}
+      height={horizontal ? items.length * HORIZONTAL_ROW_HEIGHT : undefined}
+    >
       <Bar
         data={data}
         options={options}

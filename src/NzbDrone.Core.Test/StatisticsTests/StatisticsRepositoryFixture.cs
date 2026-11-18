@@ -59,7 +59,7 @@ namespace NzbDrone.Core.Test.StatisticsTests
                                             .BuildNew());
         }
 
-        private Album GivenAlbum(Artist artist, DateTime? releaseDate, bool monitored = true, string albumType = "Album", List<SecondaryAlbumType> secondaryTypes = null)
+        private Album GivenAlbum(Artist artist, DateTime? releaseDate, bool monitored = true, string albumType = "Album", List<SecondaryAlbumType> secondaryTypes = null, List<string> genres = null)
         {
             var id = _nextId++;
 
@@ -71,6 +71,7 @@ namespace NzbDrone.Core.Test.StatisticsTests
                                            .With(a => a.Monitored = monitored)
                                            .With(a => a.AlbumType = albumType)
                                            .With(a => a.SecondaryTypes = secondaryTypes ?? new List<SecondaryAlbumType>())
+                                           .With(a => a.Genres = genres ?? new List<string>())
                                            .BuildNew());
         }
 
@@ -123,9 +124,9 @@ namespace NzbDrone.Core.Test.StatisticsTests
         }
 
         // An album whose monitored release has trackCount tracks, the first fileCount of them with a 100 byte file each
-        private Album GivenAlbumWithTracks(Artist artist, DateTime? releaseDate, int trackCount, int fileCount = 0, bool monitored = true)
+        private Album GivenAlbumWithTracks(Artist artist, DateTime? releaseDate, int trackCount, int fileCount = 0, bool monitored = true, List<string> genres = null)
         {
-            var album = GivenAlbum(artist, releaseDate, monitored);
+            var album = GivenAlbum(artist, releaseDate, monitored, genres: genres);
             var release = GivenRelease(album);
 
             for (var i = 0; i < trackCount; i++)
@@ -596,6 +597,7 @@ namespace NzbDrone.Core.Test.StatisticsTests
             stats.AlbumTypeStatistics.Should().BeEmpty();
             stats.SecondaryTypeStatistics.Should().BeEmpty();
             stats.DecadeStatistics.Should().BeEmpty();
+            stats.GenreStatistics.Should().BeEmpty();
         }
 
         [Test]
@@ -777,13 +779,38 @@ namespace NzbDrone.Core.Test.StatisticsTests
         }
 
         [Test]
+        public void should_count_albums_once_per_genre_with_files_and_size_most_albums_first_without_genreless_albums()
+        {
+            var artist = GivenArtist();
+            GivenAlbumWithTracks(artist, _released, trackCount: 2, fileCount: 2, genres: new List<string> { "Rock", "Pop", "Rock" });
+            GivenAlbumWithTracks(artist, _released, trackCount: 1, fileCount: 1, genres: new List<string> { "Rock" });
+            GivenAlbumWithTracks(GivenArtist(), _released, trackCount: 1, fileCount: 1, genres: new List<string> { "jazz" });
+            var nullGenres = GivenAlbumWithTracks(artist, _released, trackCount: 1, fileCount: 1);
+            GivenAlbumWithTracks(artist, _released, trackCount: 1, fileCount: 1);
+
+            using (var conn = Db.OpenConnection())
+            {
+                conn.Execute(@"UPDATE ""Albums"" SET ""Genres"" = NULL WHERE ""Id"" = @id", new { id = nullGenres.Id });
+            }
+
+            var expected = new[]
+            {
+                new { Genre = "Rock", AlbumCount = 2, TrackFileCount = 3, SizeOnDisk = 300L },
+                new { Genre = "jazz", AlbumCount = 1, TrackFileCount = 1, SizeOnDisk = 100L },
+                new { Genre = "Pop", AlbumCount = 1, TrackFileCount = 2, SizeOnDisk = 200L }
+            };
+
+            Subject.GetLibraryStatistics().GenreStatistics.Should().BeEquivalentTo(expected, o => o.WithStrictOrdering());
+        }
+
+        [Test]
         public void should_scope_quality_and_album_breakdowns_to_the_filter()
         {
             var tag = GivenTag("keep");
             var kept = GivenArtist(tags: new HashSet<int> { tag.Id });
             var other = GivenArtist();
-            var keptAlbum = GivenAlbum(kept, new DateTime(1985, 1, 1, 0, 0, 0, DateTimeKind.Utc), albumType: "EP", secondaryTypes: new List<SecondaryAlbumType> { SecondaryAlbumType.Live });
-            var otherAlbum = GivenAlbum(other, new DateTime(2015, 1, 1, 0, 0, 0, DateTimeKind.Utc), albumType: "Single");
+            var keptAlbum = GivenAlbum(kept, new DateTime(1985, 1, 1, 0, 0, 0, DateTimeKind.Utc), albumType: "EP", secondaryTypes: new List<SecondaryAlbumType> { SecondaryAlbumType.Live }, genres: new List<string> { "Synthpop" });
+            var otherAlbum = GivenAlbum(other, new DateTime(2015, 1, 1, 0, 0, 0, DateTimeKind.Utc), albumType: "Single", genres: new List<string> { "Trap" });
             GivenTrackFile(keptAlbum.Id, quality: Quality.FLAC);
             GivenTrackFile(otherAlbum.Id, quality: Quality.MP3_320);
 
@@ -793,6 +820,7 @@ namespace NzbDrone.Core.Test.StatisticsTests
             stats.AlbumTypeStatistics.Select(a => a.AlbumType).Should().Equal("EP");
             stats.SecondaryTypeStatistics.Select(s => s.SecondaryType).Should().Equal("Live");
             stats.DecadeStatistics.Select(d => d.Decade).Should().Equal(1980);
+            stats.GenreStatistics.Select(g => g.Genre).Should().Equal("Synthpop");
         }
     }
 }

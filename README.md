@@ -142,6 +142,8 @@
   - System → Updates lists the image's last five builds instead of upstream's nightlies, the running one marked installed. Each lists the branches it added or removed, and upstream's own New and Fixed lines merged since the build before. Without `changelog.json` beside the binaries, the page shows upstream's list as before.
 - **Library statistics** — branch [`feat/statistics-page`](https://github.com/chodeus/Lidarr/tree/feat/statistics-page), not submitted
   - Library → Statistics, after Sonarr's page: tiles for artists, albums, tracks, track files, missing albums and size on disk, and charts by artist status, album type, track state, quality and metadata profile, track quality, tag, decade and secondary type. Filters by root folder, monitored, quality profile, metadata profile and tags.
+- **Release group in Manual Import** — branch [`fix/manual-import-release-group`](https://github.com/chodeus/Lidarr/tree/fix/manual-import-release-group), not submitted
+  - Manual Import shows the release group from the download title, folder name or tags, and importing from the dialog saves it with the files. A single-file download reads its download title for the release group and quality too, as a folder does.
 
 ## How the build works
 

@@ -88,9 +88,11 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
 
         public List<ManualImportItem> GetMediaFiles(string path, string downloadId, Artist artist, FilterFilesType filter, bool replaceExistingFiles)
         {
+            TrackedDownload trackedDownload = null;
+
             if (downloadId.IsNotNullOrWhiteSpace())
             {
-                var trackedDownload = _trackedDownloadService.Find(downloadId);
+                trackedDownload = _trackedDownloadService.Find(downloadId);
 
                 if (trackedDownload == null)
                 {
@@ -123,7 +125,12 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
                     AddNewArtists = false
                 };
 
-                var decisions = _importDecisionMaker.GetImportDecisions(files, null, null, config);
+                var itemInfo = new ImportDecisionMakerInfo
+                {
+                    DownloadClientItem = trackedDownload?.DownloadItem
+                };
+
+                var decisions = _importDecisionMaker.GetImportDecisions(files, null, itemInfo, config);
 
                 if (decisions.Any())
                 {
@@ -146,12 +153,11 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
                 };
             }
 
-            return ProcessFolder(path, downloadId, artist, filter, replaceExistingFiles);
+            return ProcessFolder(path, downloadId, trackedDownload, artist, filter, replaceExistingFiles);
         }
 
-        private List<ManualImportItem> ProcessFolder(string folder, string downloadId, Artist artist, FilterFilesType filter, bool replaceExistingFiles)
+        private List<ManualImportItem> ProcessFolder(string folder, string downloadId, TrackedDownload trackedDownload, Artist artist, FilterFilesType filter, bool replaceExistingFiles)
         {
-            DownloadClientItem downloadClientItem = null;
             var directoryInfo = new DirectoryInfo(folder);
 
             try
@@ -163,16 +169,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
                 _logger.Warn(e, "Unable to find artist from title");
             }
 
-            if (downloadId.IsNotNullOrWhiteSpace())
-            {
-                var trackedDownload = _trackedDownloadService.Find(downloadId);
-                downloadClientItem = trackedDownload.DownloadItem;
-
-                if (artist == null)
-                {
-                    artist = trackedDownload.RemoteAlbum?.Artist;
-                }
-            }
+            artist ??= trackedDownload?.RemoteAlbum?.Artist;
 
             var artistFiles = _diskScanService.GetAudioFiles(folder).ToList();
 
@@ -188,7 +185,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
             };
             var itemInfo = new ImportDecisionMakerInfo
             {
-                DownloadClientItem = downloadClientItem,
+                DownloadClientItem = trackedDownload?.DownloadItem,
                 ParsedAlbumInfo = Parser.Parser.ParseAlbumTitle(directoryInfo.Name)
             };
             var config = new ImportDecisionMakerConfig
@@ -342,6 +339,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
             }
 
             item.Quality = decision.Item.Quality;
+            item.ReleaseGroup = decision.Item.ReleaseGroup;
             item.IndexerFlags = (int)decision.Item.IndexerFlags;
             item.Size = _diskProvider.GetFileSize(decision.Item.Path);
             item.Rejections = decision.Rejections;

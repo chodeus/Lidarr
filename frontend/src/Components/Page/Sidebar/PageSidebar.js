@@ -32,10 +32,6 @@ const links = [
       {
         title: () => translate('UnmappedFiles'),
         to: '/unmapped'
-      },
-      {
-        title: () => translate('Statistics'),
-        to: '/statistics'
       }
     ]
   },
@@ -44,6 +40,12 @@ const links = [
     iconName: icons.CALENDAR,
     title: () => translate('Calendar'),
     to: '/calendar'
+  },
+
+  {
+    iconName: icons.STATISTICS,
+    title: () => translate('Statistics'),
+    to: '/statistics'
   },
 
   {

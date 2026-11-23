@@ -13,6 +13,7 @@ import React, { useContext, useMemo } from 'react';
 import { Doughnut } from 'react-chartjs-2';
 import ColorImpairedContext from 'App/ColorImpairedContext';
 import useChartColors from 'Statistics/Charts/useChartColors';
+import formatPercent from 'Statistics/formatPercent';
 import ChartContainer, { getChartAriaLabel } from './ChartContainer';
 import createSlicePattern from './createSlicePattern';
 
@@ -27,20 +28,6 @@ export interface DoughnutChartItem {
 interface DoughnutChartProps {
   title: string;
   items: DoughnutChartItem[];
-}
-
-function formatShare(value: number, total: number) {
-  const percentage = total ? Math.round((value / total) * 100) : 0;
-
-  if (percentage === 0 && value > 0) {
-    return '<1%';
-  }
-
-  if (percentage === 100 && value < total) {
-    return '>99%';
-  }
-
-  return `${percentage}%`;
 }
 
 function DoughnutChart({ title, items }: DoughnutChartProps) {
@@ -123,7 +110,7 @@ function DoughnutChart({ title, items }: DoughnutChartProps) {
                 0
               );
 
-              return ` ${context.parsed.toLocaleString()} (${formatShare(
+              return ` ${context.parsed.toLocaleString()} (${formatPercent(
                 context.parsed,
                 total
               )})`;

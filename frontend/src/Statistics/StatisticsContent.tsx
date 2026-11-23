@@ -1,11 +1,11 @@
 import React, { useMemo } from 'react';
 import StatisticsData from 'typings/Statistics';
 import formatBytes from 'Utilities/Number/formatBytes';
-import roundNumber from 'Utilities/Number/roundNumber';
 import translate from 'Utilities/String/translate';
 import BarChart, { BarChartItem } from './Charts/BarChart';
 import DoughnutChart, { DoughnutChartItem } from './Charts/DoughnutChart';
 import useChartColors from './Charts/useChartColors';
+import formatPercent from './formatPercent';
 import StatisticsSummary, { SummaryItem } from './StatisticsSummary';
 import styles from './StatisticsContent.css';
 
@@ -30,14 +30,18 @@ function StatisticsContent({ data }: StatisticsContentProps) {
   const colors = useChartColors();
 
   const summaryItems = useMemo<SummaryItem[]>(() => {
-    const downloadedPercent = data.totalTrackCount
-      ? roundNumber((data.downloadedTrackCount / data.totalTrackCount) * 100)
-      : 0;
+    const downloadedPercent = formatPercent(
+      data.downloadedTrackCount,
+      data.totalTrackCount,
+      1
+    );
 
     const wantedAlbumCount = data.completedAlbumCount + data.missingAlbumCount;
-    const completedAlbumPercent = wantedAlbumCount
-      ? roundNumber((data.completedAlbumCount / wantedAlbumCount) * 100)
-      : 0;
+    const completedAlbumPercent = formatPercent(
+      data.completedAlbumCount,
+      wantedAlbumCount,
+      1
+    );
 
     const averageSizePerTrackFile = data.trackFileCount
       ? data.sizeOnDisk / data.trackFileCount
@@ -72,12 +76,12 @@ function StatisticsContent({ data }: StatisticsContentProps) {
       {
         label: translate('TrackFiles'),
         value: formatCount(data.trackFileCount),
-        secondary: `${downloadedPercent}% ${translate('Downloaded')}`,
+        secondary: `${downloadedPercent} ${translate('Downloaded')}`,
       },
       {
         label: translate('MissingAlbums'),
         value: formatCount(data.missingAlbumCount),
-        secondary: `${completedAlbumPercent}% ${translate(
+        secondary: `${completedAlbumPercent} ${translate(
           'Completed'
         )} · ${formatCount(data.missingTrackCount)} ${translate(
           'MissingTracks'

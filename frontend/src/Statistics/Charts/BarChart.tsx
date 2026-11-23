@@ -4,13 +4,17 @@ import {
   Chart,
   ChartOptions,
   LinearScale,
+  Scale,
+  Tick,
   Tooltip,
   TooltipItem,
 } from 'chart.js';
+import { toFont } from 'chart.js/helpers';
 import React, { useMemo } from 'react';
 import { Bar } from 'react-chartjs-2';
 import useChartColors from 'Statistics/Charts/useChartColors';
 import ChartContainer, { getChartAriaLabel } from './ChartContainer';
+import fitLabel from './fitLabel';
 
 Chart.register(BarElement, CategoryScale, LinearScale, Tooltip);
 
@@ -23,13 +27,55 @@ export interface BarChartItem {
 interface BarChartProps {
   title: string;
   items: BarChartItem[];
-  horizontal?: boolean;
 }
 
-// Horizontal bars get a row per label so long names are never skipped
-const HORIZONTAL_ROW_HEIGHT = 24;
+// Chart.js's defaults, set on the label axis because fitAxisLabel counts on them
+const TICK_LENGTH = 8;
+const TICK_PADDING = 3;
+const AUTO_SKIP_PADDING = 3;
 
-function BarChart({ title, items, horizontal = false }: BarChartProps) {
+// Chart.js tilts labels once the widest comes this close to its column's width
+const FLAT_LABEL_GAP = 6;
+
+// Fit to the roomier of lying flat in its column or standing up in the axis; the tooltip keeps the full name
+function fitAxisLabel(
+  this: Scale,
+  value: number | string,
+  _index: number,
+  ticks: Tick[]
+) {
+  const { ctx } = this;
+  const font = toFont(Chart.defaults.font);
+  const column = this.maxWidth / ticks.length;
+  const flatRoom = column - FLAT_LABEL_GAP;
+  const uprightRoom = this.maxHeight - TICK_LENGTH - TICK_PADDING * 2;
+
+  // Chart.js skips labels once they are thicker than their column, and each upright line adds a line's thickness
+  const maxLines = column >= 2 * font.lineHeight + AUTO_SKIP_PADDING ? 2 : 1;
+
+  ctx.save();
+  ctx.font = font.string;
+
+  const lines = fitLabel(
+    this.getLabelForValue(Number(value)),
+    Math.max(flatRoom, uprightRoom),
+    (text) => ctx.measureText(text).width,
+    maxLines
+  );
+
+  ctx.restore();
+
+  return lines;
+}
+
+// Chart.js tilts labels just enough and pads for the first only, so a long later label can overhang the left edge
+function standLabelsUpright(axis: Scale) {
+  if (axis.labelRotation > 0) {
+    axis.labelRotation = 90;
+  }
+}
+
+function BarChart({ title, items }: BarChartProps) {
   const colors = useChartColors();
 
   const data = useMemo(() => {
@@ -47,34 +93,34 @@ function BarChart({ title, items, horizontal = false }: BarChartProps) {
   }, [colors, items]);
 
   const options = useMemo<ChartOptions<'bar'>>(() => {
-    const categoryAxis = {
-      ticks: {
-        color: colors.text,
-        autoSkip: !horizontal,
-      },
-      grid: {
-        display: false,
-      },
-    };
-
-    const valueAxis = {
-      beginAtZero: true,
-      ticks: {
-        precision: 0,
-        color: colors.text,
-      },
-      grid: {
-        color: colors.grid,
-      },
-    };
-
     return {
-      indexAxis: horizontal ? 'y' : 'x',
       responsive: true,
       maintainAspectRatio: false,
-      scales: horizontal
-        ? { x: valueAxis, y: categoryAxis }
-        : { x: categoryAxis, y: valueAxis },
+      scales: {
+        x: {
+          afterCalculateLabelRotation: standLabelsUpright,
+          ticks: {
+            color: colors.text,
+            padding: TICK_PADDING,
+            autoSkipPadding: AUTO_SKIP_PADDING,
+            callback: fitAxisLabel,
+          },
+          grid: {
+            display: false,
+            tickLength: TICK_LENGTH,
+          },
+        },
+        y: {
+          beginAtZero: true,
+          ticks: {
+            precision: 0,
+            color: colors.text,
+          },
+          grid: {
+            color: colors.grid,
+          },
+        },
+      },
       plugins: {
         legend: {
           display: false,
@@ -82,9 +128,7 @@ function BarChart({ title, items, horizontal = false }: BarChartProps) {
         tooltip: {
           callbacks: {
             label: (context: TooltipItem<'bar'>) => {
-              const value = horizontal ? context.parsed.x : context.parsed.y;
-
-              return ` ${(value ?? 0).toLocaleString()}`;
+              return ` ${(context.parsed.y ?? 0).toLocaleString()}`;
             },
             afterBody: (contexts: TooltipItem<'bar'>[]) => {
               const index = contexts[0]?.dataIndex ?? 0;
@@ -95,13 +139,10 @@ function BarChart({ title, items, horizontal = false }: BarChartProps) {
         },
       },
     };
-  }, [colors, horizontal, items]);
+  }, [colors, items]);
 
   return (
-    <ChartContainer
-      title={title}
-      height={horizontal ? items.length * HORIZONTAL_ROW_HEIGHT : undefined}
-    >
+    <ChartContainer title={title}>
       <Bar
         data={data}
         options={options}

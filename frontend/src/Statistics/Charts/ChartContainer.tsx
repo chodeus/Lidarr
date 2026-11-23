@@ -15,18 +15,15 @@ export function getChartAriaLabel(
 
 interface ChartContainerProps {
   title: string;
-  height?: number;
   children: React.ReactNode;
 }
 
-function ChartContainer({ title, height, children }: ChartContainerProps) {
+function ChartContainer({ title, children }: ChartContainerProps) {
   return (
     <div className={styles.container}>
       <div className={styles.title}>{title}</div>
 
-      <div className={styles.chart} style={height ? { height } : undefined}>
-        {children}
-      </div>
+      <div className={styles.chart}>{children}</div>
     </div>
   );
 }

@@ -292,7 +292,6 @@ function StatisticsContent({ data }: StatisticsContentProps) {
                 : translate('AlbumGenres')
             }
             items={genreItems}
-            horizontal={true}
           />
         </div>
       ) : null}

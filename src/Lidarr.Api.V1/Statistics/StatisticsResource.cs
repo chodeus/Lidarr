@@ -31,6 +31,8 @@ namespace Lidarr.Api.V1.Statistics
         public List<SecondaryTypeStatisticsResource> SecondaryTypeStatistics { get; set; }
         public List<DecadeStatisticsResource> DecadeStatistics { get; set; }
         public List<GenreStatisticsResource> GenreStatistics { get; set; }
+        public List<LargestArtistStatisticsResource> LargestArtistStatistics { get; set; }
+        public List<MediaFormatStatisticsResource> MediaFormatStatistics { get; set; }
     }
 
     public static class StatisticsResourceMapper
@@ -63,7 +65,9 @@ namespace Lidarr.Api.V1.Statistics
                 AlbumTypeStatistics = model.AlbumTypeStatistics.ConvertAll(AlbumTypeStatisticsResourceMapper.MapToResource),
                 SecondaryTypeStatistics = model.SecondaryTypeStatistics.ConvertAll(SecondaryTypeStatisticsResourceMapper.MapToResource),
                 DecadeStatistics = model.DecadeStatistics.ConvertAll(DecadeStatisticsResourceMapper.MapToResource),
-                GenreStatistics = model.GenreStatistics.ConvertAll(GenreStatisticsResourceMapper.MapToResource)
+                GenreStatistics = model.GenreStatistics.ConvertAll(GenreStatisticsResourceMapper.MapToResource),
+                LargestArtistStatistics = model.LargestArtistStatistics.ConvertAll(LargestArtistStatisticsResourceMapper.MapToResource),
+                MediaFormatStatistics = model.MediaFormatStatistics.ConvertAll(MediaFormatStatisticsResourceMapper.MapToResource)
             };
         }
     }

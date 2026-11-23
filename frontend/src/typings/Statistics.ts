@@ -52,6 +52,19 @@ export interface GenreStatistics {
   sizeOnDisk: number;
 }
 
+export interface LargestArtistStatistics {
+  artistId: number;
+  artistName: string;
+  trackFileCount: number;
+  sizeOnDisk: number;
+}
+
+export interface MediaFormatStatistics {
+  // Left out of the JSON for albums of unknown format
+  mediaFormat?: string;
+  albumCount: number;
+}
+
 interface Statistics {
   artistCount: number;
   monitoredArtistCount: number;
@@ -78,6 +91,8 @@ interface Statistics {
   secondaryTypeStatistics: SecondaryTypeStatistics[];
   decadeStatistics: DecadeStatistics[];
   genreStatistics: GenreStatistics[];
+  largestArtistStatistics: LargestArtistStatistics[];
+  mediaFormatStatistics: MediaFormatStatistics[];
 }
 
 export default Statistics;

@@ -4,12 +4,13 @@ import formatBytes from 'Utilities/Number/formatBytes';
 import translate from 'Utilities/String/translate';
 import BarChart, { BarChartItem } from './Charts/BarChart';
 import DoughnutChart, { DoughnutChartItem } from './Charts/DoughnutChart';
+import getByteStepSize from './Charts/getByteStepSize';
 import useChartColors from './Charts/useChartColors';
 import formatPercent from './formatPercent';
 import StatisticsSummary, { SummaryItem } from './StatisticsSummary';
 import styles from './StatisticsContent.css';
 
-const TOP_GENRE_COUNT = 25;
+const TOP_COUNT = 10;
 
 function formatCount(count: number) {
   return count.toLocaleString();
@@ -223,11 +224,32 @@ function StatisticsContent({ data }: StatisticsContentProps) {
   }, [data]);
 
   const genreItems = useMemo<BarChartItem[]>(() => {
-    return data.genreStatistics.slice(0, TOP_GENRE_COUNT).map((genre) => {
+    return data.genreStatistics.slice(0, TOP_COUNT).map((genre) => {
       return {
         label: genre.genre,
         value: genre.albumCount,
         tooltipLines: filesAndSizeLines(genre.trackFileCount, genre.sizeOnDisk),
+      };
+    });
+  }, [data]);
+
+  const largestArtistItems = useMemo<BarChartItem[]>(() => {
+    return data.largestArtistStatistics.map((artist) => {
+      return {
+        label: artist.artistName,
+        value: artist.sizeOnDisk,
+        tooltipLines: [
+          `${translate('TrackFiles')}: ${formatCount(artist.trackFileCount)}`,
+        ],
+      };
+    });
+  }, [data]);
+
+  const mediaFormatItems = useMemo<BarChartItem[]>(() => {
+    return data.mediaFormatStatistics.slice(0, TOP_COUNT).map((format) => {
+      return {
+        label: format.mediaFormat ?? translate('Unknown'),
+        value: format.albumCount,
       };
     });
   }, [data]);
@@ -283,18 +305,40 @@ function StatisticsContent({ data }: StatisticsContentProps) {
         ) : null}
       </div>
 
-      {genreItems.length ? (
-        <div className={styles.charts}>
+      <div className={styles.charts}>
+        {genreItems.length ? (
           <BarChart
             title={
-              data.genreStatistics.length > TOP_GENRE_COUNT
-                ? translate('TopAlbumGenres', { count: TOP_GENRE_COUNT })
+              data.genreStatistics.length > TOP_COUNT
+                ? translate('TopAlbumGenres', { count: TOP_COUNT })
                 : translate('AlbumGenres')
             }
             items={genreItems}
           />
-        </div>
-      ) : null}
+        ) : null}
+
+        {largestArtistItems.length ? (
+          <BarChart
+            title={translate('LargestArtists')}
+            items={largestArtistItems}
+            formatValue={formatBytes}
+            stepSize={getByteStepSize(
+              Math.max(...largestArtistItems.map((item) => item.value))
+            )}
+          />
+        ) : null}
+
+        {mediaFormatItems.length ? (
+          <BarChart
+            title={
+              data.mediaFormatStatistics.length > TOP_COUNT
+                ? translate('TopMediaFormats', { count: TOP_COUNT })
+                : translate('MediaFormats')
+            }
+            items={mediaFormatItems}
+          />
+        ) : null}
+      </div>
     </>
   );
 }

@@ -39,12 +39,14 @@ namespace NzbDrone.Core.Test.StatisticsTests
                                    int qualityProfileId = 1,
                                    int metadataProfileId = 1,
                                    string path = null,
-                                   HashSet<int> tags = null)
+                                   HashSet<int> tags = null,
+                                   string name = null)
         {
             var id = _nextId++;
 
             var metadata = Db.Insert(Builder<ArtistMetadata>.CreateNew()
                                                             .With(m => m.ForeignArtistId = $"artist-{id}")
+                                                            .With(m => m.Name = name ?? $"Artist {id}")
                                                             .With(m => m.Status = status)
                                                             .BuildNew());
 
@@ -91,12 +93,13 @@ namespace NzbDrone.Core.Test.StatisticsTests
             });
         }
 
-        private AlbumRelease GivenRelease(Album album, bool monitored = true)
+        private AlbumRelease GivenRelease(Album album, bool monitored = true, params string[] mediaFormats)
         {
             return Db.Insert(Builder<AlbumRelease>.CreateNew()
                                                   .With(r => r.AlbumId = album.Id)
                                                   .With(r => r.ForeignReleaseId = $"release-{_nextId++}")
                                                   .With(r => r.Monitored = monitored)
+                                                  .With(r => r.Media = mediaFormats.Select((f, i) => new Medium { Number = i + 1, Format = f }).ToList())
                                                   .BuildNew());
         }
 
@@ -598,6 +601,8 @@ namespace NzbDrone.Core.Test.StatisticsTests
             stats.SecondaryTypeStatistics.Should().BeEmpty();
             stats.DecadeStatistics.Should().BeEmpty();
             stats.GenreStatistics.Should().BeEmpty();
+            stats.LargestArtistStatistics.Should().BeEmpty();
+            stats.MediaFormatStatistics.Should().BeEmpty();
         }
 
         [Test]
@@ -804,6 +809,76 @@ namespace NzbDrone.Core.Test.StatisticsTests
         }
 
         [Test]
+        public void should_list_the_ten_largest_artists_with_ties_in_name_order()
+        {
+            for (var i = 1; i <= 10; i++)
+            {
+                GivenTrackFile(GivenAlbum(GivenArtist(name: $"Size {i:D2}"), _released).Id, size: i * 100);
+            }
+
+            var beta = GivenArtist(name: "Beta");
+            GivenTrackFile(GivenAlbum(beta, _released).Id, size: 1000);
+            GivenTrackFile(GivenAlbum(beta, _released).Id, size: 500);
+            GivenTrackFile(GivenAlbum(GivenArtist(name: "alpha"), _released).Id, size: 1500);
+
+            var stats = Subject.GetLibraryStatistics().LargestArtistStatistics;
+
+            stats.Select(a => a.ArtistName).Should().Equal("alpha", "Beta", "Size 10", "Size 09", "Size 08", "Size 07", "Size 06", "Size 05", "Size 04", "Size 03");
+            stats[1].Should().BeEquivalentTo(new { ArtistId = beta.Id, TrackFileCount = 2, SizeOnDisk = 1500L });
+        }
+
+        [Test]
+        public void should_leave_artists_without_track_files_out_of_the_largest_artists()
+        {
+            var withFile = GivenArtist();
+            GivenTrackFile(GivenAlbum(withFile, _released).Id);
+            GivenAlbum(GivenArtist(), _released);
+            GivenArtist();
+
+            Subject.GetLibraryStatistics().LargestArtistStatistics.Select(a => a.ArtistId).Should().Equal(withFile.Id);
+        }
+
+        [Test]
+        public void should_count_albums_once_per_format_of_their_monitored_release_with_no_format_as_null()
+        {
+            var artist = GivenArtist();
+            var twoDiscs = GivenAlbum(artist, _released);
+            GivenRelease(twoDiscs, true, "CD", "CD");
+            GivenRelease(GivenAlbum(artist, _released), true, "CD", "DVD-Video");
+            GivenRelease(GivenAlbum(artist, _released), true, "CD");
+            GivenRelease(GivenAlbum(artist, _released), true, "Digital Media");
+            GivenRelease(GivenAlbum(artist, _released), true, null, " ", "Unknown");
+            var unmonitoredVinyl = GivenAlbum(artist, _released);
+            GivenRelease(unmonitoredVinyl, false, "Vinyl");
+            GivenRelease(unmonitoredVinyl, true);
+            GivenAlbum(artist, _released);
+
+            var expected = new[]
+            {
+                new { MediaFormat = "CD", AlbumCount = 3 },
+                new { MediaFormat = (string)null, AlbumCount = 3 },
+                new { MediaFormat = "Digital Media", AlbumCount = 1 },
+                new { MediaFormat = "DVD-Video", AlbumCount = 1 }
+            };
+
+            Subject.GetLibraryStatistics().MediaFormatStatistics.Should().BeEquivalentTo(expected, o => o.WithStrictOrdering());
+        }
+
+        [Test]
+        public void should_count_a_release_with_no_media_column_as_no_format()
+        {
+            var album = GivenAlbum(GivenArtist(), _released);
+            Db.Insert(Builder<AlbumRelease>.CreateNew()
+                                           .With(r => r.AlbumId = album.Id)
+                                           .With(r => r.ForeignReleaseId = "release-null-media")
+                                           .With(r => r.Monitored = true)
+                                           .With(r => r.Media = null)
+                                           .BuildNew());
+
+            Subject.GetLibraryStatistics().MediaFormatStatistics.Should().BeEquivalentTo(new[] { new { MediaFormat = (string)null, AlbumCount = 1 } });
+        }
+
+        [Test]
         public void should_scope_quality_and_album_breakdowns_to_the_filter()
         {
             var tag = GivenTag("keep");
@@ -811,6 +886,8 @@ namespace NzbDrone.Core.Test.StatisticsTests
             var other = GivenArtist();
             var keptAlbum = GivenAlbum(kept, new DateTime(1985, 1, 1, 0, 0, 0, DateTimeKind.Utc), albumType: "EP", secondaryTypes: new List<SecondaryAlbumType> { SecondaryAlbumType.Live }, genres: new List<string> { "Synthpop" });
             var otherAlbum = GivenAlbum(other, new DateTime(2015, 1, 1, 0, 0, 0, DateTimeKind.Utc), albumType: "Single", genres: new List<string> { "Trap" });
+            GivenRelease(keptAlbum, true, "Vinyl");
+            GivenRelease(otherAlbum, true, "CD");
             GivenTrackFile(keptAlbum.Id, quality: Quality.FLAC);
             GivenTrackFile(otherAlbum.Id, quality: Quality.MP3_320);
 
@@ -821,6 +898,8 @@ namespace NzbDrone.Core.Test.StatisticsTests
             stats.SecondaryTypeStatistics.Select(s => s.SecondaryType).Should().Equal("Live");
             stats.DecadeStatistics.Select(d => d.Decade).Should().Equal(1980);
             stats.GenreStatistics.Select(g => g.Genre).Should().Equal("Synthpop");
+            stats.LargestArtistStatistics.Select(a => a.ArtistId).Should().Equal(kept.Id);
+            stats.MediaFormatStatistics.Select(m => m.MediaFormat).Should().Equal("Vinyl");
         }
     }
 }

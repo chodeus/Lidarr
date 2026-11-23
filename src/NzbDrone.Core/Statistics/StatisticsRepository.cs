@@ -22,6 +22,8 @@ namespace NzbDrone.Core.Statistics
         private const string _selectAlbumsTemplate = "SELECT /**select**/ FROM \"Albums\" /**join**/ /**innerjoin**/ /**leftjoin**/ /**where**/ /**groupby**/ /**having**/ /**orderby**/";
         private const string _selectTracksTemplate = "SELECT /**select**/ FROM \"Tracks\" /**join**/ /**innerjoin**/ /**leftjoin**/ /**where**/ /**groupby**/ /**having**/ /**orderby**/";
         private const string _selectTrackFilesTemplate = "SELECT /**select**/ FROM \"TrackFiles\" /**join**/ /**innerjoin**/ /**leftjoin**/ /**where**/ /**groupby**/ /**having**/ /**orderby**/";
+        private const string _selectAlbumReleasesTemplate = "SELECT /**select**/ FROM \"AlbumReleases\" /**join**/ /**innerjoin**/ /**leftjoin**/ /**where**/ /**groupby**/ /**having**/ /**orderby**/";
+        private const int LargestArtistCount = 10;
 
         // Has-file comes from the join, as Wanted -> Missing does (AlbumRepository.AlbumsWithoutFilesBuilder)
         private const string _hasFile = @"""TrackFiles"".""Id"" IS NOT NULL";
@@ -63,6 +65,7 @@ namespace NzbDrone.Core.Statistics
             var albums = Query<AlbumRow>(AlbumRowsBuilder(artistFilter), _selectAlbumsTemplate);
             var filesByAlbum = Query<GroupFileCounts>(TrackFilesBuilder(artistFilter, @"""TrackFiles"".""AlbumId"""), _selectTrackFilesTemplate).ToDictionary(f => f.GroupId);
             var filesByArtist = albums.GroupBy(a => a.ArtistId).ToDictionary(g => g.Key, g => SumFiles(g.Select(a => filesByAlbum.GetValueOrDefault(a.Id))));
+            var releaseMedia = Query<ReleaseMediaRow>(ReleaseMediaBuilder(artistFilter), _selectAlbumReleasesTemplate);
             var trackFileCounts = SumFiles(filesByAlbum.Values);
             var qualityCounts = Query<GroupFileCounts>(TrackFilesBuilder(artistFilter, QualityIdExpression), _selectTrackFilesTemplate);
             var qualityProfiles = QueryNames("QualityProfiles", "Name");
@@ -95,7 +98,9 @@ namespace NzbDrone.Core.Statistics
                 AlbumTypeStatistics = MapAlbumTypeStatistics(albums),
                 SecondaryTypeStatistics = MapSecondaryTypeStatistics(albums),
                 DecadeStatistics = MapDecadeStatistics(albums, filesByAlbum),
-                GenreStatistics = MapGenreStatistics(albums, filesByAlbum)
+                GenreStatistics = MapGenreStatistics(albums, filesByAlbum),
+                LargestArtistStatistics = MapLargestArtistStatistics(artists, filesByArtist),
+                MediaFormatStatistics = MapMediaFormatStatistics(albums, releaseMedia)
             };
         }
 
@@ -230,6 +235,57 @@ namespace NzbDrone.Core.Statistics
                 })
                 .OrderByDescending(s => s.AlbumCount)
                 .ThenBy(s => s.Genre, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private static List<LargestArtistStatistics> MapLargestArtistStatistics(List<ArtistRow> artists, Dictionary<int, TrackFileCounts> filesByArtist)
+        {
+            return artists
+                .Select(a => (Artist: a, Files: filesByArtist.GetValueOrDefault(a.Id)))
+                .Where(e => e.Files?.TrackFileCount > 0)
+                .OrderByDescending(e => e.Files.SizeOnDisk)
+                .ThenBy(e => e.Artist.Name, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(e => e.Artist.Id)
+                .Take(LargestArtistCount)
+                .Select(e => new LargestArtistStatistics
+                {
+                    ArtistId = e.Artist.Id,
+                    ArtistName = e.Artist.Name,
+                    TrackFileCount = e.Files.TrackFileCount,
+                    SizeOnDisk = e.Files.SizeOnDisk
+                })
+                .ToList();
+        }
+
+        // An album counts under each format of its release, so the bars can add up to more than the album count.
+        // No file or size totals: files belong to one disc, not to every format on the release.
+        private static List<MediaFormatStatistics> MapMediaFormatStatistics(List<AlbumRow> albums, List<ReleaseMediaRow> releases)
+        {
+            var formatsByAlbum = releases
+                .GroupBy(r => r.AlbumId)
+                .ToDictionary(g => g.Key, g => g
+                    .SelectMany(r => r.Media ?? new List<Medium>())
+                    .Select(m => m.Format)
+
+                    // "Unknown" is what SkyHookProxy.MapRelease stores for a release without media (DistanceCalculator reads it too)
+                    .Where(f => f.IsNotNullOrWhiteSpace() && f != "Unknown")
+                    .Distinct()
+                    .ToList());
+
+            return albums
+                .SelectMany(a =>
+                {
+                    var formats = formatsByAlbum.GetValueOrDefault(a.Id);
+
+                    return formats?.Count > 0
+                        ? formats.Select(f => (Format: f, AlbumId: a.Id))
+                        : new[] { (Format: (string)null, AlbumId: a.Id) };
+                })
+                .GroupBy(e => e.Format)
+                .Select(g => new MediaFormatStatistics { MediaFormat = g.Key, AlbumCount = g.Count() })
+                .OrderByDescending(s => s.AlbumCount)
+                .ThenBy(s => s.MediaFormat == null)
+                .ThenBy(s => s.MediaFormat, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
 
@@ -453,7 +509,8 @@ namespace NzbDrone.Core.Statistics
         private SqlBuilder ArtistRowsBuilder(ArtistFilter artistFilter)
         {
             var builder = new SqlBuilder(_database.DatabaseType)
-                .Select(@"""Artists"".""Id"", ""Artists"".""QualityProfileId"", ""Artists"".""MetadataProfileId"", ""Artists"".""Tags""");
+                .Select(@"""Artists"".""Id"", ""ArtistMetadata"".""Name"", ""Artists"".""QualityProfileId"", ""Artists"".""MetadataProfileId"", ""Artists"".""Tags""")
+                .Join<Artist, ArtistMetadata>((a, m) => a.ArtistMetadataId == m.Id);
 
             return ApplyArtistFilter(builder, artistFilter);
         }
@@ -463,6 +520,18 @@ namespace NzbDrone.Core.Statistics
             var builder = new SqlBuilder(_database.DatabaseType)
                 .Select(@"""Albums"".""Id"", ""Artists"".""Id"" AS ArtistId, ""Albums"".""AlbumType"", ""Albums"".""SecondaryTypes"", ""Albums"".""ReleaseDate"", ""Albums"".""Genres""")
                 .Join<Album, Artist>((album, artist) => album.ArtistMetadataId == artist.ArtistMetadataId);
+
+            return ApplyArtistFilter(builder, artistFilter);
+        }
+
+        // Its own query, not a join in AlbumRowsBuilder, so an album with two monitored releases isn't counted twice elsewhere
+        private SqlBuilder ReleaseMediaBuilder(ArtistFilter artistFilter)
+        {
+            var builder = new SqlBuilder(_database.DatabaseType)
+                .Select(@"""AlbumReleases"".""AlbumId"", ""AlbumReleases"".""Media""")
+                .Join<AlbumRelease, Album>((r, a) => r.AlbumId == a.Id)
+                .Join<Album, Artist>((album, artist) => album.ArtistMetadataId == artist.ArtistMetadataId)
+                .Where<AlbumRelease>(r => r.Monitored == true);
 
             return ApplyArtistFilter(builder, artistFilter);
         }
@@ -524,6 +593,7 @@ namespace NzbDrone.Core.Statistics
         private class ArtistRow
         {
             public int Id { get; set; }
+            public string Name { get; set; }
             public int QualityProfileId { get; set; }
             public int MetadataProfileId { get; set; }
             public HashSet<int> Tags { get; set; }
@@ -537,6 +607,12 @@ namespace NzbDrone.Core.Statistics
             public List<SecondaryAlbumType> SecondaryTypes { get; set; }
             public DateTime? ReleaseDate { get; set; }
             public List<string> Genres { get; set; }
+        }
+
+        private class ReleaseMediaRow
+        {
+            public int AlbumId { get; set; }
+            public List<Medium> Media { get; set; }
         }
     }
 }

@@ -29,5 +29,7 @@ namespace NzbDrone.Core.Statistics
         public List<SecondaryTypeStatistics> SecondaryTypeStatistics { get; set; }
         public List<DecadeStatistics> DecadeStatistics { get; set; }
         public List<GenreStatistics> GenreStatistics { get; set; }
+        public List<LargestArtistStatistics> LargestArtistStatistics { get; set; }
+        public List<MediaFormatStatistics> MediaFormatStatistics { get; set; }
     }
 }

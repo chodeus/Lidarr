@@ -27,6 +27,8 @@ export interface BarChartItem {
 interface BarChartProps {
   title: string;
   items: BarChartItem[];
+  formatValue?: (value: number) => string;
+  stepSize?: number;
 }
 
 // Chart.js's defaults, set on the label axis because fitAxisLabel counts on them
@@ -75,7 +77,7 @@ function standLabelsUpright(axis: Scale) {
   }
 }
 
-function BarChart({ title, items }: BarChartProps) {
+function BarChart({ title, items, formatValue, stepSize }: BarChartProps) {
   const colors = useChartColors();
 
   const data = useMemo(() => {
@@ -115,6 +117,13 @@ function BarChart({ title, items }: BarChartProps) {
           ticks: {
             precision: 0,
             color: colors.text,
+            stepSize,
+            ...(formatValue
+              ? {
+                  callback: (value: number | string) =>
+                    formatValue(Number(value)),
+                }
+              : {}),
           },
           grid: {
             color: colors.grid,
@@ -128,7 +137,11 @@ function BarChart({ title, items }: BarChartProps) {
         tooltip: {
           callbacks: {
             label: (context: TooltipItem<'bar'>) => {
-              return ` ${(context.parsed.y ?? 0).toLocaleString()}`;
+              const value = context.parsed.y ?? 0;
+
+              return ` ${
+                formatValue ? formatValue(value) : value.toLocaleString()
+              }`;
             },
             afterBody: (contexts: TooltipItem<'bar'>[]) => {
               const index = contexts[0]?.dataIndex ?? 0;
@@ -139,14 +152,14 @@ function BarChart({ title, items }: BarChartProps) {
         },
       },
     };
-  }, [colors, items]);
+  }, [colors, formatValue, items, stepSize]);
 
   return (
     <ChartContainer title={title}>
       <Bar
         data={data}
         options={options}
-        aria-label={getChartAriaLabel(title, items)}
+        aria-label={getChartAriaLabel(title, items, formatValue)}
       />
     </ChartContainer>
   );

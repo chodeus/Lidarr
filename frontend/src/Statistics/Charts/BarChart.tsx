@@ -52,8 +52,10 @@ function fitAxisLabel(
   const flatRoom = column - FLAT_LABEL_GAP;
   const uprightRoom = this.maxHeight - TICK_LENGTH - TICK_PADDING * 2;
 
-  // Chart.js skips labels once they are thicker than their column, and each upright line adds a line's thickness
-  const maxLines = column >= 2 * font.lineHeight + AUTO_SKIP_PADDING ? 2 : 1;
+  // Upright labels make Chart.js narrow the axis by up to their thickness and padding, and two lines need the skip gap left in each column
+  const twoLines = 2 * font.lineHeight;
+  const drawnColumn = (this.maxWidth - twoLines - TICK_PADDING) / ticks.length;
+  const maxLines = drawnColumn >= twoLines + AUTO_SKIP_PADDING ? 2 : 1;
 
   ctx.save();
   ctx.font = font.string;
